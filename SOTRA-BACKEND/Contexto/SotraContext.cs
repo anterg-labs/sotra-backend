@@ -1,0 +1,512 @@
+﻿using System;
+using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
+using SOTRA_BACKEND.Modelos;
+using Microsoft.Extensions.Configuration;
+
+namespace SOTRA_BACKEND.Contexto;
+
+public partial class SotraContext : DbContext
+{
+    public SotraContext()
+    {
+    }
+
+    public SotraContext(DbContextOptions<SotraContext> options)
+        : base(options)
+    {
+    }
+
+    public virtual DbSet<Activo> Activos { get; set; }
+
+    public virtual DbSet<Administrador> Administradors { get; set; }
+
+    public virtual DbSet<Cliente> Clientes { get; set; }
+
+    public virtual DbSet<EstadoOt> EstadoOts { get; set; }
+
+    public virtual DbSet<Gerente> Gerentes { get; set; }
+
+    public virtual DbSet<HistorialEstadoOt> HistorialEstadoOts { get; set; }
+
+    public virtual DbSet<JefeMantenimiento> JefeMantenimientos { get; set; }
+
+    public virtual DbSet<Maquina> Maquinas { get; set; }
+
+    public virtual DbSet<ModeloMaquina> ModeloMaquinas { get; set; }
+
+    public virtual DbSet<MotivoEstadoOt> MotivoEstadoOts { get; set; }
+
+    public virtual DbSet<MovimientoStock> MovimientoStocks { get; set; }
+
+    public virtual DbSet<OrdenTrabajo> OrdenTrabajos { get; set; }
+
+    public virtual DbSet<OtRepuesto> OtRepuestos { get; set; }
+
+    public virtual DbSet<Panolero> Panoleros { get; set; }
+
+    public virtual DbSet<Repuesto> Repuestos { get; set; }
+
+    public virtual DbSet<Tecnico> Tecnicos { get; set; }
+
+    public virtual DbSet<TipoMaquina> TipoMaquinas { get; set; }
+
+    public virtual DbSet<Usuario> Usuarios { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddUserSecrets<SotraContext>()
+                .Build();
+
+            var connectionString =
+                configuration.GetConnectionString("SotraConnection");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "No se encontró la cadena de conexión 'SotraConnection' en User Secrets.");
+            }
+
+            optionsBuilder.UseNpgsql(connectionString);
+        }
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Activo>(entity =>
+        {
+            entity.HasKey(e => e.IdActivo).HasName("PK_ACTIVO");
+
+            entity.ToTable("activo", "sotra-production");
+
+            entity.HasIndex(e => e.NumSerie, "UK_NUM_SERIE_ACTIVO").IsUnique();
+
+            entity.Property(e => e.IdActivo)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ACTIVO_ID\"'::regclass)")
+                .HasColumnName("id_activo");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.IdCliente).HasColumnName("id_cliente");
+            entity.Property(e => e.IdMaquina).HasColumnName("id_maquina");
+            entity.Property(e => e.NumSerie)
+                .HasMaxLength(100)
+                .HasColumnName("num_serie");
+
+            entity.HasOne(d => d.IdClienteNavigation).WithMany(p => p.Activos)
+                .HasForeignKey(d => d.IdCliente)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CLIENTE_ACTIVO");
+
+            entity.HasOne(d => d.IdMaquinaNavigation).WithMany(p => p.Activos)
+                .HasForeignKey(d => d.IdMaquina)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_MAQUINA_ACTIVO");
+        });
+
+        modelBuilder.Entity<Administrador>(entity =>
+        {
+            entity.HasKey(e => e.IdAdministrador).HasName("PK_ADMINISTRADOR");
+
+            entity.ToTable("administrador", "sotra-production");
+
+            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_ADMINISTRADOR").IsUnique();
+
+            entity.Property(e => e.IdAdministrador)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ADMINISTRADOR_ID\"'::regclass)")
+                .HasColumnName("id_administrador");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Administrador)
+                .HasForeignKey<Administrador>(d => d.IdUsuario)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_USUARIO_ADMINISTRADOR");
+        });
+
+        modelBuilder.Entity<Cliente>(entity =>
+        {
+            entity.HasKey(e => e.IdCliente).HasName("PK_CLIENTE");
+
+            entity.ToTable("cliente", "sotra-production");
+
+            entity.HasIndex(e => e.RazonSocial, "UK_RAZON_SOCIAL_CLIENTE").IsUnique();
+
+            entity.Property(e => e.IdCliente)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_CLIENTE_ID\"'::regclass)")
+                .HasColumnName("id_cliente");
+            entity.Property(e => e.Correo)
+                .HasMaxLength(254)
+                .HasColumnName("correo");
+            entity.Property(e => e.Direccion)
+                .HasMaxLength(255)
+                .HasColumnName("direccion");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(120)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Observaciones).HasColumnName("observaciones");
+            entity.Property(e => e.RazonSocial)
+                .HasMaxLength(160)
+                .HasColumnName("razon_social");
+            entity.Property(e => e.Telefono)
+                .HasMaxLength(30)
+                .HasColumnName("telefono");
+        });
+
+        modelBuilder.Entity<EstadoOt>(entity =>
+        {
+            entity.HasKey(e => e.IdEstadoOt).HasName("PK_ESTADO_OT");
+
+            entity.ToTable("estado_ot", "sotra-production");
+
+            entity.HasIndex(e => e.Nombre, "UK_NOMBRE_ESTADO_OT").IsUnique();
+
+            entity.Property(e => e.IdEstadoOt)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ESTADO_OT_ID\"'::regclass)")
+                .HasColumnName("id_estado_ot");
+            entity.Property(e => e.Activo).HasColumnName("activo");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(60)
+                .HasColumnName("nombre");
+        });
+
+        modelBuilder.Entity<Gerente>(entity =>
+        {
+            entity.HasKey(e => e.IdGerente).HasName("PK_GERENTE");
+
+            entity.ToTable("gerente", "sotra-production");
+
+            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_GERENTE").IsUnique();
+
+            entity.Property(e => e.IdGerente)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_GERENTE_ID\"'::regclass)")
+                .HasColumnName("id_gerente");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Gerente)
+                .HasForeignKey<Gerente>(d => d.IdUsuario)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_USUARIO_GERENTE");
+        });
+
+        modelBuilder.Entity<HistorialEstadoOt>(entity =>
+        {
+            entity.HasKey(e => e.IdHEstadoOt).HasName("PK_HISTORIAL_ESTADO_OT");
+
+            entity.ToTable("historial_estado_ot", "sotra-production");
+
+            entity.Property(e => e.IdHEstadoOt)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_HISTORIAL_ESTADO_OT_ID\"'::regclass)")
+                .HasColumnName("id_h_estado_ot");
+            entity.Property(e => e.FechaHora).HasColumnName("fecha_hora");
+            entity.Property(e => e.IdEstadoOt).HasColumnName("id_estado_ot");
+            entity.Property(e => e.IdMotivoEs).HasColumnName("id_motivo_es");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.Observacion).HasColumnName("observacion");
+
+            entity.HasOne(d => d.IdEstadoOtNavigation).WithMany(p => p.HistorialEstadoOts)
+                .HasForeignKey(d => d.IdEstadoOt)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ESTADO_OT_HISTORIAL_ESTADO_OT");
+
+            entity.HasOne(d => d.IdMotivoEsNavigation).WithMany(p => p.HistorialEstadoOts)
+                .HasForeignKey(d => d.IdMotivoEs)
+                .HasConstraintName("FK_MOTIVO_ESTADO_OT_HISTORIAL_ESTADO_OT");
+
+            entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.HistorialEstadoOts)
+                .HasForeignKey(d => d.IdOrden)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ORDEN_TRABAJO_HISTORIAL_ESTADO_OT");
+        });
+
+        modelBuilder.Entity<JefeMantenimiento>(entity =>
+        {
+            entity.HasKey(e => e.IdJefeMantenimiento).HasName("PK_JEFE_MANTENIMIENTO");
+
+            entity.ToTable("jefe_mantenimiento", "sotra-production");
+
+            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_JEFE_MANTENIMIENTO").IsUnique();
+
+            entity.Property(e => e.IdJefeMantenimiento)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_JEFE_MANTENIMIENTO_ID\"'::regclass)")
+                .HasColumnName("id_jefe_mantenimiento");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.JefeMantenimiento)
+                .HasForeignKey<JefeMantenimiento>(d => d.IdUsuario)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_USUARIO_JEFE_MANTENIMIENTO");
+        });
+
+        modelBuilder.Entity<Maquina>(entity =>
+        {
+            entity.HasKey(e => e.IdMaquina).HasName("PK_MAQUINA");
+
+            entity.ToTable("maquina", "sotra-production");
+
+            entity.Property(e => e.IdMaquina)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MAQUINA_ID\"'::regclass)")
+                .HasColumnName("id_maquina");
+            entity.Property(e => e.Anio).HasColumnName("anio");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.IdModeloMaquina).HasColumnName("id_modelo_maquina");
+            entity.Property(e => e.IdTipoMaquina).HasColumnName("id_tipo_maquina");
+            entity.Property(e => e.Marca)
+                .HasMaxLength(100)
+                .HasColumnName("marca");
+
+            entity.HasOne(d => d.IdModeloMaquinaNavigation).WithMany(p => p.Maquinas)
+                .HasForeignKey(d => d.IdModeloMaquina)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_MODELO_MAQUINA_MAQUINA");
+
+            entity.HasOne(d => d.IdTipoMaquinaNavigation).WithMany(p => p.Maquinas)
+                .HasForeignKey(d => d.IdTipoMaquina)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TIPO_MAQUINA_MAQUINA");
+        });
+
+        modelBuilder.Entity<ModeloMaquina>(entity =>
+        {
+            entity.HasKey(e => e.IdModeloMaquina).HasName("PK_MODELO_MAQUINA");
+
+            entity.ToTable("modelo_maquina", "sotra-production");
+
+            entity.Property(e => e.IdModeloMaquina)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MODELO_MAQUINA_ID\"'::regclass)")
+                .HasColumnName("id_modelo_maquina");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(60)
+                .HasColumnName("nombre");
+        });
+
+        modelBuilder.Entity<MotivoEstadoOt>(entity =>
+        {
+            entity.HasKey(e => e.IdMotivoEs).HasName("PK_MOTIVO_ESTADO_OT");
+
+            entity.ToTable("motivo_estado_ot", "sotra-production");
+
+            entity.Property(e => e.IdMotivoEs)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MOTIVO_ESTADO_OT_ID\"'::regclass)")
+                .HasColumnName("id_motivo_es");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+        });
+
+        modelBuilder.Entity<MovimientoStock>(entity =>
+        {
+            entity.HasKey(e => e.IdMovimiento).HasName("PK_MOVIMIENTO_STOCK");
+
+            entity.ToTable("movimiento_stock", "sotra-production");
+
+            entity.Property(e => e.IdMovimiento)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MOVIMIENTO_STOCK_ID\"'::regclass)")
+                .HasColumnName("id_movimiento");
+            entity.Property(e => e.Cantidad)
+                .HasPrecision(4, 2)
+                .HasColumnName("cantidad");
+            entity.Property(e => e.Estado)
+                .HasMaxLength(30)
+                .HasColumnName("estado");
+            entity.Property(e => e.Fecha).HasColumnName("fecha");
+            entity.Property(e => e.IdPanolero).HasColumnName("id_panolero");
+            entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
+
+            entity.HasOne(d => d.IdPanoleroNavigation).WithMany(p => p.MovimientoStocks)
+                .HasForeignKey(d => d.IdPanolero)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PANOLERO_MOVIMIENTO_STOCK");
+
+            entity.HasOne(d => d.IdRepuestoNavigation).WithMany(p => p.MovimientoStocks)
+                .HasForeignKey(d => d.IdRepuesto)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_REPUESTO_MOVIMIENTO_STOCK");
+        });
+
+        modelBuilder.Entity<OrdenTrabajo>(entity =>
+        {
+            entity.HasKey(e => e.IdOrden).HasName("PK_ORDEN_TRABAJO");
+
+            entity.ToTable("orden_trabajo", "sotra-production");
+
+            entity.Property(e => e.IdOrden)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ORDEN_TRABAJO_ID\"'::regclass)")
+                .HasColumnName("id_orden");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.FechaCierre).HasColumnName("fecha_cierre");
+            entity.Property(e => e.FechaCreada).HasColumnName("fecha_creada");
+            entity.Property(e => e.FechaInicio).HasColumnName("fecha_inicio");
+            entity.Property(e => e.IdActivo).HasColumnName("id_activo");
+            entity.Property(e => e.IdCliente).HasColumnName("id_cliente");
+            entity.Property(e => e.IdJefeMantenimiento).HasColumnName("id_jefe_mantenimiento");
+            entity.Property(e => e.IdTecnico).HasColumnName("id_tecnico");
+            entity.Property(e => e.Resultado).HasColumnName("resultado");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(60)
+                .HasColumnName("tipo");
+
+            entity.HasOne(d => d.IdActivoNavigation).WithMany(p => p.OrdenTrabajos)
+                .HasForeignKey(d => d.IdActivo)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ACTIVO_ORDEN_TRABAJO");
+
+            entity.HasOne(d => d.IdClienteNavigation).WithMany(p => p.OrdenTrabajos)
+                .HasForeignKey(d => d.IdCliente)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CLIENTE_ORDEN_TRABAJO");
+
+            entity.HasOne(d => d.IdJefeMantenimientoNavigation).WithMany(p => p.OrdenTrabajos)
+                .HasForeignKey(d => d.IdJefeMantenimiento)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_JEFE_MANTENIMIENTO_ORDEN_TRABAJO");
+
+            entity.HasOne(d => d.IdTecnicoNavigation).WithMany(p => p.OrdenTrabajos)
+                .HasForeignKey(d => d.IdTecnico)
+                .HasConstraintName("FK_TECNICO_ORDEN_TRABAJO");
+        });
+
+        modelBuilder.Entity<OtRepuesto>(entity =>
+        {
+            entity.HasKey(e => e.IdOtRepuesto).HasName("PK_OT_REPUESTO");
+
+            entity.ToTable("ot_repuesto", "sotra-production");
+
+            entity.Property(e => e.IdOtRepuesto)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_OT_REPUESTO_ID\"'::regclass)")
+                .HasColumnName("id_ot_repuesto");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
+
+            entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.OtRepuestos)
+                .HasForeignKey(d => d.IdOrden)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ORDEN_TRABAJO_OT_REPUESTO");
+
+            entity.HasOne(d => d.IdRepuestoNavigation).WithMany(p => p.OtRepuestos)
+                .HasForeignKey(d => d.IdRepuesto)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_REPUESTO_OT_REPUESTO");
+        });
+
+        modelBuilder.Entity<Panolero>(entity =>
+        {
+            entity.HasKey(e => e.IdPanolero).HasName("PK_PANOLERO");
+
+            entity.ToTable("panolero", "sotra-production");
+
+            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_PANOLERO").IsUnique();
+
+            entity.Property(e => e.IdPanolero)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_PANOLERO_ID\"'::regclass)")
+                .HasColumnName("id_panolero");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Panolero)
+                .HasForeignKey<Panolero>(d => d.IdUsuario)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_USUARIO_PANOLERO");
+        });
+
+        modelBuilder.Entity<Repuesto>(entity =>
+        {
+            entity.HasKey(e => e.IdRepuesto).HasName("PK_REPUESTO");
+
+            entity.ToTable("repuesto", "sotra-production");
+
+            entity.HasIndex(e => e.Codigo, "UK_CODIGO_REPUESTO").IsUnique();
+
+            entity.Property(e => e.IdRepuesto)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_REPUESTO_ID\"'::regclass)")
+                .HasColumnName("id_repuesto");
+            entity.Property(e => e.CantMin).HasColumnName("cant_min");
+            entity.Property(e => e.Codigo)
+                .HasMaxLength(50)
+                .HasColumnName("codigo");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Estado)
+                .HasMaxLength(30)
+                .HasColumnName("estado");
+            entity.Property(e => e.Marca)
+                .HasMaxLength(100)
+                .HasColumnName("marca");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(120)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Ubicacion)
+                .HasMaxLength(120)
+                .HasColumnName("ubicacion");
+            entity.Property(e => e.Unidad)
+                .HasMaxLength(30)
+                .HasColumnName("unidad");
+        });
+
+        modelBuilder.Entity<Tecnico>(entity =>
+        {
+            entity.HasKey(e => e.IdTecnico).HasName("PK_TECNICO");
+
+            entity.ToTable("tecnico", "sotra-production");
+
+            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_TECNICO").IsUnique();
+
+            entity.Property(e => e.IdTecnico)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_TECNICO_ID\"'::regclass)")
+                .HasColumnName("id_tecnico");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Tecnico)
+                .HasForeignKey<Tecnico>(d => d.IdUsuario)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_USUARIO_TECNICO");
+        });
+
+        modelBuilder.Entity<TipoMaquina>(entity =>
+        {
+            entity.HasKey(e => e.IdTipoMaquina).HasName("PK_TIPO_MAQUINA");
+
+            entity.ToTable("tipo_maquina", "sotra-production");
+
+            entity.Property(e => e.IdTipoMaquina)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_TIPO_MAQUINA_ID\"'::regclass)")
+                .HasColumnName("id_tipo_maquina");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(60)
+                .HasColumnName("nombre");
+        });
+
+        modelBuilder.Entity<Usuario>(entity =>
+        {
+            entity.HasKey(e => e.IdUsuario).HasName("PK_USUARIO");
+
+            entity.ToTable("usuario", "sotra-production");
+
+            entity.HasIndex(e => e.Mail, "UK_MAIL_USUARIO").IsUnique();
+
+            entity.Property(e => e.IdUsuario)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_USUARIO_ID\"'::regclass)")
+                .HasColumnName("id_usuario");
+            entity.Property(e => e.Apellido)
+                .HasMaxLength(100)
+                .HasColumnName("apellido");
+            entity.Property(e => e.Contrasena)
+                .HasMaxLength(255)
+                .HasColumnName("contrasena");
+            entity.Property(e => e.Estado)
+                .HasMaxLength(30)
+                .HasColumnName("estado");
+            entity.Property(e => e.FechaIngreso).HasColumnName("fecha_ingreso");
+            entity.Property(e => e.Mail)
+                .HasMaxLength(254)
+                .HasColumnName("mail");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(100)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Telefono)
+                .HasMaxLength(30)
+                .HasColumnName("telefono");
+        });
+
+        OnModelCreatingPartial(modelBuilder);
+    }
+
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+}
