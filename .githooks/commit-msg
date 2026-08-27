@@ -1,0 +1,15 @@
+#!/bin/sh
+
+commit_msg_file="$1"
+commit_msg=$(cat "$commit_msg_file")
+
+pattern='^(feat|fix|build|chore|ci|docs|style|refactor|perf|test)(\([a-zA-Z0-9._-]+\))?: .+'
+
+echo "$commit_msg" | grep -Eq "$pattern"
+
+if [ $? -ne 0 ]; then
+  echo "Mensaje de commit inválido."
+  echo "Formato esperado: tipo(scope opcional): descripción"
+  echo "Ejemplo: feat(clientes): agregar registro de clientes"
+  exit 1
+fi
