@@ -17,7 +17,7 @@ public partial class Usuario
 
     public string Contrasena { get; set; } = null!;
 
-    public string Estado { get; set; } = null!;
+    public bool Estado { get; set; }
 
     public DateTime FechaIngreso { get; set; }
 
@@ -30,4 +30,9 @@ public partial class Usuario
     public virtual Panolero? Panolero { get; set; }
 
     public virtual Tecnico? Tecnico { get; set; }
+
+    public override string ToString()
+    {
+        return "Usuario: ID: " + IdUsuario + " - NOMBRE: " + Nombre + " - APELLIDO: " + Apellido + " - MAIL: " + Mail + " - TELEFONO: " + Telefono + " - ESTADO: " + Estado + " - FECHA_INGRESO: " + FechaIngreso;
+    }
 }

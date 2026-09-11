@@ -10,4 +10,9 @@ public partial class MotivoEstadoOt
     public string? Descripcion { get; set; }
 
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
+
+    public override string ToString()
+    {
+        return "MotivoEstadoOt: ID: " + IdMotivoEs + " - DESCRIPCION: " + Descripcion;
+    }
 }

@@ -11,9 +11,9 @@ public partial class Repuesto
 
     public string? Descripcion { get; set; }
 
-    public string Unidad { get; set; } = null!;
+    public int Cantidad { get; set; }
 
-    public string Estado { get; set; } = null!;
+    public bool Estado { get; set; }
 
     public string? Ubicacion { get; set; }
 
@@ -26,4 +26,9 @@ public partial class Repuesto
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 
     public virtual ICollection<OtRepuesto> OtRepuestos { get; set; } = new List<OtRepuesto>();
+
+    public override string ToString()
+    {
+        return "Repuesto: ID: " + IdRepuesto + " - CODIGO: " + Codigo + " - NOMBRE: " + Nombre + " - DESCRIPCION: " + Descripcion + " - CANTIDAD: " + Cantidad + " - ESTADO: " + Estado + " - UBICACION: " + Ubicacion + " - MARCA: " + Marca + " - CANT_MIN: " + CantMin;
+    }
 }

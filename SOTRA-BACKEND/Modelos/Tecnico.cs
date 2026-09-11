@@ -12,4 +12,9 @@ public partial class Tecnico
     public virtual Usuario IdUsuarioNavigation { get; set; } = null!;
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();
+
+    public override string ToString()
+    {
+        return "Tecnico: ID: " + IdTecnico + " - ID_USUARIO: " + IdUsuario;
+    }
 }

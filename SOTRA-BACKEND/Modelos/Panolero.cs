@@ -12,4 +12,9 @@ public partial class Panolero
     public virtual Usuario IdUsuarioNavigation { get; set; } = null!;
 
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
+
+    public override string ToString()
+    {
+        return "Panolero: ID: " + IdPanolero + " - ID_USUARIO: " + IdUsuario;
+    }
 }

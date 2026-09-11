@@ -12,4 +12,9 @@ public partial class JefeMantenimiento
     public virtual Usuario IdUsuarioNavigation { get; set; } = null!;
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();
+
+    public override string ToString()
+    {
+        return "JefeMantenimiento: ID: " + IdJefeMantenimiento + " - ID_USUARIO: " + IdUsuario;
+    }
 }

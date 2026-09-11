@@ -22,4 +22,9 @@ public partial class HistorialEstadoOt
     public virtual MotivoEstadoOt? IdMotivoEsNavigation { get; set; }
 
     public virtual OrdenTrabajo IdOrdenNavigation { get; set; } = null!;
+
+    public override string ToString()
+    {
+        return "HistorialEstadoOt: ID: " + IdHEstadoOt + " - ID_ORDEN: " + IdOrden + " - ID_MOTIVO_ES: " + IdMotivoEs + " - ID_ESTADO_OT: " + IdEstadoOt + " - FECHA_HORA: " + FechaHora + " - OBSERVACION: " + Observacion;
+    }
 }
