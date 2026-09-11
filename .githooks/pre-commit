@@ -1,0 +1,4 @@
+#!/bin/sh
+
+dotnet format --verify-no-changes
+gitleaks protect --staged
