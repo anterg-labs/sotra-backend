@@ -67,8 +67,7 @@ namespace SOTRA_BACKEND.Operaciones
             usuarioExistente.Estado = usuario.Estado;
             usuarioExistente.FechaIngreso = usuario.FechaIngreso;
 
-            LimpiarRoles(usuarioExistente);
-            AsignarRol(usuarioExistente.IdUsuario, tipoRol);
+            ActualizarRol(usuarioExistente, tipoRol);
 
             contexto.SaveChanges();
             return true;
@@ -88,29 +87,49 @@ namespace SOTRA_BACKEND.Operaciones
             return true;
         }
 
-        private void LimpiarRoles(Usuario usuario)
+        private void ActualizarRol(Usuario usuario, TipoRolUsuario tipoRol)
         {
-            if (usuario.Administrador is not null)
+            // Conservar la identidad del rol mantiene sus órdenes y movimientos asociados.
+            bool tieneRol = tipoRol switch
+            {
+                TipoRolUsuario.Administrador => usuario.Administrador is not null,
+                TipoRolUsuario.Gerente => usuario.Gerente is not null,
+                TipoRolUsuario.JefeMantenimiento => usuario.JefeMantenimiento is not null,
+                TipoRolUsuario.Panolero => usuario.Panolero is not null,
+                TipoRolUsuario.Tecnico => usuario.Tecnico is not null,
+                _ => true
+            };
+
+            LimpiarRoles(usuario, tipoRol);
+            if (!tieneRol)
+            {
+                AsignarRol(usuario.IdUsuario, tipoRol);
+            }
+        }
+
+        private void LimpiarRoles(Usuario usuario, TipoRolUsuario conservar = TipoRolUsuario.Ninguno)
+        {
+            if (usuario.Administrador is not null && conservar != TipoRolUsuario.Administrador)
             {
                 contexto.Administradors.Remove(usuario.Administrador);
             }
 
-            if (usuario.Gerente is not null)
+            if (usuario.Gerente is not null && conservar != TipoRolUsuario.Gerente)
             {
                 contexto.Gerentes.Remove(usuario.Gerente);
             }
 
-            if (usuario.JefeMantenimiento is not null)
+            if (usuario.JefeMantenimiento is not null && conservar != TipoRolUsuario.JefeMantenimiento)
             {
                 contexto.JefeMantenimientos.Remove(usuario.JefeMantenimiento);
             }
 
-            if (usuario.Panolero is not null)
+            if (usuario.Panolero is not null && conservar != TipoRolUsuario.Panolero)
             {
                 contexto.Panoleros.Remove(usuario.Panolero);
             }
 
-            if (usuario.Tecnico is not null)
+            if (usuario.Tecnico is not null && conservar != TipoRolUsuario.Tecnico)
             {
                 contexto.Tecnicos.Remove(usuario.Tecnico);
             }
