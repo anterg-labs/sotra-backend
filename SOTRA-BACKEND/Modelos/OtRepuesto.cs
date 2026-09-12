@@ -14,9 +14,4 @@ public partial class OtRepuesto
     public virtual OrdenTrabajo IdOrdenNavigation { get; set; } = null!;
 
     public virtual Repuesto IdRepuestoNavigation { get; set; } = null!;
-
-    public override string ToString()
-    {
-        return "OtRepuesto: ID: " + IdOtRepuesto + " - ID_ORDEN: " + IdOrden + " - ID_REPUESTO: " + IdRepuesto;
-    }
 }

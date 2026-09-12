@@ -14,9 +14,4 @@ public partial class EstadoOt
     public bool Activo { get; set; }
 
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
-
-    public override string ToString()
-    {
-        return "EstadoOt: ID: " + IdEstadoOt + " - NOMBRE: " + Nombre + " - DESCRIPCION: " + Descripcion + " - ACTIVO: " + Activo;
-    }
 }

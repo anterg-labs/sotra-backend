@@ -110,6 +110,7 @@ static void MenuUsuario()
         Console.WriteLine("3. Insertar");
         Console.WriteLine("4. Actualizar");
         Console.WriteLine("5. Eliminar");
+        Console.WriteLine("6. Baja lógica (estado=false)");
         Console.WriteLine("0. Volver");
         Console.Write("Seleccione una opción: ");
 
@@ -135,6 +136,9 @@ static void MenuUsuario()
                 break;
             case 5:
                 testUsuario.Eliminar();
+                break;
+            case 6:
+                testUsuario.DarBajaLogica();
                 break;
             case 0:
                 break;

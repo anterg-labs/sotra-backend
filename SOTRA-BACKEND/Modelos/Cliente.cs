@@ -19,12 +19,9 @@ public partial class Cliente
 
     public string? Observaciones { get; set; }
 
+    public bool Estado { get; set; }
+
     public virtual ICollection<Activo> Activos { get; set; } = new List<Activo>();
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();
-
-    public override string ToString()
-    {
-        return "Cliente: ID: " + IdCliente + " - RAZON_SOCIAL: " + RazonSocial + " - NOMBRE: " + Nombre + " - CORREO: " + Correo + " - TELEFONO: " + Telefono + " - DIRECCION: " + Direccion + " - OBSERVACIONES: " + Observaciones;
-    }
 }

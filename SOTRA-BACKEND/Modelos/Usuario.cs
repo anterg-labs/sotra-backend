@@ -19,20 +19,21 @@ public partial class Usuario
 
     public bool Estado { get; set; }
 
-    public DateTime FechaIngreso { get; set; }
+    public TimeOnly FechaIngreso { get; set; }
 
-    public virtual Administrador? Administrador { get; set; }
+    public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 
-    public virtual Gerente? Gerente { get; set; }
+    public virtual ICollection<OrdenTrabajo> OrdenTrabajoIdUsuarioResponsableNavigations { get; set; } = new List<OrdenTrabajo>();
 
-    public virtual JefeMantenimiento? JefeMantenimiento { get; set; }
+    public virtual ICollection<OrdenTrabajo> OrdenTrabajoIdUsuarioTecnicoNavigations { get; set; } = new List<OrdenTrabajo>();
 
-    public virtual Panolero? Panolero { get; set; }
+    public virtual ICollection<Rol> IdRols { get; set; } = new List<Rol>();
 
-    public virtual Tecnico? Tecnico { get; set; }
-
+    //crea el metodo toString para mostrar el usuario en consola, pero solo quiero ver el id, el nombre y el apellido
     public override string ToString()
     {
-        return "Usuario: ID: " + IdUsuario + " - NOMBRE: " + Nombre + " - APELLIDO: " + Apellido + " - MAIL: " + Mail + " - TELEFONO: " + Telefono + " - ESTADO: " + Estado + " - FECHA_INGRESO: " + FechaIngreso;
+        return $"Id: {IdUsuario}, Nombre: {Nombre}, Apellido: {Apellido}";
     }
+
+
 }
