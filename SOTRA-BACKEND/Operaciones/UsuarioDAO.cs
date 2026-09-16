@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
+using SOTRA_BACKEND.Seguridad;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
 
@@ -6,7 +8,24 @@ namespace SOTRA_BACKEND.Operaciones
 {
     public class UsuarioDAO
     {
-        public SotraContext contexto = new SotraContext();
+        private readonly SotraContext contexto;
+
+        public UsuarioDAO() : this(new SotraContext())
+        {
+        }
+
+        public UsuarioDAO(SotraContext contexto)
+        {
+            this.contexto = contexto;
+        }
+
+        public Task<List<T>> ListarTodoAsync<T>(Expression<Func<Usuario, T>> proyeccion,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(proyeccion);
+            return contexto.Usuarios.AsNoTracking().OrderBy(u => u.IdUsuario)
+                .Select(proyeccion).ToListAsync(cancellationToken);
+        }
 
         public List<Usuario> listarTodo()
         {
@@ -26,69 +45,39 @@ namespace SOTRA_BACKEND.Operaciones
         {
             var idsRolNormalizados = NormalizarIdsRol(idsRol);
 
-            using var transaccion = contexto.Database.BeginTransaction();
-            try
-            {
-                contexto.Usuarios.Add(usuario);
-                contexto.SaveChanges();
-
-                if (idsRolNormalizados.Count > 0)
-                {
-                    var rolesValidos = ObtenerRolesValidos(idsRolNormalizados);
-                    foreach (var rol in rolesValidos)
-                    {
-                        usuario.IdRols.Add(rol);
-                    }
-                }
-
-                contexto.SaveChanges();
-                transaccion.Commit();
-
-                return usuario;
-            }
-            catch
-            {
-                transaccion.Rollback();
-                throw;
-            }
+            var rolesValidos = ObtenerRolesValidos(idsRolNormalizados);
+            var hash = Contrasenas.CrearHash(usuario.Contrasena);
+            usuario.IdRols = rolesValidos;
+            usuario.Contrasena = hash;
+            contexto.Usuarios.Add(usuario);
+            contexto.SaveChanges();
+            return usuario;
         }
 
-        public bool actualizarUsuario(Usuario usuario, IEnumerable<long>? idsRol)
+
+        public bool actualizarUsuario(Usuario usuario, IEnumerable<long>? idsRol, string? nuevaContrasena = null)
         {
             var idsRolNormalizados = NormalizarIdsRol(idsRol);
+            var usuarioExistente = contexto.Usuarios.Include(u => u.IdRols)
+                .FirstOrDefault(u => u.IdUsuario == usuario.IdUsuario);
+            if (usuarioExistente is null) return false;
 
-            using var transaccion = contexto.Database.BeginTransaction();
-            try
-            {
-                var usuarioExistente = contexto.Usuarios
-                    .Include(u => u.IdRols)
-                    .FirstOrDefault(u => u.IdUsuario == usuario.IdUsuario);
+            var rolesAAgregar = ObtenerRolesValidos(idsRolNormalizados
+                .Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList());
+            var hash = nuevaContrasena is null ? null : Contrasenas.CrearHash(nuevaContrasena);
+            usuarioExistente.Nombre = usuario.Nombre;
+            usuarioExistente.Apellido = usuario.Apellido;
+            usuarioExistente.Mail = usuario.Mail;
+            usuarioExistente.Telefono = usuario.Telefono;
+            if (hash is not null) usuarioExistente.Contrasena = hash;
+            usuarioExistente.Estado = usuario.Estado;
+            usuarioExistente.FechaIngreso = usuario.FechaIngreso;
 
-                if (usuarioExistente is null)
-                {
-                    transaccion.Rollback();
-                    return false;
-                }
-
-                usuarioExistente.Nombre = usuario.Nombre;
-                usuarioExistente.Apellido = usuario.Apellido;
-                usuarioExistente.Mail = usuario.Mail;
-                usuarioExistente.Telefono = usuario.Telefono;
-                usuarioExistente.Contrasena = usuario.Contrasena;
-                usuarioExistente.Estado = usuario.Estado;
-                usuarioExistente.FechaIngreso = usuario.FechaIngreso;
-
-                SincronizarRoles(usuarioExistente, idsRolNormalizados);
-
-                contexto.SaveChanges();
-                transaccion.Commit();
-                return true;
-            }
-            catch
-            {
-                transaccion.Rollback();
-                throw;
-            }
+            foreach (var rol in usuarioExistente.IdRols.Where(r => !idsRolNormalizados.Contains(r.IdRol)).ToList())
+                usuarioExistente.IdRols.Remove(rol);
+            foreach (var rol in rolesAAgregar) usuarioExistente.IdRols.Add(rol);
+            contexto.SaveChanges();
+            return true;
         }
 
         public bool darBajaLogicaUsuario(long id)
@@ -135,17 +124,10 @@ namespace SOTRA_BACKEND.Operaciones
                 return new List<long>();
             }
 
-            var ids = idsRol
-                .Where(id => id > 0)
-                .Distinct()
-                .ToList();
-
-            if (ids.Count != idsRol.Count(id => id > 0))
-            {
-                throw new ArgumentException("Se enviaron ids de rol inválidos.", nameof(idsRol));
-            }
-
-            return ids;
+            var ids = idsRol.ToList();
+            if (ids.Any(id => id <= 0))
+                throw new ArgumentException("Los ids de rol deben ser positivos.", nameof(idsRol));
+            return ids.Distinct().ToList();
         }
 
         private List<Rol> ObtenerRolesValidos(IReadOnlyCollection<long> idsRol)
@@ -169,35 +151,11 @@ namespace SOTRA_BACKEND.Operaciones
             var idsInactivos = rolesEncontrados.Where(r => !r.Activo).Select(r => r.IdRol).ToList();
             if (idsInactivos.Count > 0)
             {
-                throw new ArgumentException($"Los siguientes roles están inactivos: {string.Join(", ", idsInactivos)}", nameof(idsRol));
+                throw new ArgumentException($"Los siguientes roles est�n inactivos: {string.Join(", ", idsInactivos)}", nameof(idsRol));
             }
 
             return rolesEncontrados;
         }
 
-        private void SincronizarRoles(Usuario usuario, IReadOnlyCollection<long> idsRolFinales)
-        {
-            var rolesActuales = usuario.IdRols.Select(r => r.IdRol).ToHashSet();
-
-            var idsAEliminar = rolesActuales.Except(idsRolFinales).ToList();
-            if (idsAEliminar.Count > 0)
-            {
-                var relacionesAEliminar = usuario.IdRols.Where(r => idsAEliminar.Contains(r.IdRol)).ToList();
-                foreach (var rol in relacionesAEliminar)
-                {
-                    usuario.IdRols.Remove(rol);
-                }
-            }
-
-            var idsAAgregar = idsRolFinales.Except(rolesActuales).ToList();
-            if (idsAAgregar.Count > 0)
-            {
-                var rolesAAgregar = ObtenerRolesValidos(idsAAgregar);
-                foreach (var rol in rolesAAgregar)
-                {
-                    usuario.IdRols.Add(rol);
-                }
-            }
-        }
     }
 }

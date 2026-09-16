@@ -19,7 +19,7 @@ public partial class Usuario
 
     public bool Estado { get; set; }
 
-    public TimeOnly FechaIngreso { get; set; }
+    public DateOnly FechaIngreso { get; set; }
 
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 

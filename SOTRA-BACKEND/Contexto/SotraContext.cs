@@ -455,7 +455,9 @@ public partial class SotraContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("contrasena");
             entity.Property(e => e.Estado).HasColumnName("estado");
-            entity.Property(e => e.FechaIngreso).HasColumnName("fecha_ingreso");
+            entity.Property(e => e.FechaIngreso)
+                .HasColumnType("date")
+                .HasColumnName("fecha_ingreso");
             entity.Property(e => e.Mail)
                 .HasMaxLength(254)
                 .HasColumnName("mail");
