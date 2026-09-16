@@ -28,9 +28,4 @@ public partial class Activo
     public virtual ModeloMaquina IdModeloMaquinaNavigation { get; set; } = null!;
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();
-
-    public override string ToString()
-    {
-        return "Activo: ID: " + IdActivo + " - ID_CLIENTE: " + IdCliente + " - NUM_SERIE: " + NumSerie + " - DESC: " + Descripcion + " - ID_MODELO_MAQ: " + IdModeloMaquina + " - ANIO_FAB: " + AnioFabricacion + " - NOMBRE: " + Nombre + " - UBICACION: " + Ubicacion + " - ACTIVO: " + Activo1;
-    }
 }

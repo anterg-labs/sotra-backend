@@ -10,9 +10,4 @@ public partial class TipoMaquina
     public string Nombre { get; set; } = null!;
 
     public virtual ICollection<ModeloMaquina> ModeloMaquinas { get; set; } = new List<ModeloMaquina>();
-
-    public override string ToString()
-    {
-        return "TipoMaquina: ID: " + IdTipoMaquina + " - NOMBRE: " + Nombre;
-    }
 }

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
+using SOTRA_BACKEND.Seguridad;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
 
@@ -6,213 +8,154 @@ namespace SOTRA_BACKEND.Operaciones
 {
     public class UsuarioDAO
     {
-        public SotraContext contexto = new SotraContext();
+        private readonly SotraContext contexto;
+
+        public UsuarioDAO() : this(new SotraContext())
+        {
+        }
+
+        public UsuarioDAO(SotraContext contexto)
+        {
+            this.contexto = contexto;
+        }
+
+        public Task<List<T>> ListarTodoAsync<T>(Expression<Func<Usuario, T>> proyeccion,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(proyeccion);
+            return contexto.Usuarios.AsNoTracking().OrderBy(u => u.IdUsuario)
+                .Select(proyeccion).ToListAsync(cancellationToken);
+        }
 
         public List<Usuario> listarTodo()
         {
             return contexto.Usuarios
-                .Include(u => u.Administrador)
-                .Include(u => u.Gerente)
-                .Include(u => u.JefeMantenimiento)
-                .Include(u => u.Panolero)
-                .Include(u => u.Tecnico)
+                .Include(u => u.IdRols)
                 .ToList();
         }
 
         public Usuario? seleccionarUsuario(long id)
         {
             return contexto.Usuarios
-                .Include(u => u.Administrador)
-                .Include(u => u.Gerente)
-                .Include(u => u.JefeMantenimiento)
-                .Include(u => u.Panolero)
-                .Include(u => u.Tecnico)
+                .Include(u => u.IdRols)
                 .FirstOrDefault(u => u.IdUsuario == id);
         }
 
-        public Usuario insertarUsuario(Usuario usuario, string tipoUsuario)
+        public Usuario insertarUsuario(Usuario usuario, IEnumerable<long>? idsRol)
         {
-            if (!TryNormalizarTipoUsuario(tipoUsuario, out var tipoRol))
-            {
-                throw new ArgumentException("Tipo de usuario inválido.", nameof(tipoUsuario));
-            }
+            var idsRolNormalizados = NormalizarIdsRol(idsRol);
 
+            var rolesValidos = ObtenerRolesValidos(idsRolNormalizados);
+            var hash = Contrasenas.CrearHash(usuario.Contrasena);
+            usuario.IdRols = rolesValidos;
+            usuario.Contrasena = hash;
             contexto.Usuarios.Add(usuario);
             contexto.SaveChanges();
-
-            AsignarRol(usuario.IdUsuario, tipoRol);
-            contexto.SaveChanges();
-
             return usuario;
         }
 
-        public bool actualizarUsuario(Usuario usuario, string tipoUsuario)
+
+        public bool actualizarUsuario(Usuario usuario, IEnumerable<long>? idsRol, string? nuevaContrasena = null)
         {
-            var usuarioExistente = seleccionarUsuario(usuario.IdUsuario);
+            var idsRolNormalizados = NormalizarIdsRol(idsRol);
+            var usuarioExistente = contexto.Usuarios.Include(u => u.IdRols)
+                .FirstOrDefault(u => u.IdUsuario == usuario.IdUsuario);
+            if (usuarioExistente is null) return false;
+
+            var rolesAAgregar = ObtenerRolesValidos(idsRolNormalizados
+                .Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList());
+            var hash = nuevaContrasena is null ? null : Contrasenas.CrearHash(nuevaContrasena);
+            usuarioExistente.Nombre = usuario.Nombre;
+            usuarioExistente.Apellido = usuario.Apellido;
+            usuarioExistente.Mail = usuario.Mail;
+            usuarioExistente.Telefono = usuario.Telefono;
+            if (hash is not null) usuarioExistente.Contrasena = hash;
+            usuarioExistente.Estado = usuario.Estado;
+            usuarioExistente.FechaIngreso = usuario.FechaIngreso;
+
+            foreach (var rol in usuarioExistente.IdRols.Where(r => !idsRolNormalizados.Contains(r.IdRol)).ToList())
+                usuarioExistente.IdRols.Remove(rol);
+            foreach (var rol in rolesAAgregar) usuarioExistente.IdRols.Add(rol);
+            contexto.SaveChanges();
+            return true;
+        }
+
+        public bool darBajaLogicaUsuario(long id)
+        {
+            var usuarioExistente = contexto.Usuarios
+                .FirstOrDefault(u => u.IdUsuario == id);
+
             if (usuarioExistente is null)
             {
                 return false;
             }
 
-            if (!TryNormalizarTipoUsuario(tipoUsuario, out var tipoRol))
+            if (!usuarioExistente.Estado)
             {
-                throw new ArgumentException("Tipo de usuario inválido.", nameof(tipoUsuario));
+                return true;
             }
 
-            usuarioExistente.Nombre = usuario.Nombre;
-            usuarioExistente.Apellido = usuario.Apellido;
-            usuarioExistente.Mail = usuario.Mail;
-            usuarioExistente.Telefono = usuario.Telefono;
-            usuarioExistente.Contrasena = usuario.Contrasena;
-            usuarioExistente.Estado = usuario.Estado;
-            usuarioExistente.FechaIngreso = usuario.FechaIngreso;
-
-            ActualizarRol(usuarioExistente, tipoRol);
-
+            usuarioExistente.Estado = false;
             contexto.SaveChanges();
             return true;
         }
 
         public bool eliminarUsuario(long id)
         {
-            var usuarioExistente = seleccionarUsuario(id);
+            var usuarioExistente = contexto.Usuarios
+                .Include(u => u.IdRols)
+                .FirstOrDefault(u => u.IdUsuario == id);
+
             if (usuarioExistente is null)
             {
                 return false;
             }
 
-            LimpiarRoles(usuarioExistente);
+            usuarioExistente.IdRols.Clear();
             contexto.Usuarios.Remove(usuarioExistente);
             contexto.SaveChanges();
             return true;
         }
 
-        private void ActualizarRol(Usuario usuario, TipoRolUsuario tipoRol)
+        private static List<long> NormalizarIdsRol(IEnumerable<long>? idsRol)
         {
-            // Conservar la identidad del rol mantiene sus órdenes y movimientos asociados.
-            bool tieneRol = tipoRol switch
+            if (idsRol is null)
             {
-                TipoRolUsuario.Administrador => usuario.Administrador is not null,
-                TipoRolUsuario.Gerente => usuario.Gerente is not null,
-                TipoRolUsuario.JefeMantenimiento => usuario.JefeMantenimiento is not null,
-                TipoRolUsuario.Panolero => usuario.Panolero is not null,
-                TipoRolUsuario.Tecnico => usuario.Tecnico is not null,
-                _ => true
-            };
-
-            LimpiarRoles(usuario, tipoRol);
-            if (!tieneRol)
-            {
-                AsignarRol(usuario.IdUsuario, tipoRol);
+                return new List<long>();
             }
+
+            var ids = idsRol.ToList();
+            if (ids.Any(id => id <= 0))
+                throw new ArgumentException("Los ids de rol deben ser positivos.", nameof(idsRol));
+            return ids.Distinct().ToList();
         }
 
-        private void LimpiarRoles(Usuario usuario, TipoRolUsuario conservar = TipoRolUsuario.Ninguno)
+        private List<Rol> ObtenerRolesValidos(IReadOnlyCollection<long> idsRol)
         {
-            if (usuario.Administrador is not null && conservar != TipoRolUsuario.Administrador)
+            if (idsRol.Count == 0)
             {
-                contexto.Administradors.Remove(usuario.Administrador);
+                return new List<Rol>();
             }
 
-            if (usuario.Gerente is not null && conservar != TipoRolUsuario.Gerente)
+            var rolesEncontrados = contexto.Rols
+                .Where(r => idsRol.Contains(r.IdRol))
+                .ToList();
+
+            var idsEncontrados = rolesEncontrados.Select(r => r.IdRol).ToHashSet();
+            var idsInexistentes = idsRol.Where(id => !idsEncontrados.Contains(id)).ToList();
+            if (idsInexistentes.Count > 0)
             {
-                contexto.Gerentes.Remove(usuario.Gerente);
+                throw new ArgumentException($"Los siguientes roles no existen: {string.Join(", ", idsInexistentes)}", nameof(idsRol));
             }
 
-            if (usuario.JefeMantenimiento is not null && conservar != TipoRolUsuario.JefeMantenimiento)
+            var idsInactivos = rolesEncontrados.Where(r => !r.Activo).Select(r => r.IdRol).ToList();
+            if (idsInactivos.Count > 0)
             {
-                contexto.JefeMantenimientos.Remove(usuario.JefeMantenimiento);
+                throw new ArgumentException($"Los siguientes roles est�n inactivos: {string.Join(", ", idsInactivos)}", nameof(idsRol));
             }
 
-            if (usuario.Panolero is not null && conservar != TipoRolUsuario.Panolero)
-            {
-                contexto.Panoleros.Remove(usuario.Panolero);
-            }
-
-            if (usuario.Tecnico is not null && conservar != TipoRolUsuario.Tecnico)
-            {
-                contexto.Tecnicos.Remove(usuario.Tecnico);
-            }
+            return rolesEncontrados;
         }
 
-        private void AsignarRol(long idUsuario, TipoRolUsuario tipoRol)
-        {
-            switch (tipoRol)
-            {
-                case TipoRolUsuario.Administrador:
-                    contexto.Administradors.Add(new Administrador { IdUsuario = idUsuario });
-                    break;
-                case TipoRolUsuario.Gerente:
-                    contexto.Gerentes.Add(new Gerente { IdUsuario = idUsuario });
-                    break;
-                case TipoRolUsuario.JefeMantenimiento:
-                    contexto.JefeMantenimientos.Add(new JefeMantenimiento { IdUsuario = idUsuario });
-                    break;
-                case TipoRolUsuario.Panolero:
-                    contexto.Panoleros.Add(new Panolero { IdUsuario = idUsuario });
-                    break;
-                case TipoRolUsuario.Tecnico:
-                    contexto.Tecnicos.Add(new Tecnico { IdUsuario = idUsuario });
-                    break;
-                case TipoRolUsuario.Ninguno:
-                default:
-                    break;
-            }
-        }
-
-        private bool TryNormalizarTipoUsuario(string? tipoUsuario, out TipoRolUsuario tipoRol)
-        {
-            tipoRol = TipoRolUsuario.Ninguno;
-
-            if (string.IsNullOrWhiteSpace(tipoUsuario))
-            {
-                return true;
-            }
-
-            string valor = tipoUsuario.Trim().ToLowerInvariant();
-
-            switch (valor)
-            {
-                case "0":
-                case "ninguno":
-                case "sinrol":
-                case "sin rol":
-                    tipoRol = TipoRolUsuario.Ninguno;
-                    return true;
-                case "1":
-                case "administrador":
-                    tipoRol = TipoRolUsuario.Administrador;
-                    return true;
-                case "2":
-                case "gerente":
-                    tipoRol = TipoRolUsuario.Gerente;
-                    return true;
-                case "3":
-                case "jefemantenimiento":
-                case "jefe mantenimiento":
-                    tipoRol = TipoRolUsuario.JefeMantenimiento;
-                    return true;
-                case "4":
-                case "panolero":
-                    tipoRol = TipoRolUsuario.Panolero;
-                    return true;
-                case "5":
-                case "tecnico":
-                    tipoRol = TipoRolUsuario.Tecnico;
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        private enum TipoRolUsuario
-        {
-            Ninguno = 0,
-            Administrador = 1,
-            Gerente = 2,
-            JefeMantenimiento = 3,
-            Panolero = 4,
-            Tecnico = 5
-        }
     }
 }

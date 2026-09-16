@@ -18,17 +18,11 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<Activo> Activos { get; set; }
 
-    public virtual DbSet<Administrador> Administradors { get; set; }
-
     public virtual DbSet<Cliente> Clientes { get; set; }
 
     public virtual DbSet<EstadoOt> EstadoOts { get; set; }
 
-    public virtual DbSet<Gerente> Gerentes { get; set; }
-
     public virtual DbSet<HistorialEstadoOt> HistorialEstadoOts { get; set; }
-
-    public virtual DbSet<JefeMantenimiento> JefeMantenimientos { get; set; }
 
     public virtual DbSet<ModeloMaquina> ModeloMaquinas { get; set; }
 
@@ -40,11 +34,11 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<OtRepuesto> OtRepuestos { get; set; }
 
-    public virtual DbSet<Panolero> Panoleros { get; set; }
+    public virtual DbSet<Permiso> Permisos { get; set; }
 
     public virtual DbSet<Repuesto> Repuestos { get; set; }
 
-    public virtual DbSet<Tecnico> Tecnicos { get; set; }
+    public virtual DbSet<Rol> Rols { get; set; }
 
     public virtual DbSet<TipoMaquina> TipoMaquinas { get; set; }
 
@@ -119,25 +113,6 @@ public partial class SotraContext : DbContext
                 .HasConstraintName("FK_MODELO_MAQUINA_ACTIVO");
         });
 
-        modelBuilder.Entity<Administrador>(entity =>
-        {
-            entity.HasKey(e => e.IdAdministrador).HasName("PK_ADMINISTRADOR");
-
-            entity.ToTable("administrador", "sotra-production");
-
-            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_ADMINISTRADOR").IsUnique();
-
-            entity.Property(e => e.IdAdministrador)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ADMINISTRADOR_ID\"'::regclass)")
-                .HasColumnName("id_administrador");
-            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
-
-            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Administrador)
-                .HasForeignKey<Administrador>(d => d.IdUsuario)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_USUARIO_ADMINISTRADOR");
-        });
-
         modelBuilder.Entity<Cliente>(entity =>
         {
             entity.HasKey(e => e.IdCliente).HasName("PK_CLIENTE");
@@ -161,6 +136,7 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.Direccion)
                 .HasMaxLength(255)
                 .HasColumnName("direccion");
+            entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Nombre)
                 .HasMaxLength(120)
                 .HasColumnName("nombre");
@@ -191,25 +167,6 @@ public partial class SotraContext : DbContext
                 .HasColumnName("nombre");
         });
 
-        modelBuilder.Entity<Gerente>(entity =>
-        {
-            entity.HasKey(e => e.IdGerente).HasName("PK_GERENTE");
-
-            entity.ToTable("gerente", "sotra-production");
-
-            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_GERENTE").IsUnique();
-
-            entity.Property(e => e.IdGerente)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_GERENTE_ID\"'::regclass)")
-                .HasColumnName("id_gerente");
-            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
-
-            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Gerente)
-                .HasForeignKey<Gerente>(d => d.IdUsuario)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_USUARIO_GERENTE");
-        });
-
         modelBuilder.Entity<HistorialEstadoOt>(entity =>
         {
             entity.HasKey(e => e.IdHEstadoOt).HasName("PK_HISTORIAL_ESTADO_OT");
@@ -238,25 +195,6 @@ public partial class SotraContext : DbContext
                 .HasForeignKey(d => d.IdOrden)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ORDEN_TRABAJO_HISTORIAL_ESTADO_OT");
-        });
-
-        modelBuilder.Entity<JefeMantenimiento>(entity =>
-        {
-            entity.HasKey(e => e.IdJefeMantenimiento).HasName("PK_JEFE_MANTENIMIENTO");
-
-            entity.ToTable("jefe_mantenimiento", "sotra-production");
-
-            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_JEFE_MANTENIMIENTO").IsUnique();
-
-            entity.Property(e => e.IdJefeMantenimiento)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_JEFE_MANTENIMIENTO_ID\"'::regclass)")
-                .HasColumnName("id_jefe_mantenimiento");
-            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
-
-            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.JefeMantenimiento)
-                .HasForeignKey<JefeMantenimiento>(d => d.IdUsuario)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_USUARIO_JEFE_MANTENIMIENTO");
         });
 
         modelBuilder.Entity<ModeloMaquina>(entity =>
@@ -303,6 +241,8 @@ public partial class SotraContext : DbContext
 
             entity.ToTable("movimiento_stock", "sotra-production");
 
+            entity.HasIndex(e => e.IdUsuario, "IX_MOVIMIENTO_STOCK_ID_USUARIO");
+
             entity.Property(e => e.IdMovimiento)
                 .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MOVIMIENTO_STOCK_ID\"'::regclass)")
                 .HasColumnName("id_movimiento");
@@ -311,18 +251,18 @@ public partial class SotraContext : DbContext
                 .HasColumnName("cantidad");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Fecha).HasColumnName("fecha");
-            entity.Property(e => e.IdPanolero).HasColumnName("id_panolero");
             entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
-
-            entity.HasOne(d => d.IdPanoleroNavigation).WithMany(p => p.MovimientoStocks)
-                .HasForeignKey(d => d.IdPanolero)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_PANOLERO_MOVIMIENTO_STOCK");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
 
             entity.HasOne(d => d.IdRepuestoNavigation).WithMany(p => p.MovimientoStocks)
                 .HasForeignKey(d => d.IdRepuesto)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_REPUESTO_MOVIMIENTO_STOCK");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithMany(p => p.MovimientoStocks)
+                .HasForeignKey(d => d.IdUsuario)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_USUARIO_MOVIMIENTO_STOCK");
         });
 
         modelBuilder.Entity<OrdenTrabajo>(entity =>
@@ -330,6 +270,10 @@ public partial class SotraContext : DbContext
             entity.HasKey(e => e.IdOrden).HasName("PK_ORDEN_TRABAJO");
 
             entity.ToTable("orden_trabajo", "sotra-production");
+
+            entity.HasIndex(e => e.IdUsuarioResponsable, "IX_ORDEN_TRABAJO_ID_USUARIO_RESPONSABLE");
+
+            entity.HasIndex(e => e.IdUsuarioTecnico, "IX_ORDEN_TRABAJO_ID_USUARIO_TECNICO");
 
             entity.Property(e => e.IdOrden)
                 .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ORDEN_TRABAJO_ID\"'::regclass)")
@@ -340,8 +284,8 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.FechaInicio).HasColumnName("fecha_inicio");
             entity.Property(e => e.IdActivo).HasColumnName("id_activo");
             entity.Property(e => e.IdCliente).HasColumnName("id_cliente");
-            entity.Property(e => e.IdJefeMantenimiento).HasColumnName("id_jefe_mantenimiento");
-            entity.Property(e => e.IdTecnico).HasColumnName("id_tecnico");
+            entity.Property(e => e.IdUsuarioResponsable).HasColumnName("id_usuario_responsable");
+            entity.Property(e => e.IdUsuarioTecnico).HasColumnName("id_usuario_tecnico");
             entity.Property(e => e.RecomendacionIa).HasColumnName("recomendacion_ia");
             entity.Property(e => e.Resultado).HasColumnName("resultado");
             entity.Property(e => e.Tipo).HasColumnName("tipo");
@@ -356,14 +300,14 @@ public partial class SotraContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_CLIENTE_ORDEN_TRABAJO");
 
-            entity.HasOne(d => d.IdJefeMantenimientoNavigation).WithMany(p => p.OrdenTrabajos)
-                .HasForeignKey(d => d.IdJefeMantenimiento)
+            entity.HasOne(d => d.IdUsuarioResponsableNavigation).WithMany(p => p.OrdenTrabajoIdUsuarioResponsableNavigations)
+                .HasForeignKey(d => d.IdUsuarioResponsable)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_JEFE_MANTENIMIENTO_ORDEN_TRABAJO");
+                .HasConstraintName("FK_USUARIO_RESPONSABLE_ORDEN_TRABAJO");
 
-            entity.HasOne(d => d.IdTecnicoNavigation).WithMany(p => p.OrdenTrabajos)
-                .HasForeignKey(d => d.IdTecnico)
-                .HasConstraintName("FK_TECNICO_ORDEN_TRABAJO");
+            entity.HasOne(d => d.IdUsuarioTecnicoNavigation).WithMany(p => p.OrdenTrabajoIdUsuarioTecnicoNavigations)
+                .HasForeignKey(d => d.IdUsuarioTecnico)
+                .HasConstraintName("FK_USUARIO_TECNICO_ORDEN_TRABAJO");
         });
 
         modelBuilder.Entity<OtRepuesto>(entity =>
@@ -389,23 +333,21 @@ public partial class SotraContext : DbContext
                 .HasConstraintName("FK_REPUESTO_OT_REPUESTO");
         });
 
-        modelBuilder.Entity<Panolero>(entity =>
+        modelBuilder.Entity<Permiso>(entity =>
         {
-            entity.HasKey(e => e.IdPanolero).HasName("PK_PANOLERO");
+            entity.HasKey(e => e.IdPermiso).HasName("PK_PERMISO");
 
-            entity.ToTable("panolero", "sotra-production");
+            entity.ToTable("permiso", "sotra-production");
 
-            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_PANOLERO").IsUnique();
+            entity.HasIndex(e => e.Nombre, "UK_NOMBRE_PERMISO").IsUnique();
 
-            entity.Property(e => e.IdPanolero)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_PANOLERO_ID\"'::regclass)")
-                .HasColumnName("id_panolero");
-            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
-
-            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Panolero)
-                .HasForeignKey<Panolero>(d => d.IdUsuario)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_USUARIO_PANOLERO");
+            entity.Property(e => e.IdPermiso)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_PERMISO_ID\"'::regclass)")
+                .HasColumnName("id_permiso");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(100)
+                .HasColumnName("nombre");
         });
 
         modelBuilder.Entity<Repuesto>(entity =>
@@ -437,23 +379,44 @@ public partial class SotraContext : DbContext
                 .HasColumnName("ubicacion");
         });
 
-        modelBuilder.Entity<Tecnico>(entity =>
+        modelBuilder.Entity<Rol>(entity =>
         {
-            entity.HasKey(e => e.IdTecnico).HasName("PK_TECNICO");
+            entity.HasKey(e => e.IdRol).HasName("PK_ROL");
 
-            entity.ToTable("tecnico", "sotra-production");
+            entity.ToTable("rol", "sotra-production");
 
-            entity.HasIndex(e => e.IdUsuario, "UK_USUARIO_TECNICO").IsUnique();
+            entity.HasIndex(e => e.Nombre, "UK_NOMBRE_ROL").IsUnique();
 
-            entity.Property(e => e.IdTecnico)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_TECNICO_ID\"'::regclass)")
-                .HasColumnName("id_tecnico");
-            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.IdRol)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ROL_ID\"'::regclass)")
+                .HasColumnName("id_rol");
+            entity.Property(e => e.Activo)
+                .HasDefaultValue(true)
+                .HasColumnName("activo");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(60)
+                .HasColumnName("nombre");
 
-            entity.HasOne(d => d.IdUsuarioNavigation).WithOne(p => p.Tecnico)
-                .HasForeignKey<Tecnico>(d => d.IdUsuario)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_USUARIO_TECNICO");
+            entity.HasMany(d => d.IdPermisos).WithMany(p => p.IdRols)
+                .UsingEntity<Dictionary<string, object>>(
+                    "RolPermiso",
+                    r => r.HasOne<Permiso>().WithMany()
+                        .HasForeignKey("IdPermiso")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_PERMISO_ROL_PERMISO"),
+                    l => l.HasOne<Rol>().WithMany()
+                        .HasForeignKey("IdRol")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ROL_ROL_PERMISO"),
+                    j =>
+                    {
+                        j.HasKey("IdRol", "IdPermiso").HasName("PK_ROL_PERMISO");
+                        j.ToTable("rol_permiso", "sotra-production");
+                        j.HasIndex(new[] { "IdPermiso" }, "IX_ROL_PERMISO_ID_PERMISO");
+                        j.IndexerProperty<long>("IdRol").HasColumnName("id_rol");
+                        j.IndexerProperty<long>("IdPermiso").HasColumnName("id_permiso");
+                    });
         });
 
         modelBuilder.Entity<TipoMaquina>(entity =>
@@ -492,7 +455,9 @@ public partial class SotraContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("contrasena");
             entity.Property(e => e.Estado).HasColumnName("estado");
-            entity.Property(e => e.FechaIngreso).HasColumnName("fecha_ingreso");
+            entity.Property(e => e.FechaIngreso)
+                .HasColumnType("date")
+                .HasColumnName("fecha_ingreso");
             entity.Property(e => e.Mail)
                 .HasMaxLength(254)
                 .HasColumnName("mail");
@@ -502,6 +467,26 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.Telefono)
                 .HasMaxLength(30)
                 .HasColumnName("telefono");
+
+            entity.HasMany(d => d.IdRols).WithMany(p => p.IdUsuarios)
+                .UsingEntity<Dictionary<string, object>>(
+                    "UsuarioRol",
+                    r => r.HasOne<Rol>().WithMany()
+                        .HasForeignKey("IdRol")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ROL_USUARIO_ROL"),
+                    l => l.HasOne<Usuario>().WithMany()
+                        .HasForeignKey("IdUsuario")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_USUARIO_USUARIO_ROL"),
+                    j =>
+                    {
+                        j.HasKey("IdUsuario", "IdRol").HasName("PK_USUARIO_ROL");
+                        j.ToTable("usuario_rol", "sotra-production");
+                        j.HasIndex(new[] { "IdRol" }, "IX_USUARIO_ROL_ID_ROL");
+                        j.IndexerProperty<long>("IdUsuario").HasColumnName("id_usuario");
+                        j.IndexerProperty<long>("IdRol").HasColumnName("id_rol");
+                    });
         });
 
         OnModelCreatingPartial(modelBuilder);

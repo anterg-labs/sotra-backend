@@ -58,20 +58,20 @@ public static class testUsuario
         usuario.Telefono = Console.ReadLine() ?? string.Empty;
 
         Console.Write("Contrasena: ");
-        usuario.Contrasena = Console.ReadLine() ?? string.Empty;
+        usuario.Contrasena = LeerContrasena();
 
         Console.Write("Estado (true/false): ");
         usuario.Estado = LeerBool();
 
-        usuario.FechaIngreso = DateTime.UtcNow;
+        usuario.FechaIngreso = DateOnly.FromDateTime(DateTime.Now);
 
-        string tipoUsuario = LeerTipoUsuario();
+        List<long> idsRol = LeerRolesUsuario();
 
-        usuario = dao.insertarUsuario(usuario, tipoUsuario);
+        usuario = dao.insertarUsuario(usuario, idsRol);
 
         Console.WriteLine("Usuario insertado correctamente.");
         Console.WriteLine(usuario);
-        Console.WriteLine($"Rol: {tipoUsuario}");
+        Console.WriteLine($"Roles: {(idsRol.Count == 0 ? "Ninguno" : string.Join(", ", idsRol))}");
     }
 
     public static void Actualizar()
@@ -116,12 +116,8 @@ public static class testUsuario
             usuario.Telefono = telefono;
         }
 
-        Console.Write($"Contrasena ({usuario.Contrasena}): ");
-        string? contrasena = Console.ReadLine();
-        if (!string.IsNullOrWhiteSpace(contrasena))
-        {
-            usuario.Contrasena = contrasena;
-        }
+        Console.Write("Nueva contrasena (ENTER para conservar): ");
+        string contrasena = LeerContrasena();
 
         Console.Write($"Estado ({usuario.Estado}): ");
         string? estado = Console.ReadLine();
@@ -130,15 +126,15 @@ public static class testUsuario
             usuario.Estado = estadoBool;
         }
 
-        string rolActual = ObtenerRol(usuario);
-        string tipoUsuario = LeerTipoUsuario(rolActual);
+        List<long> idsRolActuales = usuario.IdRols.Select(r => r.IdRol).ToList();
+        List<long> idsRol = LeerRolesUsuario(idsRolActuales);
 
-        bool actualizado = dao.actualizarUsuario(usuario, tipoUsuario);
+        bool actualizado = dao.actualizarUsuario(usuario, idsRol, contrasena.Length == 0 ? null : contrasena);
         Console.WriteLine(actualizado ? "Usuario actualizado correctamente." : "No se pudo actualizar el registro.");
         if (actualizado)
         {
             Console.WriteLine(usuario);
-            Console.WriteLine($"Rol: {tipoUsuario}");
+            Console.WriteLine($"Roles: {(idsRol.Count == 0 ? "Ninguno" : string.Join(", ", idsRol))}");
         }
     }
 
@@ -153,49 +149,88 @@ public static class testUsuario
         Console.WriteLine(eliminado ? "Usuario eliminado correctamente." : $"No se encontró un Usuario con Id: {id}");
     }
 
-    private static string LeerTipoUsuario(string valorPorDefecto = "Ninguno")
+    public static void DarBajaLogica()
     {
-        while (true)
-        {
-            Console.WriteLine("Seleccione tipo de usuario:");
-            Console.WriteLine($"1. Administrador{MostrarDefault(valorPorDefecto, "Administrador")}");
-            Console.WriteLine($"2. Gerente{MostrarDefault(valorPorDefecto, "Gerente")}");
-            Console.WriteLine($"3. JefeMantenimiento{MostrarDefault(valorPorDefecto, "JefeMantenimiento")}");
-            Console.WriteLine($"4. Panolero{MostrarDefault(valorPorDefecto, "Panolero")}");
-            Console.WriteLine($"5. Tecnico{MostrarDefault(valorPorDefecto, "Tecnico")}");
-            Console.WriteLine($"0. Ninguno{MostrarDefault(valorPorDefecto, "Ninguno")}");
-            Console.Write("Opción: ");
+        UsuarioDAO dao = new UsuarioDAO();
 
-            string? texto = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(texto) && valorPorDefecto != "Ninguno")
-            {
-                return valorPorDefecto;
-            }
+        Console.Write("IdUsuario a dar de baja lógica: ");
+        long id = LeerLong();
 
-            if (texto is "0") return "Ninguno";
-            if (texto is "1") return "Administrador";
-            if (texto is "2") return "Gerente";
-            if (texto is "3") return "JefeMantenimiento";
-            if (texto is "4") return "Panolero";
-            if (texto is "5") return "Tecnico";
-
-            Console.WriteLine("Opción inválida.");
-        }
+        bool dadoDeBaja = dao.darBajaLogicaUsuario(id);
+        Console.WriteLine(dadoDeBaja ? "Usuario dado de baja lógica correctamente." : $"No se encontró un Usuario con Id: {id}");
     }
 
-    private static string MostrarDefault(string valorPorDefecto, string valor)
+    private static List<long> LeerRolesUsuario(IEnumerable<long>? valoresPorDefecto = null)
     {
-        return valorPorDefecto == valor ? " (actual)" : string.Empty;
+        var idsPorDefecto = (valoresPorDefecto ?? Enumerable.Empty<long>())
+            .Where(id => id > 0)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+
+        while (true)
+        {
+            Console.WriteLine("Ingrese ids de rol separados por coma (ej: 1,3):");
+            Console.WriteLine("1. Administrador");
+            Console.WriteLine("2. Jefe de mantenimiento");
+            Console.WriteLine("3. Técnico");
+            Console.WriteLine("4. Pañolero");
+            Console.WriteLine("0. Sin roles");
+
+            if (idsPorDefecto.Count > 0)
+            {
+                Console.WriteLine($"Actual: {string.Join(", ", idsPorDefecto)}");
+            }
+
+            Console.Write("Ids de rol: ");
+            string? texto = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(texto))
+            {
+                return idsPorDefecto;
+            }
+
+            if (texto.Trim() == "0")
+            {
+                return new List<long>();
+            }
+
+            string[] partes = texto.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var ids = new List<long>();
+            bool invalido = false;
+
+            foreach (var parte in partes)
+            {
+                if (!long.TryParse(parte, out long id) || id <= 0)
+                {
+                    invalido = true;
+                    break;
+                }
+
+                ids.Add(id);
+            }
+
+            if (invalido)
+            {
+                Console.WriteLine("Formato inválido. Ingrese ids numéricos positivos separados por coma.");
+                continue;
+            }
+
+            return ids
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+        }
     }
 
     private static string ObtenerRol(Usuario usuario)
     {
-        if (usuario.Administrador is not null) return "Administrador";
-        if (usuario.Gerente is not null) return "Gerente";
-        if (usuario.JefeMantenimiento is not null) return "JefeMantenimiento";
-        if (usuario.Panolero is not null) return "Panolero";
-        if (usuario.Tecnico is not null) return "Tecnico";
-        return "Ninguno";
+        if (usuario.IdRols is null || usuario.IdRols.Count == 0)
+        {
+            return "Ninguno";
+        }
+
+        return string.Join(", ", usuario.IdRols.Select(r => r.Nombre));
     }
 
     private static long LeerLong()
@@ -209,6 +244,26 @@ public static class testUsuario
             }
 
             Console.Write("Valor inválido. Intente nuevamente: ");
+        }
+    }
+
+    private static string LeerContrasena()
+    {
+        if (Console.IsInputRedirected) return Console.ReadLine() ?? string.Empty;
+        var texto = new System.Text.StringBuilder();
+        while (true)
+        {
+            var tecla = Console.ReadKey(intercept: true);
+            if (tecla.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine();
+                return texto.ToString();
+            }
+            if (tecla.Key == ConsoleKey.Backspace)
+            {
+                if (texto.Length > 0) texto.Length--;
+            }
+            else if (!char.IsControl(tecla.KeyChar)) texto.Append(tecla.KeyChar);
         }
     }
 
