@@ -1,0 +1,39 @@
+name: QA backend
+
+on:
+  pull_request:
+    branches:
+      - qa
+      - main
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      - name: Verificar formato
+        run: dotnet format --verify-no-changes
+
+      - name: Compilar
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Ejecutar pruebas con cobertura
+        run: >
+          dotnet test
+          --no-build
+          --configuration Release
+          --collect:"XPlat Code Coverage"
+
+      - name: Construir imagen Docker
+        run: docker build -t sotra-backend:ci .

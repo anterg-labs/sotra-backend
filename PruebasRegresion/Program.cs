@@ -18,13 +18,23 @@ contexto.Rols.AddRange(new Rol { IdRol = 1, Nombre = "Activo", Activo = true },
 contexto.SaveChanges();
 var dao = new UsuarioDAO(contexto);
 var fecha = new DateOnly(2024, 2, 29);
-Usuario Nuevo(int n) => new() { Nombre = "Prueba", Apellido = "Fecha", Mail = $"u{n}@example.com",
-    Telefono = n.ToString(), Contrasena = "Prueba!123", Estado = true, FechaIngreso = fecha };
-void Verificar(bool condicion, string descripcion) {
+Usuario Nuevo(int n) => new()
+{
+    Nombre = "Prueba",
+    Apellido = "Fecha",
+    Mail = $"u{n}@example.com",
+    Telefono = n.ToString(),
+    Contrasena = "Prueba!123",
+    Estado = true,
+    FechaIngreso = fecha
+};
+void Verificar(bool condicion, string descripcion)
+{
     if (!condicion) throw new Exception(descripcion);
     Console.WriteLine("OK: " + descripcion);
 }
-void Rechazar(Action accion, string descripcion) {
+void Rechazar(Action accion, string descripcion)
+{
     try { accion(); } catch (ArgumentException) { Console.WriteLine("OK: " + descripcion); return; }
     throw new Exception("No se rechazo: " + descripcion);
 }
