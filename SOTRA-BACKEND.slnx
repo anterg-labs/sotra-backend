@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="PruebasRegresion/PruebasRegresion.csproj" />
+  <Project Path="Api/Api.csproj" />
+  <Project Path="ConsolaPruebas/ConsolaPruebas.csproj" Id="23d51651-0574-4612-897e-bb9cd4035caa" />
   <Project Path="SOTRA-BACKEND/SOTRA-BACKEND.csproj" />
 </Solution>

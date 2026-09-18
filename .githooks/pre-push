@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# Esto ejecuta pruebas antes de un push cuando exista un proyecto de tests configurado en el proyecto.
+# Para esto hay que descomentar la linea de abajo.
+# dotnet test SOTRA-BACKEND.slnx
