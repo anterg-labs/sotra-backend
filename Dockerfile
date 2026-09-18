@@ -5,9 +5,9 @@ WORKDIR /src
 
 COPY . .
 
-RUN dotnet restore SOTRA-BACKEND/SOTRA-BACKEND.csproj
+RUN dotnet restore Api/Api.csproj
 
-RUN dotnet publish SOTRA-BACKEND/SOTRA-BACKEND.csproj \
+RUN dotnet publish Api/Api.csproj \
     -c Release \
     -o /app/publish \
     --no-restore
@@ -22,4 +22,4 @@ COPY --from=build /app/publish .
 
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "SOTRA-BACKEND.dll"]
+ENTRYPOINT ["dotnet", "Api.dll"]
