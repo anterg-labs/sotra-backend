@@ -1,4 +1,4 @@
-name: Producción backend
+name: Publicar y desplegar backend
 
 on:
   workflow_dispatch:
@@ -7,59 +7,160 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
+
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/sotra-backend
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  # CONSTRUIR Y PUBLICAR
+
+  publish:
+    name: Construir y publicar imagen versionada
+
+    # se ejecuta unicamente si la rama es main
+    if: github.ref == 'refs/heads/main'
+
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+      version: ${{ steps.version.outputs.value }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login en GHCR
-        uses: docker/login-action@v3
+      - name: Descargar código de main
+        uses: actions/checkout@v6
         with:
-          registry: ghcr.io
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      - name: Compilar backend
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Ejecutar pruebas
+        run: >
+          dotnet test
+          --no-build
+          --configuration Release
+
+      # Versionado basado en ejecución + commit.
+      # Ejemplo: 1.0.25-a3b5c91
+
+      - name: Obtener versión de la imagen
+        id: version
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "value=1.0.${GITHUB_RUN_NUMBER}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Normalizar nombre de la imagen
+        id: image
+        shell: bash
+        run: |
+          echo "name=${REGISTRY}/${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Preparar Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Iniciar sesión en GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Obtener SHA corto
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Generar etiquetas y metadatos
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.value }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=SOTRA Backend
+            org.opencontainers.image.description=API de SOTRA
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
 
       - name: Construir y publicar imagen
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: true
+
+  # DESPLEGAR EN VPS
 
   deploy:
-    needs: build-and-push
+    name: Desplegar backend en VPS
+
+    needs: publish
+
     if: vars.ENABLE_VPS_DEPLOY == 'true'
+
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    environment: production
 
     steps:
-      - name: Configurar SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Desplegar en VPS
+      - name: Preparar acceso SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-            cd /opt/sotra &&
-            docker compose pull backend &&
-            docker compose up -d backend
-          "
+          install -m 700 -d ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Actualizar backend en VPS
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
+          IMAGE_NAME: ${{ needs.publish.outputs.image }}
+          IMAGE_TAG: ${{ needs.publish.outputs.version }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_APP_PATH' && \
+            BACKEND_IMAGE_NAME='$IMAGE_NAME' BACKEND_IMAGE_TAG='$IMAGE_TAG' docker compose --env-file .env.production -f compose.production.yml pull backend && \
+            BACKEND_IMAGE_NAME='$IMAGE_NAME' BACKEND_IMAGE_TAG='$IMAGE_TAG' docker compose --env-file .env.production -f compose.production.yml up -d --no-deps backend"
+
+      - name: Ejecutar smoke test
+        if: vars.BACKEND_HEALTH_URL != ''
+        env:
+          BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 5 \
+            --retry-delay 5 \
+            "$BACKEND_HEALTH_URL"

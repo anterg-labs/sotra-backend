@@ -1,21 +1,35 @@
-name: QA backend
+name: Validación QA del backend
 
 on:
   pull_request:
     branches:
       - qa
-      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  qa:
+
+  # CALIDAD, PRUEBAS Y COMPILACIÓN
+
+  quality:
+    name: Calidad, pruebas y compilación
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Descargar código
+        uses: actions/checkout@v6
 
       - name: Configurar .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
@@ -23,9 +37,9 @@ jobs:
         run: dotnet restore
 
       - name: Verificar formato
-        run: dotnet format --verify-no-changes
+        run: dotnet format --verify-no-changes --no-restore
 
-      - name: Compilar
+      - name: Compilar backend
         run: dotnet build --no-restore --configuration Release
 
       - name: Ejecutar pruebas con cobertura
@@ -34,6 +48,62 @@ jobs:
           --no-build
           --configuration Release
           --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults
+
+      - name: Publicar resultados de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Construir imagen Docker
         run: docker build -t sotra-backend:ci .
+
+  # DETECCIÓN DE SECRETOS
+
+  gitleaks:
+    name: Detectar secretos expuestos
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar historial del repositorio
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ejecutar Gitleaks
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            detect \
+            --source=/repo \
+            --redact \
+            --verbose
+
+
+  # ANÁLISIS DE VULNERABILIDADES
+  # trivy no analiza la imagen docker construida sino el codigo nomas. Importante chequear eso depues.
+  trivy:
+    name: Analizar dependencias y archivos
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Ejecutar Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
