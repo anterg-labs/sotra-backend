@@ -7,9 +7,7 @@ public partial class MovimientoStock
 {
     public long IdMovimiento { get; set; }
 
-    public long IdPanolero { get; set; }
-
-    public string Estado { get; set; } = null!;
+    public bool Estado { get; set; }
 
     public DateTime Fecha { get; set; }
 
@@ -17,7 +15,9 @@ public partial class MovimientoStock
 
     public long IdRepuesto { get; set; }
 
-    public virtual Panolero IdPanoleroNavigation { get; set; } = null!;
+    public long IdUsuario { get; set; }
 
     public virtual Repuesto IdRepuestoNavigation { get; set; } = null!;
+
+    public virtual Usuario IdUsuarioNavigation { get; set; } = null!;
 }

@@ -7,15 +7,11 @@ public partial class OrdenTrabajo
 {
     public long IdOrden { get; set; }
 
-    public long IdJefeMantenimiento { get; set; }
-
-    public long? IdTecnico { get; set; }
-
     public long IdActivo { get; set; }
 
     public long IdCliente { get; set; }
 
-    public string Tipo { get; set; } = null!;
+    public bool Tipo { get; set; }
 
     public string Descripcion { get; set; } = null!;
 
@@ -27,15 +23,21 @@ public partial class OrdenTrabajo
 
     public string? Resultado { get; set; }
 
+    public string? RecomendacionIa { get; set; }
+
+    public long IdUsuarioResponsable { get; set; }
+
+    public long? IdUsuarioTecnico { get; set; }
+
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
 
     public virtual Activo IdActivoNavigation { get; set; } = null!;
 
     public virtual Cliente IdClienteNavigation { get; set; } = null!;
 
-    public virtual JefeMantenimiento IdJefeMantenimientoNavigation { get; set; } = null!;
+    public virtual Usuario IdUsuarioResponsableNavigation { get; set; } = null!;
 
-    public virtual Tecnico? IdTecnicoNavigation { get; set; }
+    public virtual Usuario? IdUsuarioTecnicoNavigation { get; set; }
 
     public virtual ICollection<OtRepuesto> OtRepuestos { get; set; } = new List<OtRepuesto>();
 }

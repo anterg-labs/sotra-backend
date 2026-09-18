@@ -9,5 +9,5 @@ public partial class TipoMaquina
 
     public string Nombre { get; set; } = null!;
 
-    public virtual ICollection<Maquina> Maquinas { get; set; } = new List<Maquina>();
+    public virtual ICollection<ModeloMaquina> ModeloMaquinas { get; set; } = new List<ModeloMaquina>();
 }

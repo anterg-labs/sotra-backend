@@ -11,9 +11,9 @@ public partial class Repuesto
 
     public string? Descripcion { get; set; }
 
-    public string Unidad { get; set; } = null!;
+    public int Cantidad { get; set; }
 
-    public string Estado { get; set; } = null!;
+    public bool Estado { get; set; }
 
     public string? Ubicacion { get; set; }
 

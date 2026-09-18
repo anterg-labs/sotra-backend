@@ -9,5 +9,19 @@ public partial class ModeloMaquina
 
     public string Nombre { get; set; } = null!;
 
-    public virtual ICollection<Maquina> Maquinas { get; set; } = new List<Maquina>();
+    public long IdTipoMaquina { get; set; }
+
+    public string? Descripcion { get; set; }
+
+    public bool Activo { get; set; }
+
+    public virtual ICollection<Activo> Activos { get; set; } = new List<Activo>();
+    public virtual TipoMaquina IdTipoMaquinaNavigation { get; set; } = null!;
+
+
+    public override string ToString()
+    {
+        return "ModeloMaquina: ID: " + IdModeloMaquina + " - NOMBRE: " + Nombre + " - ID_TIPO_MAQ : " + IdTipoMaquina + " - DESC: " + Descripcion + " - ACTIVO: " + Activo;
+    }
+
 }

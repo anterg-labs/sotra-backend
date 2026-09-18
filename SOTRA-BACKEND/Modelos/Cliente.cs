@@ -19,6 +19,8 @@ public partial class Cliente
 
     public string? Observaciones { get; set; }
 
+    public bool Estado { get; set; }
+
     public virtual ICollection<Activo> Activos { get; set; } = new List<Activo>();
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();
