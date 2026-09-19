@@ -1,0 +1,71 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Test results
+**/TestResults/
+**/coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# Environment and secrets
+.env
+.env*
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# Logs
+*.log
+logs/
+
+# IDE/editor
+.vscode/
+.idea/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker files
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+compose*.yaml
+
+# Documentation
+*.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+Jenkinsfile
+
+# NuGet / packages
+**/packages/
+*.nupkg
+*.snupkg
+
+# Temporary/cache files
+*.tmp
+*.temp
+*.cache
+
+# OS-specific files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
