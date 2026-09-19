@@ -11,7 +11,7 @@ public partial class EstadoOt
 
     public string? Descripcion { get; set; }
 
-    public bool Activo { get; set; }
+    public bool Estado { get; set; }
 
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
 }
