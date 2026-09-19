@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "SOTRA-BACKEND": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:3476;http://localhost:3477"
+    }
+  }
+}

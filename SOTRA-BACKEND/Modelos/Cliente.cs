@@ -21,6 +21,8 @@ public partial class Cliente
 
     public bool Estado { get; set; }
 
+    public DateOnly FechaIngreso { get; set; }
+
     public virtual ICollection<Activo> Activos { get; set; } = new List<Activo>();
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();

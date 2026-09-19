@@ -139,6 +139,9 @@ public partial class SotraContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("direccion");
             entity.Property(e => e.Estado).HasColumnName("estado");
+            entity.Property(e => e.FechaIngreso)
+                .HasDefaultValueSql("CURRENT_DATE")
+                .HasColumnName("fecha_ingreso");
             entity.Property(e => e.Nombre)
                 .HasMaxLength(120)
                 .HasColumnName("nombre");
