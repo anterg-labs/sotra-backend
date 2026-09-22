@@ -21,7 +21,7 @@ public partial class Activo
 
     public string? Ubicacion { get; set; }
 
-    public bool Activo1 { get; set; }
+    public bool Estado { get; set; }
 
     public virtual Cliente IdClienteNavigation { get; set; } = null!;
 
