@@ -23,23 +23,17 @@ public partial class OrdenTrabajo
 
     public string? Resultado { get; set; }
 
+    public string? RecomendacionIa { get; set; }
+
     public long IdUsuarioResponsable { get; set; }
 
     public long? IdUsuarioTecnico { get; set; }
 
-    public short Prioridad { get; set; }
-
-    public long? IdRecomendacionIa { get; set; }
-
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
-
-    public virtual ICollection<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; } = new List<HistorialRecomendacionIa>();
 
     public virtual Activo IdActivoNavigation { get; set; } = null!;
 
     public virtual Cliente IdClienteNavigation { get; set; } = null!;
-
-    public virtual HistorialRecomendacionIa? IdRecomendacionIaNavigation { get; set; }
 
     public virtual Usuario IdUsuarioResponsableNavigation { get; set; } = null!;
 
