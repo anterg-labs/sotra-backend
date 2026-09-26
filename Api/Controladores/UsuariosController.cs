@@ -77,11 +77,8 @@ public class UsuariosController : ControllerBase
             var idsRol = solicitud.IdsRol is { Count: > 0 }
                 ? solicitud.IdsRol
                 : usuario.IdRols.Select(rol => rol.IdRol).ToList();
-            var nuevaContrasena = string.IsNullOrWhiteSpace(solicitud.Contrasena)
-                ? null
-                : solicitud.Contrasena;
 
-            _usuarioDao.actualizarUsuario(usuario, idsRol, nuevaContrasena);
+            _usuarioDao.actualizarUsuario(usuario, idsRol);
 
             var usuarioActualizado = _usuarioDao.seleccionarUsuario(id)!;
             return Ok(UsuarioMapeador.AListadoDto(usuarioActualizado));
