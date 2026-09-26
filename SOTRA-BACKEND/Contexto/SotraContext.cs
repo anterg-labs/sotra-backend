@@ -24,6 +24,8 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<HistorialEstadoOt> HistorialEstadoOts { get; set; }
 
+    public virtual DbSet<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; }
+
     public virtual DbSet<ModeloMaquina> ModeloMaquinas { get; set; }
 
     public virtual DbSet<MotivoEstadoOt> MotivoEstadoOts { get; set; }
@@ -200,6 +202,29 @@ public partial class SotraContext : DbContext
                 .HasConstraintName("FK_ORDEN_TRABAJO_HISTORIAL_ESTADO_OT");
         });
 
+        modelBuilder.Entity<HistorialRecomendacionIa>(entity =>
+        {
+            entity.HasKey(e => e.IdRecomendacionIa).HasName("PK_HISTORIAL_RECOMENDACIONES_IA");
+
+            entity.ToTable("historial_recomendaciones_ia", "sotra-production");
+
+            entity.HasIndex(e => e.IdOrden, "IDX_HISTORIAL_RECOMENDACIONES_IA_ORDEN");
+
+            entity.Property(e => e.IdRecomendacionIa)
+                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_HISTORIAL_RECOMENDACIONES_IA_ID\"'::regclass)")
+                .HasColumnName("id_recomendacion_ia");
+            entity.Property(e => e.Estado)
+                .HasDefaultValue(true)
+                .HasColumnName("estado");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.Recomendacion).HasColumnName("recomendacion");
+
+            entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.HistorialRecomendacionesIa)
+                .HasForeignKey(d => d.IdOrden)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ORDEN_TRABAJO_HISTORIAL_RECOMENDACIONES_IA");
+        });
+
         modelBuilder.Entity<ModeloMaquina>(entity =>
         {
             entity.HasKey(e => e.IdModeloMaquina).HasName("PK_MODELO_MAQUINA");
@@ -287,9 +312,12 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.FechaInicio).HasColumnName("fecha_inicio");
             entity.Property(e => e.IdActivo).HasColumnName("id_activo");
             entity.Property(e => e.IdCliente).HasColumnName("id_cliente");
+            entity.Property(e => e.IdRecomendacionIa).HasColumnName("id_recomendacion_ia");
             entity.Property(e => e.IdUsuarioResponsable).HasColumnName("id_usuario_responsable");
             entity.Property(e => e.IdUsuarioTecnico).HasColumnName("id_usuario_tecnico");
-            entity.Property(e => e.RecomendacionIa).HasColumnName("recomendacion_ia");
+            entity.Property(e => e.Prioridad)
+                .HasDefaultValue((short)3)
+                .HasColumnName("prioridad");
             entity.Property(e => e.Resultado).HasColumnName("resultado");
             entity.Property(e => e.Tipo).HasColumnName("tipo");
 
@@ -302,6 +330,10 @@ public partial class SotraContext : DbContext
                 .HasForeignKey(d => d.IdCliente)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_CLIENTE_ORDEN_TRABAJO");
+
+            entity.HasOne(d => d.IdRecomendacionIaNavigation).WithMany(p => p.OrdenTrabajos)
+                .HasForeignKey(d => d.IdRecomendacionIa)
+                .HasConstraintName("FK_RECOMENDACION_IA_ORDEN_TRABAJO");
 
             entity.HasOne(d => d.IdUsuarioResponsableNavigation).WithMany(p => p.OrdenTrabajoIdUsuarioResponsableNavigations)
                 .HasForeignKey(d => d.IdUsuarioResponsable)
@@ -460,7 +492,7 @@ public partial class SotraContext : DbContext
                 .HasColumnName("contrasena");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.FechaIngreso)
-                .HasColumnType("date")
+                .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("fecha_ingreso");
             entity.Property(e => e.Mail)
                 .HasMaxLength(254)
