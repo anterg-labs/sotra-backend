@@ -14,6 +14,7 @@ builder.Services.AddScoped<ClienteDAO>();
 builder.Services.AddScoped<TipoMaquinaDAO>();
 builder.Services.AddScoped<ModeloMaquinaDAO>();
 builder.Services.AddScoped<RolDAO>();
+builder.Services.AddScoped<ActivoDAO>();
 
 // Health Check
 builder.Services.AddHealthChecks();
