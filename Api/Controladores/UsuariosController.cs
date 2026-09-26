@@ -27,7 +27,8 @@ public class UsuariosController : ControllerBase
             UsuarioMapeador.Proyeccion, cancellationToken);
         return Ok(respuesta);
     }
-        [HttpGet("{id:long}")]
+
+    [HttpGet("{id:long}")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<UsuarioListadoDto> ObtenerPorId(long id)
@@ -110,4 +111,4 @@ public class UsuariosController : ControllerBase
         return Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 }
-// prueba
+//prueba 2
