@@ -43,8 +43,6 @@ public static class UsuarioMapeador
         if (!string.IsNullOrWhiteSpace(cambios.Apellido)) destino.Apellido = cambios.Apellido;
         if (!string.IsNullOrWhiteSpace(cambios.Correo)) destino.Mail = cambios.Correo;
         if (!string.IsNullOrWhiteSpace(cambios.Telefono)) destino.Telefono = cambios.Telefono;
-        if (!string.IsNullOrWhiteSpace(cambios.Estado)) destino.Estado = EstadoABooleano(cambios.Estado);
-        if (cambios.FechaIngreso.HasValue) destino.FechaIngreso = cambios.FechaIngreso.Value;
     }
 
     public static UsuarioListadoDto AListadoDto(Usuario usuario)
@@ -64,16 +62,6 @@ public static class UsuarioMapeador
                 Nombre = rol.Nombre,
                 Activo = rol.Activo
             }).ToList()
-        };
-    }
-
-    private static bool EstadoABooleano(string estado)
-    {
-        return estado.Trim().ToLowerInvariant() switch
-        {
-            "activo" => true,
-            "inactivo" => false,
-            _ => throw new ArgumentException("El estado debe ser 'activo' o 'inactivo'.", nameof(estado))
         };
     }
 }

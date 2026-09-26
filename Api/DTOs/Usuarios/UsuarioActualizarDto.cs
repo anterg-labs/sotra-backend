@@ -16,11 +16,5 @@ public class UsuarioActualizarDto
     [MaxLength(30)]
     public string? Telefono { get; init; }
 
-    public string? Contrasena { get; init; }
-
-    public string? Estado { get; init; }
-
-    public DateOnly? FechaIngreso { get; init; }
-
     public List<long>? IdsRol { get; init; }
 }
