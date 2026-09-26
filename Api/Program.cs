@@ -18,7 +18,7 @@ builder.Services.AddScoped<RolDAO>();
 // OpenAPI
 builder.Services.AddOpenApi();
 
-// Configuraci�n CORS
+// Configuracion CORS
 var frontendOrigin = Environment.GetEnvironmentVariable("FRONTEND_ORIGIN");
 if (string.IsNullOrWhiteSpace(frontendOrigin))
 {
@@ -36,7 +36,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Construir aplicaci�n
+// Construir aplicacion
 var app = builder.Build();
 
 // OpenAPI en desarrollo
@@ -45,7 +45,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Redirecci�n HTTPS
+// Redireccion HTTPS
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
