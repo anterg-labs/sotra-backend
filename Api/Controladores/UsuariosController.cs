@@ -1,6 +1,7 @@
 using Api.Mapeadores;
 using Api.DTOs.Usuarios;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -110,4 +111,3 @@ public class UsuariosController : ControllerBase
         return Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 }
-//prueba 2
