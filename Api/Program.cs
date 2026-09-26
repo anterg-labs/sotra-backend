@@ -15,6 +15,9 @@ builder.Services.AddScoped<TipoMaquinaDAO>();
 builder.Services.AddScoped<ModeloMaquinaDAO>();
 builder.Services.AddScoped<RolDAO>();
 
+// Health Check
+builder.Services.AddHealthChecks();
+
 // OpenAPI
 builder.Services.AddOpenApi();
 
@@ -58,5 +61,8 @@ app.UseAuthorization();
 
 // Controladores
 app.MapControllers();
+
+// Health Check
+app.MapHealthChecks("/health");
 
 app.Run();
