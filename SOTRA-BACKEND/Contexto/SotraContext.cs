@@ -85,9 +85,9 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.IdActivo)
                 .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ACTIVO_ID\"'::regclass)")
                 .HasColumnName("id_activo");
-            entity.Property(e => e.Activo1)
+            entity.Property(e => e.Estado)
                 .HasDefaultValue(true)
-                .HasColumnName("activo");
+                .HasColumnName("estado");
             entity.Property(e => e.AnioFabricacion).HasColumnName("anio_fabricacion");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.IdCliente).HasColumnName("id_cliente");
@@ -137,6 +137,9 @@ public partial class SotraContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("direccion");
             entity.Property(e => e.Estado).HasColumnName("estado");
+            entity.Property(e => e.FechaIngreso)
+                .HasDefaultValueSql("CURRENT_DATE")
+                .HasColumnName("fecha_ingreso");
             entity.Property(e => e.Nombre)
                 .HasMaxLength(120)
                 .HasColumnName("nombre");
@@ -160,7 +163,7 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.IdEstadoOt)
                 .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ESTADO_OT_ID\"'::regclass)")
                 .HasColumnName("id_estado_ot");
-            entity.Property(e => e.Activo).HasColumnName("activo");
+            entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.Nombre)
                 .HasMaxLength(60)
@@ -430,6 +433,7 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.IdTipoMaquina)
                 .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_TIPO_MAQUINA_ID\"'::regclass)")
                 .HasColumnName("id_tipo_maquina");
+            entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Nombre)
                 .HasMaxLength(60)
                 .HasColumnName("nombre");
