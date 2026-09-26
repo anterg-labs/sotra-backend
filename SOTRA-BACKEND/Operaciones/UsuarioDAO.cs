@@ -151,7 +151,7 @@ namespace SOTRA_BACKEND.Operaciones
             var idsInactivos = rolesEncontrados.Where(r => !r.Activo).Select(r => r.IdRol).ToList();
             if (idsInactivos.Count > 0)
             {
-                throw new ArgumentException($"Los siguientes roles est�n inactivos: {string.Join(", ", idsInactivos)}", nameof(idsRol));
+                throw new ArgumentException($"Los siguientes roles estan inactivos: {string.Join(", ", idsInactivos)}", nameof(idsRol));
             }
 
             return rolesEncontrados;
