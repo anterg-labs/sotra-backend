@@ -11,7 +11,10 @@ builder.Services.AddScoped<UsuarioDAO>();
 builder.Services.AddScoped<ClienteDAO>();
 builder.Services.AddScoped<TipoMaquinaDAO>();
 builder.Services.AddScoped<ModeloMaquinaDAO>();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddScoped<RolDAO>();
+builder.Services.AddScoped<ActivoDAO>();
+
+// OpenAPI
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
