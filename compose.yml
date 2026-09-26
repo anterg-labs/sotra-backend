@@ -22,6 +22,11 @@ services:
     environment:
       ConnectionStrings__SotraConnection: "Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}"
       ASPNETCORE_URLS: "http://+:8080"
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
     depends_on:
       - db
