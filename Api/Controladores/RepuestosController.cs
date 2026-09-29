@@ -52,7 +52,7 @@ public class RepuestosController : ControllerBase
             return CreatedAtAction(nameof(ObtenerPorId), new { id = repuesto.IdRepuesto }, respuesta);
         }
         catch (DbUpdateException excepcion) when (excepcion.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
+        { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             return Conflict(new { mensaje = "Ya existe un repuesto con ese código." });
         }
@@ -74,7 +74,7 @@ public class RepuestosController : ControllerBase
             return Ok(RepuestoMapeador.ADto(repuesto));
         }
         catch (DbUpdateException excepcion) when (excepcion.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
+        { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             return Conflict(new { mensaje = "Ya existe un repuesto con ese código." });
         }
