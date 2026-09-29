@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Api.DTOs.Clientes;
 using SOTRA_BACKEND.Modelos;
 
@@ -6,31 +5,40 @@ namespace Api.Mapeadores;
 
 public static class ClienteMapeador
 {
-    public static Expression<Func<Cliente, ClienteListadoDto>> Proyeccion => cliente =>
-        new ClienteListadoDto
-        {
-            Id = cliente.IdCliente,
-            RazonSocial = cliente.RazonSocial,
-            NombreContacto = cliente.Nombre,
-            Correo = cliente.Correo,
-            Telefono = cliente.Telefono,
-            Direccion = cliente.Direccion,
-            Observaciones = cliente.Observaciones,
-            CantidadActivosAsociados = cliente.Activos.Count,
-            Estado = cliente.Estado ? "activo" : "inactivo",
-            CreadoEn = cliente.FechaIngreso
-        };
-
     public static Cliente AEntidad(ClienteCrearDto cliente)
     {
+        string? correo = cliente.Correo;
+        if (string.IsNullOrWhiteSpace(correo))
+        {
+            correo = null;
+        }
+
+        string? telefono = cliente.Telefono;
+        if (string.IsNullOrWhiteSpace(telefono))
+        {
+            telefono = null;
+        }
+
+        string? direccion = cliente.Direccion;
+        if (string.IsNullOrWhiteSpace(direccion))
+        {
+            direccion = null;
+        }
+
+        string? observaciones = cliente.Observaciones;
+        if (string.IsNullOrWhiteSpace(observaciones))
+        {
+            observaciones = null;
+        }
+
         return new Cliente
         {
             RazonSocial = cliente.RazonSocial,
             Nombre = cliente.NombreContacto,
-            Correo = cliente.Correo,
-            Telefono = cliente.Telefono,
-            Direccion = cliente.Direccion,
-            Observaciones = cliente.Observaciones,
+            Correo = correo,
+            Telefono = telefono,
+            Direccion = direccion,
+            Observaciones = observaciones,
             Estado = true,
             FechaIngreso = DateOnly.FromDateTime(DateTime.UtcNow)
         };
@@ -38,18 +46,32 @@ public static class ClienteMapeador
 
     public static void AplicarCambios(Cliente destino, ClienteActualizarDto cambios)
     {
-        if (!string.IsNullOrWhiteSpace(cambios.RazonSocial))
-            destino.RazonSocial = cambios.RazonSocial;
-        if (!string.IsNullOrWhiteSpace(cambios.NombreContacto))
-            destino.Nombre = cambios.NombreContacto;
-        if (!string.IsNullOrWhiteSpace(cambios.Correo))
-            destino.Correo = cambios.Correo;
-        if (!string.IsNullOrWhiteSpace(cambios.Telefono))
-            destino.Telefono = cambios.Telefono;
-        if (!string.IsNullOrWhiteSpace(cambios.Direccion))
-            destino.Direccion = cambios.Direccion;
-        if (!string.IsNullOrWhiteSpace(cambios.Observaciones))
-            destino.Observaciones = cambios.Observaciones;
+        destino.RazonSocial = cambios.RazonSocial;
+        destino.Nombre = cambios.NombreContacto;
+
+        destino.Correo = cambios.Correo;
+        if (string.IsNullOrWhiteSpace(destino.Correo))
+        {
+            destino.Correo = null;
+        }
+
+        destino.Telefono = cambios.Telefono;
+        if (string.IsNullOrWhiteSpace(destino.Telefono))
+        {
+            destino.Telefono = null;
+        }
+
+        destino.Direccion = cambios.Direccion;
+        if (string.IsNullOrWhiteSpace(destino.Direccion))
+        {
+            destino.Direccion = null;
+        }
+
+        destino.Observaciones = cambios.Observaciones;
+        if (string.IsNullOrWhiteSpace(destino.Observaciones))
+        {
+            destino.Observaciones = null;
+        }
     }
 
     public static ClienteListadoDto AListadoDto(Cliente cliente)

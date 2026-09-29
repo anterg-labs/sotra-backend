@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
@@ -7,7 +6,7 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class ActivoDAO
 {
-    private readonly SotraContext contexto;
+    private readonly SotraContext _contexto;
 
     public ActivoDAO() : this(new SotraContext())
     {
@@ -15,45 +14,35 @@ public class ActivoDAO
 
     public ActivoDAO(SotraContext contexto)
     {
-        this.contexto = contexto;
+        _contexto = contexto;
     }
 
-    public Task<List<T>> ListarTodoAsync<T>(
-        Expression<Func<Activo, T>> proyeccion,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(proyeccion);
-        return contexto.Activos.AsNoTracking()
-            .OrderBy(activo => activo.IdActivo)
-            .Select(proyeccion)
-            .ToListAsync(cancellationToken);
-    }
 
-    public List<Activo> listarTodo()
+    public List<Activo> ListarTodo()
     {
-        return contexto.Activos
+        return _contexto.Activos
             .OrderBy(activo => activo.IdActivo)
             .ToList();
     }
 
-    public Activo? seleccionarActivo(long id)
+    public Activo? SeleccionarActivo(long id)
     {
-        return contexto.Activos
+        return _contexto.Activos
             .FirstOrDefault(activo => activo.IdActivo == id);
     }
 
-    public Activo insertarActivo(Activo activo)
+    public Activo InsertarActivo(Activo activo)
     {
         ValidarClienteActivo(activo.IdCliente);
         ValidarModeloMaquinaActivo(activo.IdModeloMaquina);
-        contexto.Activos.Add(activo);
-        contexto.SaveChanges();
+        _contexto.Activos.Add(activo);
+        _contexto.SaveChanges();
         return activo;
     }
 
-    public bool actualizarActivo(Activo activo)
+    public bool ActualizarActivo(Activo activo)
     {
-        var activoExistente = contexto.Activos
+        var activoExistente = _contexto.Activos
             .FirstOrDefault(a => a.IdActivo == activo.IdActivo);
         if (activoExistente is null) return false;
 
@@ -67,58 +56,59 @@ public class ActivoDAO
         activoExistente.AnioFabricacion = activo.AnioFabricacion;
         activoExistente.Nombre = activo.Nombre;
         activoExistente.Ubicacion = activo.Ubicacion;
+        activoExistente.Estado = activo.Estado;
 
-        contexto.SaveChanges();
+        _contexto.SaveChanges();
         return true;
     }
 
-    public bool darBajaLogicaActivo(long id)
+    public bool DarBajaLogicaActivo(long id)
     {
-        var activoExistente = contexto.Activos
+        var activoExistente = _contexto.Activos
             .FirstOrDefault(activo => activo.IdActivo == id);
         if (activoExistente is null) return false;
 
         if (!activoExistente.Estado) return true;
 
         activoExistente.Estado = false;
-        contexto.SaveChanges();
+        _contexto.SaveChanges();
         return true;
     }
 
-    public bool eliminarActivo(long id)
+    public bool EliminarActivo(long id)
     {
-        var activoExistente = contexto.Activos
+        var activoExistente = _contexto.Activos
             .FirstOrDefault(activo => activo.IdActivo == id);
         if (activoExistente is null) return false;
 
-        contexto.Activos.Remove(activoExistente);
-        contexto.SaveChanges();
+        _contexto.Activos.Remove(activoExistente);
+        _contexto.SaveChanges();
         return true;
     }
 
     private void ValidarClienteActivo(long idCliente)
     {
         if (idCliente <= 0)
-            throw new ArgumentException("El identificador del cliente debe ser positivo.", nameof(idCliente));
+            throw new ArgumentException("El identificador del cliente debe ser positivo.");
 
-        var cliente = contexto.Clientes.AsNoTracking()
+        var cliente = _contexto.Clientes.AsNoTracking()
             .FirstOrDefault(cliente => cliente.IdCliente == idCliente);
         if (cliente is null)
-            throw new ArgumentException("El cliente indicado no existe.", nameof(idCliente));
+            throw new ArgumentException("El cliente indicado no existe.");
         if (!cliente.Estado)
-            throw new ArgumentException("El cliente indicado está inactivo.", nameof(idCliente));
+            throw new ArgumentException("El cliente indicado está inactivo.");
     }
 
     private void ValidarModeloMaquinaActivo(long idModeloMaquina)
     {
         if (idModeloMaquina <= 0)
-            throw new ArgumentException("El identificador del modelo de máquina debe ser positivo.", nameof(idModeloMaquina));
+            throw new ArgumentException("El identificador del modelo de máquina debe ser positivo.");
 
-        var modelo = contexto.ModeloMaquinas.AsNoTracking()
+        var modelo = _contexto.ModeloMaquinas.AsNoTracking()
             .FirstOrDefault(modelo => modelo.IdModeloMaquina == idModeloMaquina);
         if (modelo is null)
-            throw new ArgumentException("El modelo de máquina indicado no existe.", nameof(idModeloMaquina));
+            throw new ArgumentException("El modelo de máquina indicado no existe.");
         if (!modelo.Activo)
-            throw new ArgumentException("El modelo de máquina indicado está inactivo.", nameof(idModeloMaquina));
+            throw new ArgumentException("El modelo de máquina indicado está inactivo.");
     }
 }

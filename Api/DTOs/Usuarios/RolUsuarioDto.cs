@@ -1,8 +1,5 @@
 namespace Api.DTOs.Usuarios;
 
-/// <summary>
-/// Resumen de un rol asignado al usuario, sin sus permisos ni usuarios asociados.
-/// </summary>
 public class RolUsuarioDto
 {
     public long Id { get; init; }

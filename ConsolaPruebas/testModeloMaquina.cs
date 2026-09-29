@@ -8,7 +8,7 @@ public static class testModeloMaquina
     public static void ListarTodo()
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
-        var modelosMaquinas = dao.listarTodo();
+        var modelosMaquinas = dao.ListarTodo();
 
         if (modelosMaquinas.Count == 0)
         {
@@ -25,7 +25,7 @@ public static class testModeloMaquina
     public static void SeleccionarPorId(long id)
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
-        ModeloMaquina? modelo = dao.seleccionarModeloMaquina(id);
+        ModeloMaquina? modelo = dao.SeleccionarModeloMaquina(id);
 
         if (modelo is null)
         {
@@ -54,7 +54,7 @@ public static class testModeloMaquina
         Console.Write("Activo (true/false): ");
         modelo.Activo = LeerBool();
 
-        dao.insertarModeloMaquina(modelo);
+        dao.InsertarModeloMaquina(modelo);
         Console.WriteLine("ModeloMaquina insertado correctamente.");
         Console.WriteLine(modelo);
     }
@@ -66,7 +66,7 @@ public static class testModeloMaquina
         Console.Write("IdModeloMaquina a actualizar: ");
         long id = LeerLong();
 
-        ModeloMaquina? modelo = dao.seleccionarModeloMaquina(id);
+        ModeloMaquina? modelo = dao.SeleccionarModeloMaquina(id);
         if (modelo is null)
         {
             Console.WriteLine($"No se encontró un ModeloMaquina con Id: {id}");
@@ -101,7 +101,7 @@ public static class testModeloMaquina
             modelo.Activo = valorActivo;
         }
 
-        bool actualizado = dao.actualizarModeloMaquina(modelo);
+        bool actualizado = dao.ActualizarModeloMaquina(modelo);
         Console.WriteLine(actualizado ? "ModeloMaquina actualizado correctamente." : "No se pudo actualizar el registro.");
         if (actualizado)
         {
@@ -116,7 +116,7 @@ public static class testModeloMaquina
         Console.Write("IdModeloMaquina a eliminar: ");
         long id = LeerLong();
 
-        bool eliminado = dao.eliminarModeloMaquina(id);
+        bool eliminado = dao.EliminarModeloMaquina(id);
         Console.WriteLine(eliminado ? "ModeloMaquina eliminado correctamente." : $"No se encontró un ModeloMaquina con Id: {id}");
     }
 

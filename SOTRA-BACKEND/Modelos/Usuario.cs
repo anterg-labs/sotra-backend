@@ -29,11 +29,8 @@ public partial class Usuario
 
     public virtual ICollection<Rol> IdRols { get; set; } = new List<Rol>();
 
-    //crea el metodo toString para mostrar el usuario en consola, pero solo quiero ver el id, el nombre y el apellido
     public override string ToString()
     {
         return $"Id: {IdUsuario}, Nombre: {Nombre}, Apellido: {Apellido}";
     }
-
-
 }

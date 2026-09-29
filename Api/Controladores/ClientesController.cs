@@ -19,11 +19,14 @@ public class ClientesController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType<List<ClienteListadoDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<ClienteListadoDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public ActionResult<List<ClienteListadoDto>> ObtenerTodos()
     {
-        var respuesta = await _clienteDao.ListarTodoAsync(
-            ClienteMapeador.Proyeccion, cancellationToken);
+        var respuesta = new List<ClienteListadoDto>();
+        foreach (var cliente in _clienteDao.ListarTodo())
+        {
+            respuesta.Add(ClienteMapeador.AListadoDto(cliente));
+        }
+
         return Ok(respuesta);
     }
 
@@ -32,7 +35,7 @@ public class ClientesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ClienteListadoDto> ObtenerPorId(long id)
     {
-        var cliente = _clienteDao.seleccionarCliente(id);
+        var cliente = _clienteDao.SeleccionarCliente(id);
         return cliente is null ? NotFound() : Ok(ClienteMapeador.AListadoDto(cliente));
     }
 
@@ -44,7 +47,7 @@ public class ClientesController : ControllerBase
         try
         {
             var cliente = ClienteMapeador.AEntidad(solicitud);
-            var clienteCreado = _clienteDao.insertarCliente(cliente);
+            var clienteCreado = _clienteDao.InsertarCliente(cliente);
             var respuesta = ClienteMapeador.AListadoDto(clienteCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
         }
@@ -65,11 +68,11 @@ public class ClientesController : ControllerBase
     {
         try
         {
-            var cliente = _clienteDao.seleccionarCliente(id);
+            var cliente = _clienteDao.SeleccionarCliente(id);
             if (cliente is null) return NotFound();
 
             ClienteMapeador.AplicarCambios(cliente, solicitud);
-            _clienteDao.actualizarCliente(cliente);
+            _clienteDao.ActualizarCliente(cliente);
 
             return Ok(ClienteMapeador.AListadoDto(cliente));
         }
@@ -86,14 +89,22 @@ public class ClientesController : ControllerBase
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<ClienteListadoDto> Desactivar(long id, ClienteEstadoDto solicitud)
+    public ActionResult<ClienteListadoDto> CambiarEstado(long id, ClienteEstadoDto solicitud)
     {
-        if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
+        if (solicitud.Estado == "activo")
+        {
+            if (!_clienteDao.ReactivarCliente(id)) return NotFound();
+        }
+        else if (solicitud.Estado == "inactivo")
+        {
+            if (!_clienteDao.DarBajaLogicaCliente(id)) return NotFound();
+        }
+        else
+        {
+            return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
+        }
 
-        if (!_clienteDao.darBajaLogicaCliente(id)) return NotFound();
-
-        var cliente = _clienteDao.seleccionarCliente(id)!;
+        var cliente = _clienteDao.SeleccionarCliente(id)!;
         return Ok(ClienteMapeador.AListadoDto(cliente));
     }
 }

@@ -20,11 +20,14 @@ public class TiposMaquinaController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType<List<TipoMaquinaDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<TipoMaquinaDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public ActionResult<List<TipoMaquinaDto>> ObtenerTodos()
     {
-        var respuesta = await _tipoMaquinaDao.ListarTodoAsync(
-            TipoMaquinaMapeador.Proyeccion, cancellationToken);
+        var respuesta = new List<TipoMaquinaDto>();
+        foreach (var tipo in _tipoMaquinaDao.ListarTodo())
+        {
+            respuesta.Add(TipoMaquinaMapeador.ADto(tipo));
+        }
+
         return Ok(respuesta);
     }
 
@@ -33,7 +36,7 @@ public class TiposMaquinaController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<TipoMaquinaDto> ObtenerPorId(long id)
     {
-        var tipo = _tipoMaquinaDao.seleccionarTipoMaquina(id);
+        var tipo = _tipoMaquinaDao.SeleccionarTipoMaquina(id);
         return tipo is null ? NotFound() : Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 
@@ -44,7 +47,7 @@ public class TiposMaquinaController : ControllerBase
     {
         try
         {
-            var tipoCreado = _tipoMaquinaDao.insertarTipoMaquina(
+            var tipoCreado = _tipoMaquinaDao.InsertarTipoMaquina(
                 TipoMaquinaMapeador.AEntidad(solicitud));
             var respuesta = TipoMaquinaMapeador.ADto(tipoCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = tipoCreado.IdTipoMaquina }, respuesta);
@@ -65,11 +68,11 @@ public class TiposMaquinaController : ControllerBase
     {
         try
         {
-            var tipo = _tipoMaquinaDao.seleccionarTipoMaquina(id);
+            var tipo = _tipoMaquinaDao.SeleccionarTipoMaquina(id);
             if (tipo is null) return NotFound();
 
             TipoMaquinaMapeador.AplicarCambios(tipo, solicitud);
-            _tipoMaquinaDao.actualizarTipoMaquina(tipo);
+            _tipoMaquinaDao.ActualizarTipoMaquina(tipo);
 
             return Ok(TipoMaquinaMapeador.ADto(tipo));
         }
@@ -90,9 +93,9 @@ public class TiposMaquinaController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_tipoMaquinaDao.darBajaLogicaTipoMaquina(id)) return NotFound();
+        if (!_tipoMaquinaDao.DarBajaLogicaTipoMaquina(id)) return NotFound();
 
-        var tipo = _tipoMaquinaDao.seleccionarTipoMaquina(id)!;
+        var tipo = _tipoMaquinaDao.SeleccionarTipoMaquina(id)!;
         return Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 }

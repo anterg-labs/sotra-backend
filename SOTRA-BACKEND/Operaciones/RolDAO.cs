@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
@@ -7,7 +6,7 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class RolDAO
 {
-    private readonly SotraContext contexto;
+    private readonly SotraContext _contexto;
 
     public RolDAO() : this(new SotraContext())
     {
@@ -15,18 +14,13 @@ public class RolDAO
 
     public RolDAO(SotraContext contexto)
     {
-        this.contexto = contexto;
+        _contexto = contexto;
     }
 
-    public Task<List<T>> ListarTodoAsync<T>(
-        Expression<Func<Rol, T>> proyeccion,
-        CancellationToken cancellationToken = default)
+    public List<Rol> ListarTodo()
     {
-        ArgumentNullException.ThrowIfNull(proyeccion);
-        return contexto.Rols
-            .AsNoTracking()
+        return _contexto.Rols
             .OrderBy(rol => rol.IdRol)
-            .Select(proyeccion)
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 }
