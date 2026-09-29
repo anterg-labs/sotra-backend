@@ -1,0 +1,17 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /src
+
+COPY SOTRA-BACKEND/SOTRA-BACKEND.csproj SOTRA-BACKEND/
+COPY Api/Api.csproj Api/
+
+RUN dotnet restore Api/Api.csproj
+
+COPY . .
+
+ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080
+
+EXPOSE 8080
+
+CMD ["dotnet", "watch", "--project", "Api/Api.csproj", "run", "--no-launch-profile", "--urls", "http://0.0.0.0:8080"]
