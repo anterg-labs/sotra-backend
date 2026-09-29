@@ -20,11 +20,14 @@ public class ActivosController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType<List<ActivoDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<ActivoDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public ActionResult<List<ActivoDto>> ObtenerTodos()
     {
-        var respuesta = await _activoDao.ListarTodoAsync(
-            ActivoMapeador.Proyeccion, cancellationToken);
+        var respuesta = new List<ActivoDto>();
+        foreach (var activo in _activoDao.ListarTodo())
+        {
+            respuesta.Add(ActivoMapeador.ADto(activo));
+        }
+
         return Ok(respuesta);
     }
 
@@ -33,7 +36,7 @@ public class ActivosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ActivoDto> ObtenerPorId(long id)
     {
-        var activo = _activoDao.seleccionarActivo(id);
+        var activo = _activoDao.SeleccionarActivo(id);
         return activo is null ? NotFound() : Ok(ActivoMapeador.ADto(activo));
     }
 
@@ -45,7 +48,7 @@ public class ActivosController : ControllerBase
     {
         try
         {
-            var activoCreado = _activoDao.insertarActivo(ActivoMapeador.AEntidad(solicitud));
+            var activoCreado = _activoDao.InsertarActivo(ActivoMapeador.AEntidad(solicitud));
             var respuesta = ActivoMapeador.ADto(activoCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = activoCreado.IdActivo }, respuesta);
         }
@@ -70,11 +73,11 @@ public class ActivosController : ControllerBase
     {
         try
         {
-            var activo = _activoDao.seleccionarActivo(id);
+            var activo = _activoDao.SeleccionarActivo(id);
             if (activo is null) return NotFound();
 
             ActivoMapeador.AplicarCambios(activo, solicitud);
-            _activoDao.actualizarActivo(activo);
+            _activoDao.ActualizarActivo(activo);
             return Ok(ActivoMapeador.ADto(activo));
         }
         catch (ArgumentException excepcion)
@@ -98,9 +101,9 @@ public class ActivosController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_activoDao.darBajaLogicaActivo(id)) return NotFound();
+        if (!_activoDao.DarBajaLogicaActivo(id)) return NotFound();
 
-        var activo = _activoDao.seleccionarActivo(id)!;
+        var activo = _activoDao.SeleccionarActivo(id)!;
         return Ok(ActivoMapeador.ADto(activo));
     }
 }

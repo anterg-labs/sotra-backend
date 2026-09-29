@@ -17,14 +17,16 @@ public class UsuariosController : ControllerBase
         _usuarioDao = usuarioDao;
     }
 
-
     [HttpGet]
     [ProducesResponseType<List<UsuarioListadoDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<UsuarioListadoDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public ActionResult<List<UsuarioListadoDto>> ObtenerTodos()
     {
-        var respuesta = await _usuarioDao.ListarTodoAsync(
-            UsuarioMapeador.Proyeccion, cancellationToken);
+        var respuesta = new List<UsuarioListadoDto>();
+        foreach (var usuario in _usuarioDao.ListarTodo())
+        {
+            respuesta.Add(UsuarioMapeador.AListadoDto(usuario));
+        }
+
         return Ok(respuesta);
     }
 
@@ -33,7 +35,7 @@ public class UsuariosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<UsuarioListadoDto> ObtenerPorId(long id)
     {
-        var usuario = _usuarioDao.seleccionarUsuario(id);
+        var usuario = _usuarioDao.SeleccionarUsuario(id);
         return usuario is null ? NotFound() : Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 
@@ -46,7 +48,7 @@ public class UsuariosController : ControllerBase
         try
         {
             var usuario = UsuarioMapeador.AEntidad(solicitud);
-            var usuarioCreado = _usuarioDao.insertarUsuario(usuario, solicitud.IdsRol);
+            var usuarioCreado = _usuarioDao.InsertarUsuario(usuario, solicitud.IdsRol);
             var respuesta = UsuarioMapeador.AListadoDto(usuarioCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = usuarioCreado.IdUsuario }, respuesta);
         }
@@ -69,18 +71,13 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuario = _usuarioDao.seleccionarUsuario(id);
+            var usuario = _usuarioDao.SeleccionarUsuario(id);
             if (usuario is null) return NotFound();
 
             UsuarioMapeador.AplicarCambios(usuario, solicitud);
+            _usuarioDao.ActualizarUsuario(usuario, solicitud.IdsRol, solicitud.Contrasena);
 
-            var idsRol = solicitud.IdsRol is { Count: > 0 }
-                ? solicitud.IdsRol
-                : usuario.IdRols.Select(rol => rol.IdRol).ToList();
-
-            _usuarioDao.actualizarUsuario(usuario, idsRol);
-
-            var usuarioActualizado = _usuarioDao.seleccionarUsuario(id)!;
+            var usuarioActualizado = _usuarioDao.SeleccionarUsuario(id)!;
             return Ok(UsuarioMapeador.AListadoDto(usuarioActualizado));
         }
         catch (ArgumentException excepcion)
@@ -102,10 +99,9 @@ public class UsuariosController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_usuarioDao.darBajaLogicaUsuario(id)) return NotFound();
+        if (!_usuarioDao.DarBajaLogicaUsuario(id)) return NotFound();
 
-        var usuario = _usuarioDao.seleccionarUsuario(id)!;
+        var usuario = _usuarioDao.SeleccionarUsuario(id)!;
         return Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 }
-// prueba

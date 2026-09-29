@@ -4,17 +4,26 @@ namespace Api.DTOs.Usuarios;
 
 public class UsuarioActualizarDto
 {
-    [MaxLength(100)]
-    public string? Nombre { get; init; }
+    [Required, MaxLength(100)]
+    public required string Nombre { get; init; }
 
-    [MaxLength(100)]
-    public string? Apellido { get; init; }
+    [Required, MaxLength(100)]
+    public required string Apellido { get; init; }
 
-    [EmailAddress, MaxLength(254)]
-    public string? Correo { get; init; }
+    [Required, EmailAddress, MaxLength(254)]
+    public required string Correo { get; init; }
 
-    [MaxLength(30)]
-    public string? Telefono { get; init; }
+    [Required, MaxLength(30)]
+    public required string Telefono { get; init; }
 
-    public List<long>? IdsRol { get; init; }
+    [Required]
+    public required List<long> IdsRol { get; init; }
+
+    [Required]
+    public required string Estado { get; init; }
+
+    public required DateOnly FechaIngreso { get; init; }
+
+    [MaxLength(255)]
+    public string? Contrasena { get; init; }
 }

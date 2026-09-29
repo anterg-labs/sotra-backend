@@ -18,11 +18,14 @@ public class RolesController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType<List<RolDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<RolDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public ActionResult<List<RolDto>> ObtenerTodos()
     {
-        var respuesta = await _rolDao.ListarTodoAsync(
-            RolMapeador.Proyeccion, cancellationToken);
+        var respuesta = new List<RolDto>();
+        foreach (var rol in _rolDao.ListarTodo())
+        {
+            respuesta.Add(RolMapeador.ADto(rol));
+        }
+
         return Ok(respuesta);
     }
 }

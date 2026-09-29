@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
@@ -7,7 +6,7 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class ClienteDAO
 {
-    private readonly SotraContext contexto;
+    private readonly SotraContext _contexto;
 
     public ClienteDAO() : this(new SotraContext())
     {
@@ -15,46 +14,35 @@ public class ClienteDAO
 
     public ClienteDAO(SotraContext contexto)
     {
-        this.contexto = contexto;
+        _contexto = contexto;
     }
 
-    public Task<List<T>> ListarTodoAsync<T>(
-        Expression<Func<Cliente, T>> proyeccion,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(proyeccion);
-        return contexto.Clientes
-            .AsNoTracking()
-            .OrderBy(cliente => cliente.IdCliente)
-            .Select(proyeccion)
-            .ToListAsync(cancellationToken);
-    }
 
-    public List<Cliente> listarTodo()
+    public List<Cliente> ListarTodo()
     {
-        return contexto.Clientes
+        return _contexto.Clientes
             .Include(cliente => cliente.Activos)
             .OrderBy(cliente => cliente.IdCliente)
             .ToList();
     }
 
-    public Cliente? seleccionarCliente(long id)
+    public Cliente? SeleccionarCliente(long id)
     {
-        return contexto.Clientes
+        return _contexto.Clientes
             .Include(cliente => cliente.Activos)
             .FirstOrDefault(cliente => cliente.IdCliente == id);
     }
 
-    public Cliente insertarCliente(Cliente cliente)
+    public Cliente InsertarCliente(Cliente cliente)
     {
-        contexto.Clientes.Add(cliente);
-        contexto.SaveChanges();
+        _contexto.Clientes.Add(cliente);
+        _contexto.SaveChanges();
         return cliente;
     }
 
-    public bool actualizarCliente(Cliente cliente)
+    public bool ActualizarCliente(Cliente cliente)
     {
-        var clienteExistente = contexto.Clientes
+        var clienteExistente = _contexto.Clientes
             .FirstOrDefault(c => c.IdCliente == cliente.IdCliente);
         if (clienteExistente is null) return false;
 
@@ -65,31 +53,42 @@ public class ClienteDAO
         clienteExistente.Direccion = cliente.Direccion;
         clienteExistente.Observaciones = cliente.Observaciones;
 
-        contexto.SaveChanges();
+        _contexto.SaveChanges();
         return true;
     }
 
-    public bool darBajaLogicaCliente(long id)
+    public bool DarBajaLogicaCliente(long id)
     {
-        var clienteExistente = contexto.Clientes
+        var clienteExistente = _contexto.Clientes
             .FirstOrDefault(cliente => cliente.IdCliente == id);
         if (clienteExistente is null) return false;
 
         if (!clienteExistente.Estado) return true;
 
         clienteExistente.Estado = false;
-        contexto.SaveChanges();
+        _contexto.SaveChanges();
         return true;
     }
 
-    public bool eliminarCliente(long id)
+    public bool ReactivarCliente(long id)
     {
-        var clienteExistente = contexto.Clientes
+        var clienteExistente = _contexto.Clientes
             .FirstOrDefault(cliente => cliente.IdCliente == id);
         if (clienteExistente is null) return false;
 
-        contexto.Clientes.Remove(clienteExistente);
-        contexto.SaveChanges();
+        clienteExistente.Estado = true;
+        _contexto.SaveChanges();
+        return true;
+    }
+
+    public bool EliminarCliente(long id)
+    {
+        var clienteExistente = _contexto.Clientes
+            .FirstOrDefault(cliente => cliente.IdCliente == id);
+        if (clienteExistente is null) return false;
+
+        _contexto.Clientes.Remove(clienteExistente);
+        _contexto.SaveChanges();
         return true;
     }
 }

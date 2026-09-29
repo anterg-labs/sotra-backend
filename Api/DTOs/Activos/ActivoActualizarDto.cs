@@ -22,4 +22,6 @@ public class ActivoActualizarDto
 
     [MaxLength(150)]
     public string? Ubicacion { get; init; }
+
+    public string? Estado { get; init; }
 }

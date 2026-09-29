@@ -8,7 +8,7 @@ public static class testUsuario
     public static void ListarTodo()
     {
         UsuarioDAO dao = new UsuarioDAO();
-        var usuarios = dao.listarTodo();
+        var usuarios = dao.ListarTodo();
 
         if (usuarios.Count == 0)
         {
@@ -27,7 +27,7 @@ public static class testUsuario
     public static void SeleccionarPorId(long id)
     {
         UsuarioDAO dao = new UsuarioDAO();
-        Usuario? usuario = dao.seleccionarUsuario(id);
+        Usuario? usuario = dao.SeleccionarUsuario(id);
 
         if (usuario is null)
         {
@@ -67,7 +67,7 @@ public static class testUsuario
 
         List<long> idsRol = LeerRolesUsuario();
 
-        usuario = dao.insertarUsuario(usuario, idsRol);
+        usuario = dao.InsertarUsuario(usuario, idsRol);
 
         Console.WriteLine("Usuario insertado correctamente.");
         Console.WriteLine(usuario);
@@ -81,7 +81,7 @@ public static class testUsuario
         Console.Write("IdUsuario a actualizar: ");
         long id = LeerLong();
 
-        Usuario? usuario = dao.seleccionarUsuario(id);
+        Usuario? usuario = dao.SeleccionarUsuario(id);
         if (usuario is null)
         {
             Console.WriteLine($"No se encontró un Usuario con Id: {id}");
@@ -129,7 +129,7 @@ public static class testUsuario
         List<long> idsRolActuales = usuario.IdRols.Select(r => r.IdRol).ToList();
         List<long> idsRol = LeerRolesUsuario(idsRolActuales);
 
-        bool actualizado = dao.actualizarUsuario(usuario, idsRol, contrasena.Length == 0 ? null : contrasena);
+        bool actualizado = dao.ActualizarUsuario(usuario, idsRol, contrasena.Length == 0 ? null : contrasena);
         Console.WriteLine(actualizado ? "Usuario actualizado correctamente." : "No se pudo actualizar el registro.");
         if (actualizado)
         {
@@ -145,7 +145,7 @@ public static class testUsuario
         Console.Write("IdUsuario a eliminar: ");
         long id = LeerLong();
 
-        bool eliminado = dao.eliminarUsuario(id);
+        bool eliminado = dao.EliminarUsuario(id);
         Console.WriteLine(eliminado ? "Usuario eliminado correctamente." : $"No se encontró un Usuario con Id: {id}");
     }
 
@@ -156,7 +156,7 @@ public static class testUsuario
         Console.Write("IdUsuario a dar de baja lógica: ");
         long id = LeerLong();
 
-        bool dadoDeBaja = dao.darBajaLogicaUsuario(id);
+        bool dadoDeBaja = dao.DarBajaLogicaUsuario(id);
         Console.WriteLine(dadoDeBaja ? "Usuario dado de baja lógica correctamente." : $"No se encontró un Usuario con Id: {id}");
     }
 

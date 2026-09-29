@@ -4,6 +4,8 @@ namespace Api.DTOs.TiposMaquina;
 
 public class TipoMaquinaActualizarDto
 {
-    [MaxLength(60)]
-    public string? Nombre { get; init; }
+    [Required, MaxLength(60)]
+    public required string Nombre { get; init; }
+
+    public string? Estado { get; init; }
 }

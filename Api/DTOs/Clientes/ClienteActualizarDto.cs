@@ -4,11 +4,11 @@ namespace Api.DTOs.Clientes;
 
 public class ClienteActualizarDto
 {
-    [MaxLength(160)]
-    public string? RazonSocial { get; init; }
+    [Required, MaxLength(160)]
+    public required string RazonSocial { get; init; }
 
-    [MaxLength(120)]
-    public string? NombreContacto { get; init; }
+    [Required, MaxLength(120)]
+    public required string NombreContacto { get; init; }
 
     [EmailAddress, MaxLength(254)]
     public string? Correo { get; init; }

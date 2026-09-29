@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Api.DTOs.Activos;
 using SOTRA_BACKEND.Modelos;
 
@@ -6,20 +5,6 @@ namespace Api.Mapeadores;
 
 public static class ActivoMapeador
 {
-    public static Expression<Func<Activo, ActivoDto>> Proyeccion => activo =>
-        new ActivoDto
-        {
-            Id = activo.IdActivo,
-            ClienteId = activo.IdCliente,
-            NumSerie = activo.NumSerie,
-            Descripcion = activo.Descripcion,
-            ModeloMaquinaId = activo.IdModeloMaquina,
-            AnioFabricacion = activo.AnioFabricacion,
-            Nombre = activo.Nombre,
-            Ubicacion = activo.Ubicacion,
-            Estado = activo.Estado ? "activo" : "inactivo"
-        };
-
     public static Activo AEntidad(ActivoCrearDto activo)
     {
         return new Activo
@@ -44,6 +29,19 @@ public static class ActivoMapeador
         if (cambios.AnioFabricacion.HasValue) destino.AnioFabricacion = cambios.AnioFabricacion.Value;
         if (!string.IsNullOrWhiteSpace(cambios.Nombre)) destino.Nombre = cambios.Nombre;
         if (!string.IsNullOrWhiteSpace(cambios.Ubicacion)) destino.Ubicacion = cambios.Ubicacion;
+
+        if (cambios.Estado == "activo")
+        {
+            destino.Estado = true;
+        }
+        else if (cambios.Estado == "inactivo")
+        {
+            destino.Estado = false;
+        }
+        else if (cambios.Estado != null)
+        {
+            throw new ArgumentException("El estado debe ser 'activo' o 'inactivo'.");
+        }
     }
 
     public static ActivoDto ADto(Activo activo)

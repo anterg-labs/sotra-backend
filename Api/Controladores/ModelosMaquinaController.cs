@@ -20,11 +20,14 @@ public class ModelosMaquinaController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType<List<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<ModeloMaquinaDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public ActionResult<List<ModeloMaquinaDto>> ObtenerTodos()
     {
-        var respuesta = await _modeloMaquinaDao.ListarTodoAsync(
-            ModeloMaquinaMapeador.Proyeccion, cancellationToken);
+        var respuesta = new List<ModeloMaquinaDto>();
+        foreach (var modelo in _modeloMaquinaDao.ListarTodo())
+        {
+            respuesta.Add(ModeloMaquinaMapeador.ADto(modelo));
+        }
+
         return Ok(respuesta);
     }
 
@@ -33,7 +36,7 @@ public class ModelosMaquinaController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ModeloMaquinaDto> ObtenerPorId(long id)
     {
-        var modelo = _modeloMaquinaDao.seleccionarModeloMaquina(id);
+        var modelo = _modeloMaquinaDao.SeleccionarModeloMaquina(id);
         return modelo is null ? NotFound() : Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 
@@ -45,7 +48,7 @@ public class ModelosMaquinaController : ControllerBase
     {
         try
         {
-            var modeloCreado = _modeloMaquinaDao.insertarModeloMaquina(
+            var modeloCreado = _modeloMaquinaDao.InsertarModeloMaquina(
                 ModeloMaquinaMapeador.AEntidad(solicitud));
             var respuesta = ModeloMaquinaMapeador.ADto(modeloCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = modeloCreado.IdModeloMaquina }, respuesta);
@@ -71,11 +74,11 @@ public class ModelosMaquinaController : ControllerBase
     {
         try
         {
-            var modelo = _modeloMaquinaDao.seleccionarModeloMaquina(id);
+            var modelo = _modeloMaquinaDao.SeleccionarModeloMaquina(id);
             if (modelo is null) return NotFound();
 
             ModeloMaquinaMapeador.AplicarCambios(modelo, solicitud);
-            _modeloMaquinaDao.actualizarModeloMaquina(modelo);
+            _modeloMaquinaDao.ActualizarModeloMaquina(modelo);
             return Ok(ModeloMaquinaMapeador.ADto(modelo));
         }
         catch (ArgumentException excepcion)
@@ -99,9 +102,9 @@ public class ModelosMaquinaController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_modeloMaquinaDao.darBajaLogicaModeloMaquina(id)) return NotFound();
+        if (!_modeloMaquinaDao.DarBajaLogicaModeloMaquina(id)) return NotFound();
 
-        var modelo = _modeloMaquinaDao.seleccionarModeloMaquina(id)!;
+        var modelo = _modeloMaquinaDao.SeleccionarModeloMaquina(id)!;
         return Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 }
