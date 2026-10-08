@@ -130,17 +130,117 @@ public class OrdenesTrabajoController : ControllerBase
 
             var ordenActualizada = _ordenTrabajoDao.Actualizar(orden,
                 solicitud.FechaPrevistaEjecucion, solicitud.RepuestosIds,
-                solicitud.Sugerencias, solicitud.Estado);
+                solicitud.Sugerencias, solicitud.Estado, solicitud.MotivoEstado);
             return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada));
         }
-        catch (InvalidOperationException excepcion) when (excepcion.Message == "ORDEN_CERRADA")
+        catch (InvalidOperationException excepcion)
         {
-            return Conflict(new { codigo = "ORDEN_CERRADA", mensaje = "La orden cerrada no se puede modificar." });
+            return TraducirErrorDeEstado(excepcion);
         }
         catch (ArgumentException excepcion)
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
+    }
+
+    [HttpPatch("{id:long}/estado")]
+    public ActionResult<OrdenTrabajoDto> CambiarEstado(long id, CambioEstadoOrdenTrabajoDto solicitud)
+    {
+        var orden = _ordenTrabajoDao.Seleccionar(id);
+        if (orden is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var motivo = solicitud.Motivo;
+            if (motivo is not null)
+            {
+                motivo = motivo.Trim();
+            }
+
+            var ordenActualizada = _ordenTrabajoDao.CambiarEstado(orden, solicitud.Estado, motivo);
+            return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada));
+        }
+        catch (InvalidOperationException excepcion)
+        {
+            return TraducirErrorDeEstado(excepcion);
+        }
+        catch (ArgumentException excepcion)
+        {
+            return BadRequest(new { mensaje = excepcion.Message });
+        }
+    }
+
+    [HttpPatch("{id:long}/tecnico")]
+    public ActionResult<OrdenTrabajoDto> AsignarTecnico(long id, AsignacionTecnicoDto solicitud)
+    {
+        var orden = _ordenTrabajoDao.Seleccionar(id);
+        if (orden is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var ordenActualizada = _ordenTrabajoDao.AsignarTecnico(orden, solicitud.TecnicoId);
+            return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada));
+        }
+        catch (InvalidOperationException excepcion)
+        {
+            return TraducirErrorDeEstado(excepcion);
+        }
+        catch (ArgumentException excepcion)
+        {
+            return BadRequest(new { mensaje = excepcion.Message });
+        }
+    }
+
+    private ActionResult TraducirErrorDeEstado(InvalidOperationException excepcion)
+    {
+        if (excepcion.Message == "ORDEN_CERRADA")
+        {
+            return Conflict(new { codigo = "ORDEN_CERRADA", mensaje = "La orden cerrada no se puede modificar." });
+        }
+
+        if (excepcion.Message == "ORDEN_NO_MODIFICABLE")
+        {
+            return Conflict(new
+            {
+                codigo = "ORDEN_NO_MODIFICABLE",
+                mensaje = "La orden cerrada o cancelada no se puede modificar."
+            });
+        }
+
+        if (excepcion.Message == "TRANSICION_INVALIDA")
+        {
+            return BadRequest(new
+            {
+                codigo = "TRANSICION_INVALIDA",
+                mensaje = "La orden no puede pasar a ese estado desde su estado actual."
+            });
+        }
+
+        if (excepcion.Message == "TECNICO_OBLIGATORIO")
+        {
+            return BadRequest(new
+            {
+                codigo = "TECNICO_OBLIGATORIO",
+                mensaje = "Asigná un técnico antes de pasar la orden a ese estado."
+            });
+        }
+
+        if (excepcion.Message == "MOTIVO_OBLIGATORIO")
+        {
+            return BadRequest(new
+            {
+                codigo = "MOTIVO_OBLIGATORIO",
+                mensaje = "Indicá el motivo u observación del cambio de estado."
+            });
+        }
+
+        throw excepcion;
     }
 
     [HttpPost("sugerencia")]

@@ -1,5 +1,6 @@
 using Api.DTOs.OrdenesTrabajo;
 using SOTRA_BACKEND.Modelos;
+using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Mapeadores;
 
@@ -69,6 +70,26 @@ public static class OrdenTrabajoMapeador
             }
         }
 
+        var historialEstados = new List<HistorialEstadoDto>();
+        var historialOrdenado = orden.HistorialEstadoOts
+            .OrderBy(historial => historial.FechaHora)
+            .ThenBy(historial => historial.IdHEstadoOt);
+        foreach (var historial in historialOrdenado)
+        {
+            var observacion = historial.Observacion;
+            if (historial == primerEstado)
+            {
+                observacion = null;
+            }
+
+            historialEstados.Add(new HistorialEstadoDto
+            {
+                Estado = historial.IdEstadoOtNavigation.Nombre,
+                FechaHora = historial.FechaHora,
+                Observacion = observacion
+            });
+        }
+
         var repuestos = new List<RepuestoOrdenDto>();
         foreach (var relacion in orden.OtRepuestos.OrderBy(item => item.IdOtRepuesto))
         {
@@ -99,7 +120,9 @@ public static class OrdenTrabajoMapeador
             FechaInicio = orden.FechaInicio,
             FechaCierre = orden.FechaCierre,
             Sugerencias = sugerencias,
-            Repuestos = repuestos
+            Repuestos = repuestos,
+            EstadosSiguientes = OrdenTrabajoDAO.ObtenerEstadosSiguientes(estado),
+            HistorialEstados = historialEstados
         };
     }
 

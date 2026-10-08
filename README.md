@@ -98,7 +98,7 @@ Los controladores responden los errores esperados (`400`, `409`, `422`) con un o
 La API implementa los módulos restantes que consume el frontend:
 
 - `/api/v1/repuestos`: `GET`, `GET /{id}`, `POST`, `PUT /{id}` y `PATCH /{id}`.
-- `/api/v1/ordenes-trabajo`: `GET`, `GET /{id}`, `POST`, `PUT /{id}` y `POST /sugerencia`. El `GET` es paginado y acepta búsqueda y filtros (ver "Listados paginados").
+- `/api/v1/ordenes-trabajo`: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}/estado`, `PATCH /{id}/tecnico` y `POST /sugerencia`. El `GET` es paginado y acepta búsqueda y filtros (ver "Listados paginados").
 - `/api/v1/documentos-tecnicos`: `GET`, `POST`, `GET /{id}/archivo` y `DELETE /{id}`.
 - `/api/v1/reportes/indicadores`: `GET`.
 
@@ -113,6 +113,26 @@ Siguen las secciones 9.1 y 9.2 de los criterios de desarrollo. Responden `Pagina
 Listados paginados hasta ahora:
 
 - `GET /api/v1/ordenes-trabajo` (`FiltrosOrdenesTrabajoDto`): `buscar` (número exacto, o texto en descripción, cliente, activo o técnico, sin distinguir mayúsculas), `clienteId`, `activoId`, `tecnicoId`, `estado`, `prioridad`, `tipo`, `fechaDesde` y `fechaHasta` (fecha de creación; invertidas responden `400` con `RANGO_FECHAS_INVALIDO`), `ordenarPor` (`id` o `creadoEn`) y `direccionOrden` (`asc` o `desc`).
+
+### Ciclo de vida de la orden (`PATCH /api/v1/ordenes-trabajo/{id}/estado` y `/tecnico`)
+
+RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones permitidas están en `OrdenTrabajoDAO.TransicionesPermitidas` y se validan tanto en `PATCH /estado` como en `PUT`:
+
+| Estado actual | Puede pasar a |
+|---|---|
+| `creada` | `asignada`, `cancelada` |
+| `asignada` | `en_ejecucion`, `cancelada` |
+| `en_ejecucion` | `pausada`, `finalizada` |
+| `pausada` | `en_ejecucion`, `cancelada` |
+| `finalizada` | `cerrada` (validación del jefe), `asignada` (reasignación) |
+| `cerrada`, `cancelada` | ninguno |
+
+- `PATCH /{id}/estado` recibe `{ "estado": "...", "motivo": "..." }`. El motivo es obligatorio al pausar, cancelar, cerrar o reasignar una orden finalizada, y se guarda en `historial_estado_ot.observacion` (no hace falta cambiar la base). `asignada` y `en_ejecucion` exigen técnico asignado. `PUT` acepta el mismo motivo en `motivoEstado`.
+- `PATCH /{id}/tecnico` recibe `{ "tecnicoId": 0 }`. Valida que sea un usuario activo con rol Técnico, pasa la orden de `creada` a `asignada` y registra en el historial "Técnico asignado: Nombre Apellido".
+- Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
+- `OrdenTrabajoDto` incluye `estadosSiguientes` (los estados a los que puede pasar) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
+
+El historial todavía no registra el usuario responsable del cambio, porque no hay login.
 
 ### Indicadores (`GET /api/v1/reportes/indicadores`)
 

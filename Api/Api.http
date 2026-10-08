@@ -23,3 +23,22 @@ GET {{Api_HostAddress}}/api/v1/ordenes-trabajo?buscar=filtro&estado=creada&pagin
 Accept: application/json
 
 ###
+
+PATCH {{Api_HostAddress}}/api/v1/ordenes-trabajo/1/estado
+Content-Type: application/json
+
+{
+  "estado": "pausada",
+  "motivo": "Falta de repuestos"
+}
+
+###
+
+PATCH {{Api_HostAddress}}/api/v1/ordenes-trabajo/1/tecnico
+Content-Type: application/json
+
+{
+  "tecnicoId": 25
+}
+
+###
