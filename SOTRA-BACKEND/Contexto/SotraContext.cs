@@ -35,6 +35,8 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<MovimientoStock> MovimientoStocks { get; set; }
 
+    public virtual DbSet<EvidenciaOt> EvidenciasOt { get; set; }
+
     public virtual DbSet<OrdenTrabajo> OrdenTrabajos { get; set; }
 
     public virtual DbSet<OtRepuesto> OtRepuestos { get; set; }
@@ -264,6 +266,34 @@ public partial class SotraContext : DbContext
                 .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MOTIVO_ESTADO_OT_ID\"'::regclass)")
                 .HasColumnName("id_motivo_es");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+        });
+
+        modelBuilder.Entity<EvidenciaOt>(entity =>
+        {
+            entity.HasKey(e => e.IdEvidencia).HasName("PK_EVIDENCIA_OT");
+
+            entity.ToTable("evidencia_ot", EsquemaOperativo);
+
+            entity.Property(e => e.IdEvidencia)
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_EVIDENCIA_OT_ID\"'::regclass)")
+                .HasColumnName("id_evidencia");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(20)
+                .HasColumnName("tipo");
+            entity.Property(e => e.Observacion).HasColumnName("observacion");
+            entity.Property(e => e.FechaRegistro).HasColumnName("fecha_registro");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.NombreArchivo)
+                .HasMaxLength(255)
+                .HasColumnName("nombre_archivo");
+            entity.Property(e => e.TipoContenido)
+                .HasMaxLength(100)
+                .HasColumnName("tipo_contenido");
+            entity.Property(e => e.Archivo).HasColumnName("archivo");
         });
 
         modelBuilder.Entity<MovimientoStock>(entity =>
