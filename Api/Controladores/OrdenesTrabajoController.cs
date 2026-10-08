@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
 using Api.Servicios;
@@ -22,15 +23,49 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<List<OrdenTrabajoDto>> ObtenerTodos()
+    public ActionResult<PaginaDto<OrdenTrabajoDto>> ObtenerTodos([FromQuery] FiltrosOrdenesTrabajoDto filtros)
     {
-        var respuesta = new List<OrdenTrabajoDto>();
-        foreach (var orden in _ordenTrabajoDao.ListarTodo())
+        if (!PaginaDto<OrdenTrabajoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            respuesta.Add(OrdenTrabajoMapeador.ADto(orden));
+            return BadRequest(new
+            {
+                codigo = "PAGINACION_INVALIDA",
+                mensaje = "La página debe ser 1 o mayor y el tamaño de página debe estar entre 1 y "
+                          + PaginaDto<OrdenTrabajoDto>.TamanoPaginaMaximo + "."
+            });
         }
 
-        return Ok(respuesta);
+        if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
+            && filtros.FechaDesde > filtros.FechaHasta)
+        {
+            return BadRequest(new
+            {
+                codigo = "RANGO_FECHAS_INVALIDO",
+                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
+            });
+        }
+
+        var ordenes = new List<OrdenTrabajoDto>();
+        foreach (var orden in _ordenTrabajoDao.ListarTodo())
+        {
+            var ordenDto = OrdenTrabajoMapeador.ADto(orden);
+            if (CumpleFiltros(ordenDto, filtros))
+            {
+                ordenes.Add(ordenDto);
+            }
+        }
+
+        if (filtros.OrdenarPor == "creadoEn")
+        {
+            ordenes = ordenes.OrderBy(orden => orden.CreadoEn).ToList();
+        }
+
+        if (filtros.DireccionOrden == "desc")
+        {
+            ordenes.Reverse();
+        }
+
+        return Ok(PaginaDto<OrdenTrabajoDto>.Crear(ordenes, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -144,6 +179,72 @@ public class OrdenesTrabajoController : ControllerBase
                 mensaje = "No se pudo obtener la sugerencia técnica."
             });
         }
+    }
+
+    private static bool CumpleFiltros(OrdenTrabajoDto orden, FiltrosOrdenesTrabajoDto filtros)
+    {
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            var textoBuscado = filtros.Buscar.Trim().ToLower();
+            var nombreTecnico = "";
+            if (orden.NombreTecnico is not null)
+            {
+                nombreTecnico = orden.NombreTecnico;
+            }
+
+            var coincide = orden.Id.ToString() == textoBuscado
+                           || orden.Descripcion.ToLower().Contains(textoBuscado)
+                           || orden.NombreCliente.ToLower().Contains(textoBuscado)
+                           || orden.NombreActivo.ToLower().Contains(textoBuscado)
+                           || nombreTecnico.ToLower().Contains(textoBuscado);
+            if (!coincide)
+            {
+                return false;
+            }
+        }
+
+        if (filtros.ClienteId is not null && orden.ClienteId != filtros.ClienteId)
+        {
+            return false;
+        }
+
+        if (filtros.ActivoId is not null && orden.ActivoId != filtros.ActivoId)
+        {
+            return false;
+        }
+
+        if (filtros.TecnicoId is not null && orden.TecnicoId != filtros.TecnicoId)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(filtros.Estado) && orden.Estado != filtros.Estado)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(filtros.Prioridad) && orden.Prioridad != filtros.Prioridad)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(filtros.Tipo) && orden.Tipo != filtros.Tipo)
+        {
+            return false;
+        }
+
+        var fechaCreacion = DateOnly.FromDateTime(orden.CreadoEn);
+        if (filtros.FechaDesde is not null && fechaCreacion < filtros.FechaDesde)
+        {
+            return false;
+        }
+
+        if (filtros.FechaHasta is not null && fechaCreacion > filtros.FechaHasta)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static void ValidarFecha(DateOnly fecha)
