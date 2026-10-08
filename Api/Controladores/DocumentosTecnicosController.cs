@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.DocumentosTecnicos;
 using Api.Servicios;
 using Microsoft.AspNetCore.Mvc;
@@ -17,10 +18,56 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<DocumentoTecnicoDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<PaginaDto<DocumentoTecnicoDto>>> ObtenerTodos(
+        [FromQuery] FiltrosDocumentosTecnicosDto filtros, CancellationToken cancellationToken)
     {
-        return Ok(await _servicio.ListarAsync(cancellationToken));
+        if (!PaginaDto<DocumentoTecnicoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<DocumentoTecnicoDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
+        var respuesta = new List<DocumentoTecnicoDto>();
+        foreach (var documento in await _servicio.ListarAsync(cancellationToken))
+        {
+            if (textoBuscado != "")
+            {
+                var coincide = PaginaDto<DocumentoTecnicoDto>.Contiene(documento.NombreArchivo, textoBuscado)
+                               || PaginaDto<DocumentoTecnicoDto>.Contiene(documento.NombreActivo, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (filtros.ActivoId is not null && documento.ActivoId != filtros.ActivoId)
+            {
+                continue;
+            }
+
+            respuesta.Add(documento);
+        }
+
+        return Ok(PaginaDto<DocumentoTecnicoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+    }
+
+    [HttpGet("{id:long}")]
+    public async Task<ActionResult<DocumentoTecnicoDto>> ObtenerPorId(long id, CancellationToken cancellationToken)
+    {
+        foreach (var documento in await _servicio.ListarAsync(cancellationToken))
+        {
+            if (documento.Id == id)
+            {
+                return Ok(documento);
+            }
+        }
+
+        return NotFound();
     }
 
     [HttpPost]

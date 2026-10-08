@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.TiposMaquina;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -19,16 +20,39 @@ public class TiposMaquinaController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<TipoMaquinaDto>>(StatusCodes.Status200OK)]
-    public ActionResult<List<TipoMaquinaDto>> ObtenerTodos()
+    [ProducesResponseType<PaginaDto<TipoMaquinaDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<TipoMaquinaDto>> ObtenerTodos([FromQuery] FiltrosTiposMaquinaDto filtros)
     {
+        if (!PaginaDto<TipoMaquinaDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<TipoMaquinaDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
         var respuesta = new List<TipoMaquinaDto>();
         foreach (var tipo in _tipoMaquinaDao.ListarTodo())
         {
-            respuesta.Add(TipoMaquinaMapeador.ADto(tipo));
+            var tipoDto = TipoMaquinaMapeador.ADto(tipo);
+
+            if (textoBuscado != "" && !PaginaDto<TipoMaquinaDto>.Contiene(tipoDto.Nombre, textoBuscado))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && tipoDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(tipoDto);
         }
 
-        return Ok(respuesta);
+        return Ok(PaginaDto<TipoMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
