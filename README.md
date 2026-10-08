@@ -144,6 +144,17 @@ RF005-05. **Requiere la tabla `operativo.evidencia_ot`, que todavía no existe:*
 
 El usuario que registra la evidencia (`id_usuario`) queda vacío hasta que exista el login.
 
+### Validación de recomendaciones (`/api/v1/ordenes-trabajo/{id}/sugerencias`)
+
+RF006-05. **Requiere la tabla `operativo.validacion_recomendacion_ia`, que todavía no existe:** el SQL sugerido está en `SUGERENCIAS-SQL.md`. Modelo `ValidacionRecomendacionIa`, `ValidacionRecomendacionDAO` y `RecomendacionesController`.
+
+- `GET`: lista las recomendaciones activas de la orden con `id`, `texto`, `estadoValidacion` (`pendiente`, `aceptada`, `rechazada` u `observada`: el resultado de la última validación) y `validaciones` (historial con `resultado`, `observacion` y `fecha` en UTC).
+- `POST /{sugerenciaId}/validaciones`: recibe `{ "resultado": "aceptada|rechazada|observada", "observacion": "..." }` y responde `201` con la recomendación actualizada. Rechazar y observar exigen texto (`400` `OBSERVACION_OBLIGATORIA`); resultado desconocido: `RESULTADO_VALIDACION_INVALIDO`; recomendación inexistente o de otra orden: `404`.
+- Al guardar la orden (`POST` o `PUT`), `ReemplazarSugerencias` ahora conserva las recomendaciones cuyo texto no cambió (mismo identificador, así no se pierden sus validaciones), desactiva las que se quitaron y agrega las nuevas.
+- `GET /api/v1/ordenes-trabajo` acepta además `conSugerencias=true` para listar solo las órdenes con recomendaciones (paso 2 del RF).
+
+El usuario que valida (`id_usuario`) queda vacío hasta que exista el login.
+
 ### Indicadores (`GET /api/v1/reportes/indicadores`)
 
 Dashboard de RF007-01, sin permisos. `ReportesController` no tiene DAO propio: usa `OrdenTrabajoDAO.ListarTodo` y `RepuestoDAO.ListarTodo`, pasa cada orden por `OrdenTrabajoMapeador.ADto` (así el estado, la prioridad y el tipo son los mismos textos que devuelve `/ordenes-trabajo`) y cuenta en memoria.

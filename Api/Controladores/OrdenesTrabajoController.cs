@@ -333,6 +333,11 @@ public class OrdenesTrabajoController : ControllerBase
             return false;
         }
 
+        if (filtros.ConSugerencias == true && orden.Sugerencias.Count == 0)
+        {
+            return false;
+        }
+
         var fechaCreacion = DateOnly.FromDateTime(orden.CreadoEn);
         if (filtros.FechaDesde is not null && fechaCreacion < filtros.FechaDesde)
         {

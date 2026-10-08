@@ -20,6 +20,7 @@ builder.Services.AddScoped<ActivoDAO>();
 builder.Services.AddScoped<RepuestoDAO>();
 builder.Services.AddScoped<OrdenTrabajoDAO>();
 builder.Services.AddScoped<EvidenciaOtDAO>();
+builder.Services.AddScoped<ValidacionRecomendacionDAO>();
 builder.Services.AddScoped<ServicioOllama>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();

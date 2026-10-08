@@ -11,6 +11,7 @@ public class FiltrosOrdenesTrabajoDto
     public string? Tipo { get; init; }
     public DateOnly? FechaDesde { get; init; }
     public DateOnly? FechaHasta { get; init; }
+    public bool? ConSugerencias { get; init; }
     public string? OrdenarPor { get; init; }
     public string? DireccionOrden { get; init; }
     public int Pagina { get; init; } = 1;

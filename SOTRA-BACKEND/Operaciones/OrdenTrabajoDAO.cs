@@ -319,21 +319,39 @@ public class OrdenTrabajoDAO
 
     private void ReemplazarSugerencias(OrdenTrabajo orden, List<string> sugerencias)
     {
-        foreach (var sugerenciaAnterior in orden.HistorialRecomendacionesIa)
-        {
-            sugerenciaAnterior.Estado = false;
-        }
-
+        var textosNuevos = new List<string>();
         foreach (var texto in sugerencias)
         {
             if (!string.IsNullOrWhiteSpace(texto))
             {
-                orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
-                {
-                    Recomendacion = texto.Trim(),
-                    Estado = true
-                });
+                textosNuevos.Add(texto.Trim());
             }
+        }
+
+        foreach (var sugerenciaAnterior in orden.HistorialRecomendacionesIa)
+        {
+            if (!sugerenciaAnterior.Estado)
+            {
+                continue;
+            }
+
+            if (textosNuevos.Contains(sugerenciaAnterior.Recomendacion))
+            {
+                textosNuevos.Remove(sugerenciaAnterior.Recomendacion);
+            }
+            else
+            {
+                sugerenciaAnterior.Estado = false;
+            }
+        }
+
+        foreach (var texto in textosNuevos)
+        {
+            orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
+            {
+                Recomendacion = texto,
+                Estado = true
+            });
         }
     }
 }
