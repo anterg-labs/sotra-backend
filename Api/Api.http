@@ -4,3 +4,8 @@ GET {{Api_HostAddress}}/api/v1/usuarios
 Accept: application/json
 
 ###
+
+GET {{Api_HostAddress}}/api/v1/reportes/indicadores
+Accept: application/json
+
+###
