@@ -13,6 +13,17 @@ public class OrdenTrabajoDAO
         "creada", "asignada", "en_ejecucion", "pausada", "finalizada", "cerrada", "cancelada"
     };
 
+    private static readonly Dictionary<string, string[]> TransicionesPermitidas = new()
+    {
+        { "creada", new[] { "asignada", "cancelada" } },
+        { "asignada", new[] { "en_ejecucion", "cancelada" } },
+        { "en_ejecucion", new[] { "pausada", "finalizada" } },
+        { "pausada", new[] { "en_ejecucion", "cancelada" } },
+        { "finalizada", new[] { "cerrada", "asignada" } },
+        { "cerrada", new string[0] },
+        { "cancelada", new string[0] }
+    };
+
     private readonly SotraContext _contexto;
 
     public OrdenTrabajoDAO(SotraContext contexto)
@@ -31,7 +42,7 @@ public class OrdenTrabajoDAO
     }
 
     public OrdenTrabajo Crear(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
-        List<string> sugerencias)
+        List<string> sugerencias, Guid? sesion)
     {
         ValidarRelaciones(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds);
         orden.IdUsuarioResponsable = ObtenerResponsable();
@@ -43,7 +54,7 @@ public class OrdenTrabajoDAO
 
         AgregarEstado(orden, "creada", fechaPrevista.ToString(FormatoDeFecha));
         ReemplazarRepuestos(orden, repuestosIds);
-        ReemplazarSugerencias(orden, sugerencias);
+        ReemplazarSugerencias(orden, sugerencias, sesion);
         _contexto.SaveChanges();
         transaccion.Commit();
 
@@ -51,7 +62,7 @@ public class OrdenTrabajoDAO
     }
 
     public OrdenTrabajo Actualizar(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
-        List<string> sugerencias, string estado)
+        List<string> sugerencias, string estado, string? motivo, Guid? sesion)
     {
         var estadoActual = ObtenerEstadoActual(orden);
         if (estadoActual == "cerrada")
@@ -60,6 +71,7 @@ public class OrdenTrabajoDAO
         }
 
         ValidarEstado(estado);
+        ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
         ValidarRelaciones(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds);
 
         using var transaccion = _contexto.Database.BeginTransaction();
@@ -72,24 +84,110 @@ public class OrdenTrabajoDAO
 
         if (estado != estadoActual)
         {
-            AgregarEstado(orden, estado, null);
-            if (estado == "en_ejecucion" && orden.FechaInicio is null)
-            {
-                orden.FechaInicio = DateTime.UtcNow;
-            }
-
-            if (estado == "cerrada")
-            {
-                orden.FechaCierre = DateTime.UtcNow;
-            }
+            AgregarEstado(orden, estado, motivo);
+            AplicarFechasDeEstado(orden, estado);
         }
 
         ReemplazarRepuestos(orden, repuestosIds);
-        ReemplazarSugerencias(orden, sugerencias);
+        ReemplazarSugerencias(orden, sugerencias, sesion);
         _contexto.SaveChanges();
         transaccion.Commit();
 
         return Seleccionar(orden.IdOrden)!;
+    }
+
+    public OrdenTrabajo CambiarEstado(OrdenTrabajo orden, string estado, string? motivo)
+    {
+        var estadoActual = ObtenerEstadoActual(orden);
+        if (estadoActual == "cerrada")
+        {
+            throw new InvalidOperationException("ORDEN_CERRADA");
+        }
+
+        ValidarEstado(estado);
+        if (estado == estadoActual)
+        {
+            throw new InvalidOperationException("TRANSICION_INVALIDA");
+        }
+
+        ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
+        AgregarEstado(orden, estado, motivo);
+        AplicarFechasDeEstado(orden, estado);
+        _contexto.SaveChanges();
+
+        return Seleccionar(orden.IdOrden)!;
+    }
+
+    public OrdenTrabajo AsignarTecnico(OrdenTrabajo orden, long tecnicoId)
+    {
+        var estadoActual = ObtenerEstadoActual(orden);
+        if (estadoActual == "cerrada" || estadoActual == "cancelada")
+        {
+            throw new InvalidOperationException("ORDEN_NO_MODIFICABLE");
+        }
+
+        var tecnico = ValidarTecnico(tecnicoId);
+        orden.IdUsuarioTecnico = tecnicoId;
+
+        var estadoNuevo = estadoActual;
+        if (estadoActual == "creada")
+        {
+            estadoNuevo = "asignada";
+        }
+
+        AgregarEstado(orden, estadoNuevo, "Técnico asignado: " + tecnico.Nombre + " " + tecnico.Apellido);
+        _contexto.SaveChanges();
+
+        return Seleccionar(orden.IdOrden)!;
+    }
+
+    public static List<string> ObtenerEstadosSiguientes(string estadoActual)
+    {
+        var estadosSiguientes = new List<string>();
+        if (TransicionesPermitidas.ContainsKey(estadoActual))
+        {
+            estadosSiguientes.AddRange(TransicionesPermitidas[estadoActual]);
+        }
+
+        return estadosSiguientes;
+    }
+
+    private static void ValidarTransicion(string estadoActual, string estadoNuevo, long? tecnicoId, string? motivo)
+    {
+        if (estadoNuevo == estadoActual)
+        {
+            return;
+        }
+
+        if (!ObtenerEstadosSiguientes(estadoActual).Contains(estadoNuevo))
+        {
+            throw new InvalidOperationException("TRANSICION_INVALIDA");
+        }
+
+        if ((estadoNuevo == "asignada" || estadoNuevo == "en_ejecucion") && tecnicoId is null)
+        {
+            throw new InvalidOperationException("TECNICO_OBLIGATORIO");
+        }
+
+        var necesitaMotivo = estadoNuevo == "pausada" || estadoNuevo == "cancelada" || estadoNuevo == "cerrada"
+                             || (estadoActual == "finalizada" && estadoNuevo == "asignada");
+        if (necesitaMotivo && string.IsNullOrWhiteSpace(motivo))
+        {
+            throw new InvalidOperationException("MOTIVO_OBLIGATORIO");
+        }
+    }
+
+    private static void AplicarFechasDeEstado(OrdenTrabajo orden, string estado)
+    {
+        if (estado == "en_ejecucion" && orden.FechaInicio is null)
+        {
+            orden.FechaInicio = DateTime.UtcNow;
+        }
+
+        if (estado == "cerrada")
+        {
+            orden.FechaCierre = DateTime.UtcNow;
+        }
     }
 
     private IQueryable<OrdenTrabajo> ConsultaCompleta()
@@ -121,19 +219,7 @@ public class OrdenTrabajoDAO
 
         if (tecnicoId.HasValue)
         {
-            var tecnico = _contexto.Usuarios.AsNoTracking()
-                .Include(item => item.IdRols)
-                .FirstOrDefault(item => item.IdUsuario == tecnicoId.Value);
-            if (tecnico is null || !tecnico.Estado)
-            {
-                throw new ArgumentException("El técnico indicado no existe o está inactivo.");
-            }
-
-            var tieneRolTecnico = tecnico.IdRols.Any(rol => rol.Nombre == "Técnico" && rol.Activo);
-            if (!tieneRolTecnico)
-            {
-                throw new ArgumentException("El usuario indicado no tiene el rol Técnico activo.");
-            }
+            ValidarTecnico(tecnicoId.Value);
         }
 
         foreach (var repuestoId in repuestosIds.Distinct())
@@ -145,6 +231,25 @@ public class OrdenTrabajoDAO
                 throw new ArgumentException("Uno de los repuestos no existe o está inactivo.");
             }
         }
+    }
+
+    private Usuario ValidarTecnico(long tecnicoId)
+    {
+        var tecnico = _contexto.Usuarios.AsNoTracking()
+            .Include(item => item.IdRols)
+            .FirstOrDefault(item => item.IdUsuario == tecnicoId);
+        if (tecnico is null || !tecnico.Estado)
+        {
+            throw new ArgumentException("El técnico indicado no existe o está inactivo.");
+        }
+
+        var tieneRolTecnico = tecnico.IdRols.Any(rol => rol.Nombre == "Técnico" && rol.Activo);
+        if (!tieneRolTecnico)
+        {
+            throw new ArgumentException("El usuario indicado no tiene el rol Técnico activo.");
+        }
+
+        return tecnico;
     }
 
     private long ObtenerResponsable()
@@ -212,23 +317,82 @@ public class OrdenTrabajoDAO
         }
     }
 
-    private void ReemplazarSugerencias(OrdenTrabajo orden, List<string> sugerencias)
+    public void RegistrarSugerenciaGenerada(Guid? sesion, string consulta, int numeroIntento, string texto)
     {
-        foreach (var sugerenciaAnterior in orden.HistorialRecomendacionesIa)
+        _contexto.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
         {
-            sugerenciaAnterior.Estado = false;
-        }
+            Recomendacion = texto.Trim(),
+            Estado = false,
+            Sesion = sesion,
+            Consulta = consulta,
+            NumeroIntento = numeroIntento,
+            FechaGeneracion = DateTime.UtcNow,
+            Resultado = "pendiente"
+        });
+        _contexto.SaveChanges();
+    }
 
+    private void ReemplazarSugerencias(OrdenTrabajo orden, List<string> sugerencias, Guid? sesion)
+    {
+        var textosNuevos = new List<string>();
         foreach (var texto in sugerencias)
         {
             if (!string.IsNullOrWhiteSpace(texto))
             {
-                orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
-                {
-                    Recomendacion = texto.Trim(),
-                    Estado = true
-                });
+                textosNuevos.Add(texto.Trim());
             }
+        }
+
+        foreach (var sugerenciaAnterior in orden.HistorialRecomendacionesIa)
+        {
+            if (!sugerenciaAnterior.Estado)
+            {
+                continue;
+            }
+
+            if (textosNuevos.Contains(sugerenciaAnterior.Recomendacion))
+            {
+                textosNuevos.Remove(sugerenciaAnterior.Recomendacion);
+            }
+            else
+            {
+                sugerenciaAnterior.Estado = false;
+            }
+        }
+
+        if (sesion is not null)
+        {
+            var sugerenciasDeLaSesion = _contexto.HistorialRecomendacionesIa
+                .Where(sugerencia => sugerencia.Sesion == sesion && sugerencia.IdOrden == null)
+                .OrderBy(sugerencia => sugerencia.IdRecomendacionIa)
+                .ToList();
+
+            foreach (var sugerenciaGenerada in sugerenciasDeLaSesion)
+            {
+                sugerenciaGenerada.IdOrden = orden.IdOrden;
+                if (textosNuevos.Contains(sugerenciaGenerada.Recomendacion))
+                {
+                    textosNuevos.Remove(sugerenciaGenerada.Recomendacion);
+                    sugerenciaGenerada.Estado = true;
+                    sugerenciaGenerada.Resultado = "aceptada";
+                }
+                else
+                {
+                    sugerenciaGenerada.Estado = false;
+                    sugerenciaGenerada.Resultado = "descartada";
+                }
+            }
+        }
+
+        foreach (var texto in textosNuevos)
+        {
+            orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
+            {
+                Recomendacion = texto,
+                Estado = true,
+                FechaGeneracion = DateTime.UtcNow,
+                Resultado = "aceptada"
+            });
         }
     }
 }

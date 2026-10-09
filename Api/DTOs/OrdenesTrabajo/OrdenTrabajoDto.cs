@@ -20,4 +20,6 @@ public class OrdenTrabajoDto
     public DateTime? FechaCierre { get; init; }
     public List<string> Sugerencias { get; init; } = new();
     public List<RepuestoOrdenDto> Repuestos { get; init; } = new();
+    public List<string> EstadosSiguientes { get; init; } = new();
+    public List<HistorialEstadoDto> HistorialEstados { get; init; } = new();
 }

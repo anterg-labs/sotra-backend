@@ -30,4 +30,5 @@ public class OrdenTrabajoCrearDto
     public List<long> RepuestosIds { get; init; } = new();
 
     public string Estado { get; init; } = "creada";
+    public Guid? Sesion { get; init; }
 }
