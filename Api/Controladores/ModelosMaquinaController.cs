@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.ModelosMaquina;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -19,16 +20,49 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
-    public ActionResult<List<ModeloMaquinaDto>> ObtenerTodos()
+    [ProducesResponseType<PaginaDto<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<ModeloMaquinaDto>> ObtenerTodos([FromQuery] FiltrosModelosMaquinaDto filtros)
     {
+        if (!PaginaDto<ModeloMaquinaDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<ModeloMaquinaDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
         var respuesta = new List<ModeloMaquinaDto>();
         foreach (var modelo in _modeloMaquinaDao.ListarTodo())
         {
-            respuesta.Add(ModeloMaquinaMapeador.ADto(modelo));
+            var modeloDto = ModeloMaquinaMapeador.ADto(modelo);
+
+            if (textoBuscado != "")
+            {
+                var coincide = PaginaDto<ModeloMaquinaDto>.Contiene(modeloDto.Nombre, textoBuscado)
+                               || PaginaDto<ModeloMaquinaDto>.Contiene(modeloDto.Descripcion, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (filtros.TipoMaquinaId is not null && modeloDto.TipoMaquinaId != filtros.TipoMaquinaId)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && modeloDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(modeloDto);
         }
 
-        return Ok(respuesta);
+        return Ok(PaginaDto<ModeloMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]

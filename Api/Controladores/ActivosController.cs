@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.Activos;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -19,16 +20,56 @@ public class ActivosController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<ActivoDto>>(StatusCodes.Status200OK)]
-    public ActionResult<List<ActivoDto>> ObtenerTodos()
+    [ProducesResponseType<PaginaDto<ActivoDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<ActivoDto>> ObtenerTodos([FromQuery] FiltrosActivosDto filtros)
     {
+        if (!PaginaDto<ActivoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<ActivoDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
         var respuesta = new List<ActivoDto>();
         foreach (var activo in _activoDao.ListarTodo())
         {
-            respuesta.Add(ActivoMapeador.ADto(activo));
+            var activoDto = ActivoMapeador.ADto(activo);
+
+            if (textoBuscado != "")
+            {
+                var coincide = PaginaDto<ActivoDto>.Contiene(activoDto.Nombre, textoBuscado)
+                               || PaginaDto<ActivoDto>.Contiene(activoDto.NumSerie, textoBuscado)
+                               || PaginaDto<ActivoDto>.Contiene(activoDto.Ubicacion, textoBuscado)
+                               || PaginaDto<ActivoDto>.Contiene(activoDto.Descripcion, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (filtros.ClienteId is not null && activoDto.ClienteId != filtros.ClienteId)
+            {
+                continue;
+            }
+
+            if (filtros.ModeloMaquinaId is not null && activoDto.ModeloMaquinaId != filtros.ModeloMaquinaId)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && activoDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(activoDto);
         }
 
-        return Ok(respuesta);
+        return Ok(PaginaDto<ActivoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
