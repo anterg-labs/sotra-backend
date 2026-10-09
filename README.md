@@ -108,11 +108,44 @@ Los documentos se guardan en la tabla `vectorial.documento_tecnico`, creada por 
 
 ### Indicadores (`GET /api/v1/reportes/indicadores`)
 
-Versión inicial del dashboard (RF007-01), sin filtros ni permisos. `ReportesController` no tiene DAO propio: usa `OrdenTrabajoDAO.ListarTodo` y `RepuestoDAO.ListarTodo`, pasa cada orden por `OrdenTrabajoMapeador.ADto` (así el estado, la prioridad y el tipo son los mismos textos que devuelve `/ordenes-trabajo`) y cuenta en memoria.
+Dashboard de RF007-01, sin permisos. `ReportesController` no tiene DAO propio: usa `OrdenTrabajoDAO.ListarTodo` y `RepuestoDAO.ListarTodo`, pasa cada orden por `OrdenTrabajoMapeador.ADto` (así el estado, la prioridad y el tipo son los mismos textos que devuelve `/ordenes-trabajo`) y cuenta en memoria.
 
 Respuesta: `totalOrdenes`; `ordenesPorEstado`, `ordenesPorPrioridad`, `ordenesPorTipo`, `ordenesPorTecnico` y `activosConMasIntervenciones` como listas de `{ "nombre": "...", "cantidad": 0 }`; y `repuestosBajoStock` como lista de `RepuestoDto`. Solo aparecen los grupos con al menos una orden. Las órdenes sin técnico no se cuentan por técnico. Los activos se ordenan de mayor a menor y se devuelven los 5 primeros. Un repuesto tiene bajo stock si está activo y su `cantidad` es menor o igual a su `cantidadMinima`.
 
-La descarga de reportes (RF007-02) queda pendiente hasta que se defina el formato del archivo.
+También devuelve `promedioHorasHastaInicio` y `promedioHorasHastaCierre` (horas promedio entre la creación y `fechaInicio` o `fechaCierre`, con un decimal; `null` si ninguna orden tiene esa fecha), `ordenesAltaPrioridadPendientes` (prioridad `alta` y estado distinto de `finalizada`, `cerrada` y `cancelada`), `ordenesPendientesDeValidacion` (estado `finalizada`) y `ordenesRecientes` (las 5 órdenes más nuevas, con el mismo formato que `GET /ordenes-trabajo`).
+
+Filtros opcionales por query string (`FiltrosIndicadoresDto`), que se pueden combinar:
+
+| Parámetro | Tipo | Filtra las órdenes por |
+|---|---|---|
+| `fechaDesde` | fecha `AAAA-MM-DD` | Fecha de creación mayor o igual |
+| `fechaHasta` | fecha `AAAA-MM-DD` | Fecha de creación menor o igual |
+| `tecnicoId` | número | Técnico asignado |
+| `clienteId` | número | Cliente |
+| `activoId` | número | Activo |
+| `estado` | texto | Estado, con los mismos valores que `/ordenes-trabajo` (`creada`, `asignada`, `en_ejecucion`, `pausada`, `finalizada`, `cerrada`, `cancelada`) |
+| `tipo` | texto | `preventivo` o `correctivo` |
+| `prioridad` | texto | `baja`, `media` o `alta` |
+
+Los filtros se aplican a todos los indicadores de órdenes. `repuestosBajoStock` no depende de los filtros, porque no está relacionado con las órdenes. Un parámetro vacío o ausente no filtra. Si `fechaDesde` es posterior a `fechaHasta`, responde `400` con `{ "codigo": "RANGO_FECHAS_INVALIDO", "mensaje": "..." }`. Ejemplo en `Api/Api.http`.
+
+### Descarga de reportes en PDF (`GET /api/v1/reportes/{tipoReporte}/pdf`)
+
+RF007-02. Devuelve un archivo `application/pdf` llamado `reporte-{tipoReporte}.pdf`, generado con la librería QuestPDF (licencia Community, configurada al inicio de `Program.cs`). El diseño del documento está en `Api/Servicios/GeneradorReportesPdf.cs`: título, fecha de generación (hora de Uruguay), criterios aplicados, tablas y número de página.
+
+Tipos de reporte (`tipoReporte`):
+
+| Valor | Contenido |
+|---|---|
+| `ordenes-trabajo` | Una fila por orden: número, fecha de creación, cliente, activo, técnico, tipo, prioridad y estado |
+| `activos-intervenidos` | Activos con su cliente y la cantidad de órdenes |
+| `repuestos-utilizados` | Repuestos asociados a las órdenes y en cuántas órdenes se usó cada uno |
+| `actividad-tecnicos` | Por técnico: órdenes asignadas, finalizadas o cerradas, y pendientes |
+| `indicadores` | Resumen (total y tiempos promedio), órdenes por estado, prioridad y tipo, actividad por técnico y activos intervenidos |
+
+Acepta los mismos filtros que `/indicadores` y además `prioridad` (`baja`, `media` o `alta`), que también vale para `/indicadores`. Errores: `400` con `TIPO_REPORTE_INVALIDO` si el tipo no existe y `RANGO_FECHAS_INVALIDO` si las fechas están invertidas.
+
+Al agregar el paquete, el contenedor `sotra-backend-dev` necesita reiniciarse (`docker restart sotra-backend-dev`) para restaurarlo.
 
 ### Sugerencias (`POST /api/v1/ordenes-trabajo/sugerencia`)
 
