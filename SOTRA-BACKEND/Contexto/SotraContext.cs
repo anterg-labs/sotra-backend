@@ -318,13 +318,23 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.IdMovimiento)
                 .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MOVIMIENTO_STOCK_ID\"'::regclass)")
                 .HasColumnName("id_movimiento");
-            entity.Property(e => e.Cantidad)
-                .HasPrecision(4, 2)
-                .HasColumnName("cantidad");
+            entity.Property(e => e.Cantidad).HasColumnName("cantidad");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Fecha).HasColumnName("fecha");
             entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
             entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(20)
+                .HasColumnName("tipo");
+            entity.Property(e => e.Motivo)
+                .HasMaxLength(200)
+                .HasColumnName("motivo");
+            entity.Property(e => e.Ubicacion)
+                .HasMaxLength(150)
+                .HasColumnName("ubicacion");
+            entity.Property(e => e.Observaciones).HasColumnName("observaciones");
+            entity.Property(e => e.StockAnterior).HasColumnName("stock_anterior");
+            entity.Property(e => e.StockPosterior).HasColumnName("stock_posterior");
 
             entity.HasOne(d => d.IdRepuestoNavigation).WithMany(p => p.MovimientoStocks)
                 .HasForeignKey(d => d.IdRepuesto)
