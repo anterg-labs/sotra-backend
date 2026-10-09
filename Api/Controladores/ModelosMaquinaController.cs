@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.ModelosMaquina;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -19,13 +20,49 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<ModeloMaquinaDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    [ProducesResponseType<PaginaDto<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<ModeloMaquinaDto>> ObtenerTodos([FromQuery] FiltrosModelosMaquinaDto filtros)
     {
-        var respuesta = await _modeloMaquinaDao.ListarTodoAsync(
-            ModeloMaquinaMapeador.Proyeccion, cancellationToken);
-        return Ok(respuesta);
+        if (!PaginaDto<ModeloMaquinaDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<ModeloMaquinaDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
+        var respuesta = new List<ModeloMaquinaDto>();
+        foreach (var modelo in _modeloMaquinaDao.ListarTodo())
+        {
+            var modeloDto = ModeloMaquinaMapeador.ADto(modelo);
+
+            if (textoBuscado != "")
+            {
+                var coincide = PaginaDto<ModeloMaquinaDto>.Contiene(modeloDto.Nombre, textoBuscado)
+                               || PaginaDto<ModeloMaquinaDto>.Contiene(modeloDto.Descripcion, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (filtros.TipoMaquinaId is not null && modeloDto.TipoMaquinaId != filtros.TipoMaquinaId)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && modeloDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(modeloDto);
+        }
+
+        return Ok(PaginaDto<ModeloMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -33,7 +70,7 @@ public class ModelosMaquinaController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ModeloMaquinaDto> ObtenerPorId(long id)
     {
-        var modelo = _modeloMaquinaDao.seleccionarModeloMaquina(id);
+        var modelo = _modeloMaquinaDao.SeleccionarModeloMaquina(id);
         return modelo is null ? NotFound() : Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 
@@ -45,7 +82,7 @@ public class ModelosMaquinaController : ControllerBase
     {
         try
         {
-            var modeloCreado = _modeloMaquinaDao.insertarModeloMaquina(
+            var modeloCreado = _modeloMaquinaDao.InsertarModeloMaquina(
                 ModeloMaquinaMapeador.AEntidad(solicitud));
             var respuesta = ModeloMaquinaMapeador.ADto(modeloCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = modeloCreado.IdModeloMaquina }, respuesta);
@@ -71,11 +108,11 @@ public class ModelosMaquinaController : ControllerBase
     {
         try
         {
-            var modelo = _modeloMaquinaDao.seleccionarModeloMaquina(id);
+            var modelo = _modeloMaquinaDao.SeleccionarModeloMaquina(id);
             if (modelo is null) return NotFound();
 
             ModeloMaquinaMapeador.AplicarCambios(modelo, solicitud);
-            _modeloMaquinaDao.actualizarModeloMaquina(modelo);
+            _modeloMaquinaDao.ActualizarModeloMaquina(modelo);
             return Ok(ModeloMaquinaMapeador.ADto(modelo));
         }
         catch (ArgumentException excepcion)
@@ -99,9 +136,9 @@ public class ModelosMaquinaController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_modeloMaquinaDao.darBajaLogicaModeloMaquina(id)) return NotFound();
+        if (!_modeloMaquinaDao.DarBajaLogicaModeloMaquina(id)) return NotFound();
 
-        var modelo = _modeloMaquinaDao.seleccionarModeloMaquina(id)!;
+        var modelo = _modeloMaquinaDao.SeleccionarModeloMaquina(id)!;
         return Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 }

@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.Clientes;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -18,13 +19,50 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<ClienteListadoDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<ClienteListadoDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    [ProducesResponseType<PaginaDto<ClienteListadoDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<ClienteListadoDto>> ObtenerTodos([FromQuery] FiltrosClientesDto filtros)
     {
-        var respuesta = await _clienteDao.ListarTodoAsync(
-            ClienteMapeador.Proyeccion, cancellationToken);
-        return Ok(respuesta);
+        if (!PaginaDto<ClienteListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
+        var respuesta = new List<ClienteListadoDto>();
+        foreach (var cliente in _clienteDao.ListarTodo())
+        {
+            var clienteDto = ClienteMapeador.AListadoDto(cliente);
+
+            if (textoBuscado != "")
+            {
+                var coincide = PaginaDto<ClienteListadoDto>.Contiene(clienteDto.RazonSocial, textoBuscado)
+                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.NombreContacto, textoBuscado)
+                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.Correo, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && clienteDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(clienteDto);
+        }
+
+        if (filtros.DireccionOrden == "desc")
+        {
+            respuesta.Reverse();
+        }
+
+        return Ok(PaginaDto<ClienteListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -32,7 +70,7 @@ public class ClientesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ClienteListadoDto> ObtenerPorId(long id)
     {
-        var cliente = _clienteDao.seleccionarCliente(id);
+        var cliente = _clienteDao.SeleccionarCliente(id);
         return cliente is null ? NotFound() : Ok(ClienteMapeador.AListadoDto(cliente));
     }
 
@@ -44,7 +82,7 @@ public class ClientesController : ControllerBase
         try
         {
             var cliente = ClienteMapeador.AEntidad(solicitud);
-            var clienteCreado = _clienteDao.insertarCliente(cliente);
+            var clienteCreado = _clienteDao.InsertarCliente(cliente);
             var respuesta = ClienteMapeador.AListadoDto(clienteCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
         }
@@ -65,11 +103,11 @@ public class ClientesController : ControllerBase
     {
         try
         {
-            var cliente = _clienteDao.seleccionarCliente(id);
+            var cliente = _clienteDao.SeleccionarCliente(id);
             if (cliente is null) return NotFound();
 
             ClienteMapeador.AplicarCambios(cliente, solicitud);
-            _clienteDao.actualizarCliente(cliente);
+            _clienteDao.ActualizarCliente(cliente);
 
             return Ok(ClienteMapeador.AListadoDto(cliente));
         }
@@ -86,14 +124,22 @@ public class ClientesController : ControllerBase
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<ClienteListadoDto> Desactivar(long id, ClienteEstadoDto solicitud)
+    public ActionResult<ClienteListadoDto> CambiarEstado(long id, ClienteEstadoDto solicitud)
     {
-        if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
+        if (solicitud.Estado == "activo")
+        {
+            if (!_clienteDao.ReactivarCliente(id)) return NotFound();
+        }
+        else if (solicitud.Estado == "inactivo")
+        {
+            if (!_clienteDao.DarBajaLogicaCliente(id)) return NotFound();
+        }
+        else
+        {
+            return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
+        }
 
-        if (!_clienteDao.darBajaLogicaCliente(id)) return NotFound();
-
-        var cliente = _clienteDao.seleccionarCliente(id)!;
+        var cliente = _clienteDao.SeleccionarCliente(id)!;
         return Ok(ClienteMapeador.AListadoDto(cliente));
     }
 }

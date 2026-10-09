@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:18
+    image: pgvector/pgvector:pg18
     container_name: sotra-db
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -10,6 +10,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
@@ -22,6 +28,12 @@ services:
     environment:
       ConnectionStrings__SotraConnection: "Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}"
       ASPNETCORE_URLS: "http://+:8080"
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
     depends_on:
       - db
 

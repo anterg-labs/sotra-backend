@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
@@ -7,7 +6,7 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class ModeloMaquinaDAO
 {
-    private readonly SotraContext contexto;
+    private readonly SotraContext _contexto;
 
     public ModeloMaquinaDAO() : this(new SotraContext())
     {
@@ -15,44 +14,34 @@ public class ModeloMaquinaDAO
 
     public ModeloMaquinaDAO(SotraContext contexto)
     {
-        this.contexto = contexto;
+        _contexto = contexto;
     }
 
-    public Task<List<T>> ListarTodoAsync<T>(
-        Expression<Func<ModeloMaquina, T>> proyeccion,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(proyeccion);
-        return contexto.ModeloMaquinas.AsNoTracking()
-            .OrderBy(modelo => modelo.IdModeloMaquina)
-            .Select(proyeccion)
-            .ToListAsync(cancellationToken);
-    }
 
-    public List<ModeloMaquina> listarTodo()
+    public List<ModeloMaquina> ListarTodo()
     {
-        return contexto.ModeloMaquinas
+        return _contexto.ModeloMaquinas
             .OrderBy(modelo => modelo.IdModeloMaquina)
             .ToList();
     }
 
-    public ModeloMaquina? seleccionarModeloMaquina(long id)
+    public ModeloMaquina? SeleccionarModeloMaquina(long id)
     {
-        return contexto.ModeloMaquinas
+        return _contexto.ModeloMaquinas
             .FirstOrDefault(modelo => modelo.IdModeloMaquina == id);
     }
 
-    public ModeloMaquina insertarModeloMaquina(ModeloMaquina modeloMaquina)
+    public ModeloMaquina InsertarModeloMaquina(ModeloMaquina modeloMaquina)
     {
         ValidarTipoMaquinaActivo(modeloMaquina.IdTipoMaquina);
-        contexto.ModeloMaquinas.Add(modeloMaquina);
-        contexto.SaveChanges();
+        _contexto.ModeloMaquinas.Add(modeloMaquina);
+        _contexto.SaveChanges();
         return modeloMaquina;
     }
 
-    public bool actualizarModeloMaquina(ModeloMaquina modeloMaquina)
+    public bool ActualizarModeloMaquina(ModeloMaquina modeloMaquina)
     {
-        var modeloExistente = contexto.ModeloMaquinas
+        var modeloExistente = _contexto.ModeloMaquinas
             .FirstOrDefault(modelo => modelo.IdModeloMaquina == modeloMaquina.IdModeloMaquina);
         if (modeloExistente is null) return false;
 
@@ -62,45 +51,44 @@ public class ModeloMaquinaDAO
         modeloExistente.Descripcion = modeloMaquina.Descripcion;
         modeloExistente.Activo = modeloMaquina.Activo;
 
-        contexto.SaveChanges();
+        _contexto.SaveChanges();
         return true;
     }
 
-    public bool darBajaLogicaModeloMaquina(long id)
+    public bool DarBajaLogicaModeloMaquina(long id)
     {
-        var modeloExistente = contexto.ModeloMaquinas
+        var modeloExistente = _contexto.ModeloMaquinas
             .FirstOrDefault(modelo => modelo.IdModeloMaquina == id);
         if (modeloExistente is null) return false;
 
         if (!modeloExistente.Activo) return true;
 
         modeloExistente.Activo = false;
-        contexto.SaveChanges();
+        _contexto.SaveChanges();
         return true;
     }
 
-    // Se conserva para la consola de pruebas existente.
-    public bool eliminarModeloMaquina(long id)
+    public bool EliminarModeloMaquina(long id)
     {
-        var modeloExistente = contexto.ModeloMaquinas
+        var modeloExistente = _contexto.ModeloMaquinas
             .FirstOrDefault(modelo => modelo.IdModeloMaquina == id);
         if (modeloExistente is null) return false;
 
-        contexto.ModeloMaquinas.Remove(modeloExistente);
-        contexto.SaveChanges();
+        _contexto.ModeloMaquinas.Remove(modeloExistente);
+        _contexto.SaveChanges();
         return true;
     }
 
     private void ValidarTipoMaquinaActivo(long idTipoMaquina)
     {
         if (idTipoMaquina <= 0)
-            throw new ArgumentException("El identificador del tipo de máquina debe ser positivo.", nameof(idTipoMaquina));
+            throw new ArgumentException("El identificador del tipo de máquina debe ser positivo.");
 
-        var tipo = contexto.TipoMaquinas.AsNoTracking()
+        var tipo = _contexto.TipoMaquinas.AsNoTracking()
             .FirstOrDefault(tipo => tipo.IdTipoMaquina == idTipoMaquina);
         if (tipo is null)
-            throw new ArgumentException("El tipo de máquina indicado no existe.", nameof(idTipoMaquina));
+            throw new ArgumentException("El tipo de máquina indicado no existe.");
         if (!tipo.Estado)
-            throw new ArgumentException("El tipo de máquina indicado está inactivo.", nameof(idTipoMaquina));
+            throw new ArgumentException("El tipo de máquina indicado está inactivo.");
     }
 }

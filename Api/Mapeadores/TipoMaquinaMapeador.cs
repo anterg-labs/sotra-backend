@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Api.DTOs.TiposMaquina;
 using SOTRA_BACKEND.Modelos;
 
@@ -6,14 +5,6 @@ namespace Api.Mapeadores;
 
 public static class TipoMaquinaMapeador
 {
-    public static Expression<Func<TipoMaquina, TipoMaquinaDto>> Proyeccion => tipo =>
-        new TipoMaquinaDto
-        {
-            Id = tipo.IdTipoMaquina,
-            Nombre = tipo.Nombre,
-            Estado = tipo.Estado ? "activo" : "inactivo"
-        };
-
     public static TipoMaquina AEntidad(TipoMaquinaCrearDto tipo)
     {
         return new TipoMaquina
@@ -25,8 +16,20 @@ public static class TipoMaquinaMapeador
 
     public static void AplicarCambios(TipoMaquina destino, TipoMaquinaActualizarDto cambios)
     {
-        if (!string.IsNullOrWhiteSpace(cambios.Nombre))
-            destino.Nombre = cambios.Nombre;
+        destino.Nombre = cambios.Nombre;
+
+        if (cambios.Estado == "activo")
+        {
+            destino.Estado = true;
+        }
+        else if (cambios.Estado == "inactivo")
+        {
+            destino.Estado = false;
+        }
+        else if (cambios.Estado != null)
+        {
+            throw new ArgumentException("El estado debe ser 'activo' o 'inactivo'.");
+        }
     }
 
     public static TipoMaquinaDto ADto(TipoMaquina tipo)

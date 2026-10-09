@@ -1,11 +1,13 @@
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Operaciones;
+using Api.Servicios;
 
 DotNetEnv.Env.TraversePath().Load();
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Servicios
 builder.Services.AddControllers();
 builder.Services.AddDbContext<SotraContext>();
 
@@ -14,14 +16,20 @@ builder.Services.AddScoped<ClienteDAO>();
 builder.Services.AddScoped<TipoMaquinaDAO>();
 builder.Services.AddScoped<ModeloMaquinaDAO>();
 builder.Services.AddScoped<RolDAO>();
+builder.Services.AddScoped<ActivoDAO>();
+builder.Services.AddScoped<RepuestoDAO>();
+builder.Services.AddScoped<MovimientoStockDAO>();
+builder.Services.AddScoped<OrdenTrabajoDAO>();
+builder.Services.AddScoped<EvidenciaOtDAO>();
+builder.Services.AddScoped<ServicioOllama>();
+builder.Services.AddSingleton<ServicioReranker>();
+builder.Services.AddScoped<ServicioDocumentosTecnicos>();
+builder.Services.AddScoped<ServicioSugerencias>();
 
-// Health Check
 builder.Services.AddHealthChecks();
 
-// OpenAPI
 builder.Services.AddOpenApi();
 
-// Configuracion CORS
 var frontendOrigin = Environment.GetEnvironmentVariable("FRONTEND_ORIGIN");
 if (string.IsNullOrWhiteSpace(frontendOrigin))
 {
@@ -39,30 +47,24 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Construir aplicacion
 var app = builder.Build();
 
-// OpenAPI en desarrollo
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-// Redireccion HTTPS
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-// Middleware
 app.UseRouting();
 app.UseCors("FrontendPolicy");
 app.UseAuthorization();
 
-// Controladores
 app.MapControllers();
 
-// Health Check
 app.MapHealthChecks("/health");
 
 app.Run();

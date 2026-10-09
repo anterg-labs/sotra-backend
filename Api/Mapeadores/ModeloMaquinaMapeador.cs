@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Api.DTOs.ModelosMaquina;
 using SOTRA_BACKEND.Modelos;
 
@@ -6,16 +5,6 @@ namespace Api.Mapeadores;
 
 public static class ModeloMaquinaMapeador
 {
-    public static Expression<Func<ModeloMaquina, ModeloMaquinaDto>> Proyeccion => modelo =>
-        new ModeloMaquinaDto
-        {
-            Id = modelo.IdModeloMaquina,
-            Nombre = modelo.Nombre,
-            TipoMaquinaId = modelo.IdTipoMaquina,
-            Descripcion = modelo.Descripcion,
-            Estado = modelo.Activo ? "activo" : "inactivo"
-        };
-
     public static ModeloMaquina AEntidad(ModeloMaquinaCrearDto modelo)
     {
         return new ModeloMaquina
@@ -29,9 +18,26 @@ public static class ModeloMaquinaMapeador
 
     public static void AplicarCambios(ModeloMaquina destino, ModeloMaquinaActualizarDto cambios)
     {
-        if (!string.IsNullOrWhiteSpace(cambios.Nombre)) destino.Nombre = cambios.Nombre;
-        if (cambios.TipoMaquinaId.HasValue) destino.IdTipoMaquina = cambios.TipoMaquinaId.Value;
-        if (!string.IsNullOrWhiteSpace(cambios.Descripcion)) destino.Descripcion = cambios.Descripcion;
+        destino.Nombre = cambios.Nombre;
+        destino.IdTipoMaquina = cambios.TipoMaquinaId;
+        destino.Descripcion = cambios.Descripcion;
+        if (string.IsNullOrWhiteSpace(destino.Descripcion))
+        {
+            destino.Descripcion = null;
+        }
+
+        if (cambios.Estado == "activo")
+        {
+            destino.Activo = true;
+        }
+        else if (cambios.Estado == "inactivo")
+        {
+            destino.Activo = false;
+        }
+        else if (cambios.Estado != null)
+        {
+            throw new ArgumentException("El estado debe ser 'activo' o 'inactivo'.");
+        }
     }
 
     public static ModeloMaquinaDto ADto(ModeloMaquina modelo)

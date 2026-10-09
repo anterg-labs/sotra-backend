@@ -7,6 +7,9 @@ namespace SOTRA_BACKEND.Contexto;
 
 public partial class SotraContext : DbContext
 {
+    private const string EsquemaOperativo = "operativo";
+    private const string EsquemaVectorial = "vectorial";
+
     public SotraContext()
     {
     }
@@ -31,6 +34,9 @@ public partial class SotraContext : DbContext
     public virtual DbSet<MotivoEstadoOt> MotivoEstadoOts { get; set; }
 
     public virtual DbSet<MovimientoStock> MovimientoStocks { get; set; }
+
+    public virtual DbSet<EvidenciaOt> EvidenciasOt { get; set; }
+
 
     public virtual DbSet<OrdenTrabajo> OrdenTrabajos { get; set; }
 
@@ -78,14 +84,14 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdActivo).HasName("PK_ACTIVO");
 
-            entity.ToTable("activo", "sotra-production");
+            entity.ToTable("activo", EsquemaOperativo);
 
             entity.HasIndex(e => e.IdModeloMaquina, "IX_ACTIVO_ID_MODELO_MAQUINA");
 
             entity.HasIndex(e => e.NumSerie, "UK_NUM_SERIE_ACTIVO").IsUnique();
 
             entity.Property(e => e.IdActivo)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ACTIVO_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_ACTIVO_ID\"'::regclass)")
                 .HasColumnName("id_activo");
             entity.Property(e => e.Estado)
                 .HasDefaultValue(true)
@@ -119,7 +125,7 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdCliente).HasName("PK_CLIENTE");
 
-            entity.ToTable("cliente", "sotra-production");
+            entity.ToTable("cliente", EsquemaOperativo);
 
             entity.HasIndex(e => e.Correo, "UK_CORREO_CLIENTE").IsUnique();
 
@@ -130,7 +136,7 @@ public partial class SotraContext : DbContext
             entity.HasIndex(e => e.Telefono, "UK_TELEFONO_CLIENTE").IsUnique();
 
             entity.Property(e => e.IdCliente)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_CLIENTE_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_CLIENTE_ID\"'::regclass)")
                 .HasColumnName("id_cliente");
             entity.Property(e => e.Correo)
                 .HasMaxLength(254)
@@ -158,12 +164,12 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdEstadoOt).HasName("PK_ESTADO_OT");
 
-            entity.ToTable("estado_ot", "sotra-production");
+            entity.ToTable("estado_ot", EsquemaOperativo);
 
             entity.HasIndex(e => e.Nombre, "UK_NOMBRE_ESTADO_OT").IsUnique();
 
             entity.Property(e => e.IdEstadoOt)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ESTADO_OT_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_ESTADO_OT_ID\"'::regclass)")
                 .HasColumnName("id_estado_ot");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
@@ -176,10 +182,10 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdHEstadoOt).HasName("PK_HISTORIAL_ESTADO_OT");
 
-            entity.ToTable("historial_estado_ot", "sotra-production");
+            entity.ToTable("historial_estado_ot", EsquemaOperativo);
 
             entity.Property(e => e.IdHEstadoOt)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_HISTORIAL_ESTADO_OT_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_HISTORIAL_ESTADO_OT_ID\"'::regclass)")
                 .HasColumnName("id_h_estado_ot");
             entity.Property(e => e.FechaHora).HasColumnName("fecha_hora");
             entity.Property(e => e.IdEstadoOt).HasColumnName("id_estado_ot");
@@ -206,18 +212,28 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdRecomendacionIa).HasName("PK_HISTORIAL_RECOMENDACIONES_IA");
 
-            entity.ToTable("historial_recomendaciones_ia", "sotra-production");
+            entity.ToTable("historial_recomendaciones_ia", EsquemaOperativo);
 
             entity.HasIndex(e => e.IdOrden, "IDX_HISTORIAL_RECOMENDACIONES_IA_ORDEN");
 
             entity.Property(e => e.IdRecomendacionIa)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_HISTORIAL_RECOMENDACIONES_IA_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_HISTORIAL_RECOMENDACIONES_IA_ID\"'::regclass)")
                 .HasColumnName("id_recomendacion_ia");
             entity.Property(e => e.Estado)
                 .HasDefaultValue(true)
                 .HasColumnName("estado");
             entity.Property(e => e.IdOrden).HasColumnName("id_orden");
             entity.Property(e => e.Recomendacion).HasColumnName("recomendacion");
+            entity.Property(e => e.Sesion).HasColumnName("sesion");
+            entity.Property(e => e.Consulta).HasColumnName("consulta");
+            entity.Property(e => e.NumeroIntento).HasColumnName("numero_intento");
+            entity.Property(e => e.FechaGeneracion)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("fecha_generacion");
+            entity.Property(e => e.Resultado)
+                .HasMaxLength(20)
+                .HasDefaultValue("pendiente")
+                .HasColumnName("resultado");
 
             entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.HistorialRecomendacionesIa)
                 .HasForeignKey(d => d.IdOrden)
@@ -229,12 +245,12 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdModeloMaquina).HasName("PK_MODELO_MAQUINA");
 
-            entity.ToTable("modelo_maquina", "sotra-production");
+            entity.ToTable("modelo_maquina", EsquemaOperativo);
 
             entity.HasIndex(e => e.IdTipoMaquina, "IX_MODELO_MAQUINA_ID_TIPO_MAQUINA");
 
             entity.Property(e => e.IdModeloMaquina)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MODELO_MAQUINA_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MODELO_MAQUINA_ID\"'::regclass)")
                 .HasColumnName("id_modelo_maquina");
             entity.Property(e => e.Activo)
                 .HasDefaultValue(true)
@@ -255,32 +271,70 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdMotivoEs).HasName("PK_MOTIVO_ESTADO_OT");
 
-            entity.ToTable("motivo_estado_ot", "sotra-production");
+            entity.ToTable("motivo_estado_ot", EsquemaOperativo);
 
             entity.Property(e => e.IdMotivoEs)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MOTIVO_ESTADO_OT_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MOTIVO_ESTADO_OT_ID\"'::regclass)")
                 .HasColumnName("id_motivo_es");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+        });
+
+        modelBuilder.Entity<EvidenciaOt>(entity =>
+        {
+            entity.HasKey(e => e.IdEvidencia).HasName("PK_EVIDENCIA_OT");
+
+            entity.ToTable("evidencia_ot", EsquemaOperativo);
+
+            entity.Property(e => e.IdEvidencia)
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_EVIDENCIA_OT_ID\"'::regclass)")
+                .HasColumnName("id_evidencia");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(20)
+                .HasColumnName("tipo");
+            entity.Property(e => e.Observacion).HasColumnName("observacion");
+            entity.Property(e => e.FechaRegistro).HasColumnName("fecha_registro");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.NombreArchivo)
+                .HasMaxLength(255)
+                .HasColumnName("nombre_archivo");
+            entity.Property(e => e.TipoContenido)
+                .HasMaxLength(100)
+                .HasColumnName("tipo_contenido");
+            entity.Property(e => e.Archivo).HasColumnName("archivo");
         });
 
         modelBuilder.Entity<MovimientoStock>(entity =>
         {
             entity.HasKey(e => e.IdMovimiento).HasName("PK_MOVIMIENTO_STOCK");
 
-            entity.ToTable("movimiento_stock", "sotra-production");
+            entity.ToTable("movimiento_stock", EsquemaOperativo);
 
             entity.HasIndex(e => e.IdUsuario, "IX_MOVIMIENTO_STOCK_ID_USUARIO");
 
             entity.Property(e => e.IdMovimiento)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_MOVIMIENTO_STOCK_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MOVIMIENTO_STOCK_ID\"'::regclass)")
                 .HasColumnName("id_movimiento");
-            entity.Property(e => e.Cantidad)
-                .HasPrecision(4, 2)
-                .HasColumnName("cantidad");
+            entity.Property(e => e.Cantidad).HasColumnName("cantidad");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Fecha).HasColumnName("fecha");
             entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
             entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(20)
+                .HasColumnName("tipo");
+            entity.Property(e => e.Motivo)
+                .HasMaxLength(200)
+                .HasColumnName("motivo");
+            entity.Property(e => e.Ubicacion)
+                .HasMaxLength(150)
+                .HasColumnName("ubicacion");
+            entity.Property(e => e.Observaciones).HasColumnName("observaciones");
+            entity.Property(e => e.StockAnterior).HasColumnName("stock_anterior");
+            entity.Property(e => e.StockPosterior).HasColumnName("stock_posterior");
 
             entity.HasOne(d => d.IdRepuestoNavigation).WithMany(p => p.MovimientoStocks)
                 .HasForeignKey(d => d.IdRepuesto)
@@ -297,14 +351,14 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdOrden).HasName("PK_ORDEN_TRABAJO");
 
-            entity.ToTable("orden_trabajo", "sotra-production");
+            entity.ToTable("orden_trabajo", EsquemaOperativo);
 
             entity.HasIndex(e => e.IdUsuarioResponsable, "IX_ORDEN_TRABAJO_ID_USUARIO_RESPONSABLE");
 
             entity.HasIndex(e => e.IdUsuarioTecnico, "IX_ORDEN_TRABAJO_ID_USUARIO_TECNICO");
 
             entity.Property(e => e.IdOrden)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ORDEN_TRABAJO_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_ORDEN_TRABAJO_ID\"'::regclass)")
                 .HasColumnName("id_orden");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.FechaCierre).HasColumnName("fecha_cierre");
@@ -349,10 +403,10 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdOtRepuesto).HasName("PK_OT_REPUESTO");
 
-            entity.ToTable("ot_repuesto", "sotra-production");
+            entity.ToTable("ot_repuesto", EsquemaOperativo);
 
             entity.Property(e => e.IdOtRepuesto)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_OT_REPUESTO_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_OT_REPUESTO_ID\"'::regclass)")
                 .HasColumnName("id_ot_repuesto");
             entity.Property(e => e.IdOrden).HasColumnName("id_orden");
             entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
@@ -372,12 +426,12 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdPermiso).HasName("PK_PERMISO");
 
-            entity.ToTable("permiso", "sotra-production");
+            entity.ToTable("permiso", EsquemaOperativo);
 
             entity.HasIndex(e => e.Nombre, "UK_NOMBRE_PERMISO").IsUnique();
 
             entity.Property(e => e.IdPermiso)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_PERMISO_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_PERMISO_ID\"'::regclass)")
                 .HasColumnName("id_permiso");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.Nombre)
@@ -389,12 +443,12 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdRepuesto).HasName("PK_REPUESTO");
 
-            entity.ToTable("repuesto", "sotra-production");
+            entity.ToTable("repuesto", EsquemaOperativo);
 
             entity.HasIndex(e => e.Codigo, "UK_CODIGO_REPUESTO").IsUnique();
 
             entity.Property(e => e.IdRepuesto)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_REPUESTO_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_REPUESTO_ID\"'::regclass)")
                 .HasColumnName("id_repuesto");
             entity.Property(e => e.CantMin).HasColumnName("cant_min");
             entity.Property(e => e.Cantidad).HasColumnName("cantidad");
@@ -418,12 +472,12 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdRol).HasName("PK_ROL");
 
-            entity.ToTable("rol", "sotra-production");
+            entity.ToTable("rol", EsquemaOperativo);
 
             entity.HasIndex(e => e.Nombre, "UK_NOMBRE_ROL").IsUnique();
 
             entity.Property(e => e.IdRol)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_ROL_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_ROL_ID\"'::regclass)")
                 .HasColumnName("id_rol");
             entity.Property(e => e.Activo)
                 .HasDefaultValue(true)
@@ -447,7 +501,7 @@ public partial class SotraContext : DbContext
                     j =>
                     {
                         j.HasKey("IdRol", "IdPermiso").HasName("PK_ROL_PERMISO");
-                        j.ToTable("rol_permiso", "sotra-production");
+                        j.ToTable("rol_permiso", EsquemaOperativo);
                         j.HasIndex(new[] { "IdPermiso" }, "IX_ROL_PERMISO_ID_PERMISO");
                         j.IndexerProperty<long>("IdRol").HasColumnName("id_rol");
                         j.IndexerProperty<long>("IdPermiso").HasColumnName("id_permiso");
@@ -458,12 +512,12 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdTipoMaquina).HasName("PK_TIPO_MAQUINA");
 
-            entity.ToTable("tipo_maquina", "sotra-production");
+            entity.ToTable("tipo_maquina", EsquemaOperativo);
 
             entity.HasIndex(e => e.Nombre, "UK_NOMBRE_TIPO_MAQUINA").IsUnique();
 
             entity.Property(e => e.IdTipoMaquina)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_TIPO_MAQUINA_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_TIPO_MAQUINA_ID\"'::regclass)")
                 .HasColumnName("id_tipo_maquina");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Nombre)
@@ -475,14 +529,14 @@ public partial class SotraContext : DbContext
         {
             entity.HasKey(e => e.IdUsuario).HasName("PK_USUARIO");
 
-            entity.ToTable("usuario", "sotra-production");
+            entity.ToTable("usuario", EsquemaOperativo);
 
             entity.HasIndex(e => e.Mail, "UK_MAIL_USUARIO").IsUnique();
 
             entity.HasIndex(e => e.Telefono, "UK_TELEFONO_USUARIO").IsUnique();
 
             entity.Property(e => e.IdUsuario)
-                .HasDefaultValueSql("nextval('\"sotra-production\".\"SEC_USUARIO_ID\"'::regclass)")
+                .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_USUARIO_ID\"'::regclass)")
                 .HasColumnName("id_usuario");
             entity.Property(e => e.Apellido)
                 .HasMaxLength(100)
@@ -518,7 +572,7 @@ public partial class SotraContext : DbContext
                     j =>
                     {
                         j.HasKey("IdUsuario", "IdRol").HasName("PK_USUARIO_ROL");
-                        j.ToTable("usuario_rol", "sotra-production");
+                        j.ToTable("usuario_rol", EsquemaOperativo);
                         j.HasIndex(new[] { "IdRol" }, "IX_USUARIO_ROL_ID_ROL");
                         j.IndexerProperty<long>("IdUsuario").HasColumnName("id_usuario");
                         j.IndexerProperty<long>("IdRol").HasColumnName("id_rol");

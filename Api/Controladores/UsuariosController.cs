@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.Mapeadores;
 using Api.DTOs.Usuarios;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +18,68 @@ public class UsuariosController : ControllerBase
         _usuarioDao = usuarioDao;
     }
 
-
     [HttpGet]
-    [ProducesResponseType<List<UsuarioListadoDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<UsuarioListadoDto>>> ObtenerTodos(
-        CancellationToken cancellationToken)
+    [ProducesResponseType<PaginaDto<UsuarioListadoDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<UsuarioListadoDto>> ObtenerTodos([FromQuery] FiltrosUsuariosDto filtros)
     {
-        var respuesta = await _usuarioDao.ListarTodoAsync(
-            UsuarioMapeador.Proyeccion, cancellationToken);
-        return Ok(respuesta);
+        if (!PaginaDto<UsuarioListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
+        var respuesta = new List<UsuarioListadoDto>();
+        foreach (var usuario in _usuarioDao.ListarTodo())
+        {
+            var usuarioDto = UsuarioMapeador.AListadoDto(usuario);
+
+            if (textoBuscado != "")
+            {
+                var nombreCompleto = usuarioDto.Nombre + " " + usuarioDto.Apellido;
+                var coincide = PaginaDto<UsuarioListadoDto>.Contiene(nombreCompleto, textoBuscado)
+                               || PaginaDto<UsuarioListadoDto>.Contiene(usuarioDto.Correo, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (filtros.RolId is not null)
+            {
+                var tieneElRol = false;
+                foreach (var rol in usuarioDto.Roles)
+                {
+                    if (rol.Id == filtros.RolId)
+                    {
+                        tieneElRol = true;
+                    }
+                }
+
+                if (!tieneElRol)
+                {
+                    continue;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && usuarioDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(usuarioDto);
+        }
+
+        if (filtros.DireccionOrden == "desc")
+        {
+            respuesta.Reverse();
+        }
+
+        return Ok(PaginaDto<UsuarioListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -33,7 +87,7 @@ public class UsuariosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<UsuarioListadoDto> ObtenerPorId(long id)
     {
-        var usuario = _usuarioDao.seleccionarUsuario(id);
+        var usuario = _usuarioDao.SeleccionarUsuario(id);
         return usuario is null ? NotFound() : Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 
@@ -46,7 +100,7 @@ public class UsuariosController : ControllerBase
         try
         {
             var usuario = UsuarioMapeador.AEntidad(solicitud);
-            var usuarioCreado = _usuarioDao.insertarUsuario(usuario, solicitud.IdsRol);
+            var usuarioCreado = _usuarioDao.InsertarUsuario(usuario, solicitud.IdsRol);
             var respuesta = UsuarioMapeador.AListadoDto(usuarioCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = usuarioCreado.IdUsuario }, respuesta);
         }
@@ -69,21 +123,13 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuario = _usuarioDao.seleccionarUsuario(id);
+            var usuario = _usuarioDao.SeleccionarUsuario(id);
             if (usuario is null) return NotFound();
 
             UsuarioMapeador.AplicarCambios(usuario, solicitud);
+            _usuarioDao.ActualizarUsuario(usuario, solicitud.IdsRol, solicitud.Contrasena);
 
-            var idsRol = solicitud.IdsRol is { Count: > 0 }
-                ? solicitud.IdsRol
-                : usuario.IdRols.Select(rol => rol.IdRol).ToList();
-            var nuevaContrasena = string.IsNullOrWhiteSpace(solicitud.Contrasena)
-                ? null
-                : solicitud.Contrasena;
-
-            _usuarioDao.actualizarUsuario(usuario, idsRol, nuevaContrasena);
-
-            var usuarioActualizado = _usuarioDao.seleccionarUsuario(id)!;
+            var usuarioActualizado = _usuarioDao.SeleccionarUsuario(id)!;
             return Ok(UsuarioMapeador.AListadoDto(usuarioActualizado));
         }
         catch (ArgumentException excepcion)
@@ -105,9 +151,9 @@ public class UsuariosController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_usuarioDao.darBajaLogicaUsuario(id)) return NotFound();
+        if (!_usuarioDao.DarBajaLogicaUsuario(id)) return NotFound();
 
-        var usuario = _usuarioDao.seleccionarUsuario(id)!;
+        var usuario = _usuarioDao.SeleccionarUsuario(id)!;
         return Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 }

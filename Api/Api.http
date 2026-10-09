@@ -4,3 +4,41 @@ GET {{Api_HostAddress}}/api/v1/usuarios
 Accept: application/json
 
 ###
+
+GET {{Api_HostAddress}}/api/v1/reportes/indicadores
+Accept: application/json
+
+###
+GET {{Api_HostAddress}}/api/v1/reportes/indicadores?fechaDesde=2026-01-01&fechaHasta=2026-12-31&estado=creada&tipo=correctivo
+Accept: application/json
+
+###
+
+GET {{Api_HostAddress}}/api/v1/reportes/ordenes-trabajo/pdf?prioridad=alta
+Accept: application/pdf
+
+###
+
+GET {{Api_HostAddress}}/api/v1/ordenes-trabajo?buscar=filtro&estado=creada&pagina=1&tamanoPagina=20
+Accept: application/json
+
+###
+
+PATCH {{Api_HostAddress}}/api/v1/ordenes-trabajo/1/estado
+Content-Type: application/json
+
+{
+  "estado": "pausada",
+  "motivo": "Falta de repuestos"
+}
+
+###
+
+PATCH {{Api_HostAddress}}/api/v1/ordenes-trabajo/1/tecnico
+Content-Type: application/json
+
+{
+  "tecnicoId": 25
+}
+
+###
