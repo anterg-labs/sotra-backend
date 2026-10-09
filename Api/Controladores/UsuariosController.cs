@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.Mapeadores;
 using Api.DTOs.Usuarios;
 using Microsoft.AspNetCore.Mvc;
@@ -18,16 +19,67 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<UsuarioListadoDto>>(StatusCodes.Status200OK)]
-    public ActionResult<List<UsuarioListadoDto>> ObtenerTodos()
+    [ProducesResponseType<PaginaDto<UsuarioListadoDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<UsuarioListadoDto>> ObtenerTodos([FromQuery] FiltrosUsuariosDto filtros)
     {
+        if (!PaginaDto<UsuarioListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
         var respuesta = new List<UsuarioListadoDto>();
         foreach (var usuario in _usuarioDao.ListarTodo())
         {
-            respuesta.Add(UsuarioMapeador.AListadoDto(usuario));
+            var usuarioDto = UsuarioMapeador.AListadoDto(usuario);
+
+            if (textoBuscado != "")
+            {
+                var nombreCompleto = usuarioDto.Nombre + " " + usuarioDto.Apellido;
+                var coincide = PaginaDto<UsuarioListadoDto>.Contiene(nombreCompleto, textoBuscado)
+                               || PaginaDto<UsuarioListadoDto>.Contiene(usuarioDto.Correo, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (filtros.RolId is not null)
+            {
+                var tieneElRol = false;
+                foreach (var rol in usuarioDto.Roles)
+                {
+                    if (rol.Id == filtros.RolId)
+                    {
+                        tieneElRol = true;
+                    }
+                }
+
+                if (!tieneElRol)
+                {
+                    continue;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && usuarioDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(usuarioDto);
         }
 
-        return Ok(respuesta);
+        if (filtros.DireccionOrden == "desc")
+        {
+            respuesta.Reverse();
+        }
+
+        return Ok(PaginaDto<UsuarioListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]

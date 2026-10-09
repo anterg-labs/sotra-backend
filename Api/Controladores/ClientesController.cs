@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Api.DTOs.Clientes;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -18,16 +19,50 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType<List<ClienteListadoDto>>(StatusCodes.Status200OK)]
-    public ActionResult<List<ClienteListadoDto>> ObtenerTodos()
+    [ProducesResponseType<PaginaDto<ClienteListadoDto>>(StatusCodes.Status200OK)]
+    public ActionResult<PaginaDto<ClienteListadoDto>> ObtenerTodos([FromQuery] FiltrosClientesDto filtros)
     {
+        if (!PaginaDto<ClienteListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
+        {
+            return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
+        }
+
+        var textoBuscado = "";
+        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        {
+            textoBuscado = filtros.Buscar.Trim().ToLower();
+        }
+
         var respuesta = new List<ClienteListadoDto>();
         foreach (var cliente in _clienteDao.ListarTodo())
         {
-            respuesta.Add(ClienteMapeador.AListadoDto(cliente));
+            var clienteDto = ClienteMapeador.AListadoDto(cliente);
+
+            if (textoBuscado != "")
+            {
+                var coincide = PaginaDto<ClienteListadoDto>.Contiene(clienteDto.RazonSocial, textoBuscado)
+                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.NombreContacto, textoBuscado)
+                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.Correo, textoBuscado);
+                if (!coincide)
+                {
+                    continue;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(filtros.Estado) && clienteDto.Estado != filtros.Estado)
+            {
+                continue;
+            }
+
+            respuesta.Add(clienteDto);
         }
 
-        return Ok(respuesta);
+        if (filtros.DireccionOrden == "desc")
+        {
+            respuesta.Reverse();
+        }
+
+        return Ok(PaginaDto<ClienteListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
