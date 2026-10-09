@@ -42,7 +42,7 @@ public class OrdenTrabajoDAO
     }
 
     public OrdenTrabajo Crear(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
-        List<string> sugerencias)
+        List<string> sugerencias, Guid? sesion)
     {
         ValidarRelaciones(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds);
         orden.IdUsuarioResponsable = ObtenerResponsable();
@@ -54,7 +54,7 @@ public class OrdenTrabajoDAO
 
         AgregarEstado(orden, "creada", fechaPrevista.ToString(FormatoDeFecha));
         ReemplazarRepuestos(orden, repuestosIds);
-        ReemplazarSugerencias(orden, sugerencias);
+        ReemplazarSugerencias(orden, sugerencias, sesion);
         _contexto.SaveChanges();
         transaccion.Commit();
 
@@ -62,7 +62,7 @@ public class OrdenTrabajoDAO
     }
 
     public OrdenTrabajo Actualizar(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
-        List<string> sugerencias, string estado, string? motivo)
+        List<string> sugerencias, string estado, string? motivo, Guid? sesion)
     {
         var estadoActual = ObtenerEstadoActual(orden);
         if (estadoActual == "cerrada")
@@ -89,7 +89,7 @@ public class OrdenTrabajoDAO
         }
 
         ReemplazarRepuestos(orden, repuestosIds);
-        ReemplazarSugerencias(orden, sugerencias);
+        ReemplazarSugerencias(orden, sugerencias, sesion);
         _contexto.SaveChanges();
         transaccion.Commit();
 
@@ -317,7 +317,22 @@ public class OrdenTrabajoDAO
         }
     }
 
-    private void ReemplazarSugerencias(OrdenTrabajo orden, List<string> sugerencias)
+    public void RegistrarSugerenciaGenerada(Guid? sesion, string consulta, int numeroIntento, string texto)
+    {
+        _contexto.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
+        {
+            Recomendacion = texto.Trim(),
+            Estado = false,
+            Sesion = sesion,
+            Consulta = consulta,
+            NumeroIntento = numeroIntento,
+            FechaGeneracion = DateTime.UtcNow,
+            Resultado = "pendiente"
+        });
+        _contexto.SaveChanges();
+    }
+
+    private void ReemplazarSugerencias(OrdenTrabajo orden, List<string> sugerencias, Guid? sesion)
     {
         var textosNuevos = new List<string>();
         foreach (var texto in sugerencias)
@@ -345,12 +360,38 @@ public class OrdenTrabajoDAO
             }
         }
 
+        if (sesion is not null)
+        {
+            var sugerenciasDeLaSesion = _contexto.HistorialRecomendacionesIa
+                .Where(sugerencia => sugerencia.Sesion == sesion && sugerencia.IdOrden == null)
+                .OrderBy(sugerencia => sugerencia.IdRecomendacionIa)
+                .ToList();
+
+            foreach (var sugerenciaGenerada in sugerenciasDeLaSesion)
+            {
+                sugerenciaGenerada.IdOrden = orden.IdOrden;
+                if (textosNuevos.Contains(sugerenciaGenerada.Recomendacion))
+                {
+                    textosNuevos.Remove(sugerenciaGenerada.Recomendacion);
+                    sugerenciaGenerada.Estado = true;
+                    sugerenciaGenerada.Resultado = "aceptada";
+                }
+                else
+                {
+                    sugerenciaGenerada.Estado = false;
+                    sugerenciaGenerada.Resultado = "descartada";
+                }
+            }
+        }
+
         foreach (var texto in textosNuevos)
         {
             orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
             {
                 Recomendacion = texto,
-                Estado = true
+                Estado = true,
+                FechaGeneracion = DateTime.UtcNow,
+                Resultado = "aceptada"
             });
         }
     }

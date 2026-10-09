@@ -144,16 +144,14 @@ RF005-05. **Requiere la tabla `operativo.evidencia_ot`, que todavía no existe:*
 
 El usuario que registra la evidencia (`id_usuario`) queda vacío hasta que exista el login.
 
-### Validación de recomendaciones (`/api/v1/ordenes-trabajo/{id}/sugerencias`)
+### Registro de sugerencias de IA (RF006-05)
 
-RF006-05. **Requiere la tabla `operativo.validacion_recomendacion_ia`, que todavía no existe:** el SQL sugerido está en `SUGERENCIAS-SQL.md`. Modelo `ValidacionRecomendacionIa`, `ValidacionRecomendacionDAO` y `RecomendacionesController`.
+El equipo decidió que la validación se hace en el formulario de la orden: las sugerencias que quedan en la orden son las aceptadas y las que el usuario quitó son las descartadas (ver `ACLARACIONES-FUNCIONALIDADES.md`). Todas quedan registradas en `historial_recomendaciones_ia` para analizar el modelo; este historial no se muestra al usuario. Requiere las columnas del punto 4 de `SUGERENCIAS-SQL.md` (ya aplicadas en la base local).
 
-- `GET`: lista las recomendaciones activas de la orden con `id`, `texto`, `estadoValidacion` (`pendiente`, `aceptada`, `rechazada` u `observada`: el resultado de la última validación) y `validaciones` (historial con `resultado`, `observacion` y `fecha` en UTC).
-- `POST /{sugerenciaId}/validaciones`: recibe `{ "resultado": "aceptada|rechazada|observada", "observacion": "..." }` y responde `201` con la recomendación actualizada. Rechazar y observar exigen texto (`400` `OBSERVACION_OBLIGATORIA`); resultado desconocido: `RESULTADO_VALIDACION_INVALIDO`; recomendación inexistente o de otra orden: `404`.
-- Al guardar la orden (`POST` o `PUT`), `ReemplazarSugerencias` ahora conserva las recomendaciones cuyo texto no cambió (mismo identificador, así no se pierden sus validaciones), desactiva las que se quitaron y agrega las nuevas.
-- `GET /api/v1/ordenes-trabajo` acepta además `conSugerencias=true` para listar solo las órdenes con recomendaciones (paso 2 del RF).
-
-El usuario que valida (`id_usuario`) queda vacío hasta que exista el login.
+- `POST /api/v1/ordenes-trabajo/sugerencia` recibe además `sesion` (UUID que crea el formulario). Después de generar la sugerencia, `OrdenTrabajoDAO.RegistrarSugerenciaGenerada` la guarda sin orden, con `sesion`, `consulta` (la descripción), `numero_intento`, `fecha_generacion` y `resultado = pendiente`.
+- `POST` y `PUT` de órdenes reciben `sesion`. Al guardar, `ReemplazarSugerencias` asocia a la orden las sugerencias pendientes de esa sesión: las que siguen en la lista quedan `aceptada` (y `estado = true`), el resto `descartada`. Las sugerencias que ya tenía la orden y no cambiaron se conservan; las quitadas al editar pasan a `estado = false`.
+- Las sugerencias de formularios abandonados quedan con `resultado = pendiente` y sin orden.
+- `GET /api/v1/ordenes-trabajo` acepta `conSugerencias=true` para listar solo las órdenes con recomendaciones.
 
 ### Indicadores (`GET /api/v1/reportes/indicadores`)
 

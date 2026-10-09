@@ -98,7 +98,7 @@ public class OrdenesTrabajoController : ControllerBase
             };
 
             var ordenCreada = _ordenTrabajoDao.Crear(orden, solicitud.FechaPrevistaEjecucion,
-                solicitud.RepuestosIds, solicitud.Sugerencias);
+                solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion);
             var respuesta = OrdenTrabajoMapeador.ADto(ordenCreada);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = ordenCreada.IdOrden }, respuesta);
         }
@@ -130,7 +130,7 @@ public class OrdenesTrabajoController : ControllerBase
 
             var ordenActualizada = _ordenTrabajoDao.Actualizar(orden,
                 solicitud.FechaPrevistaEjecucion, solicitud.RepuestosIds,
-                solicitud.Sugerencias, solicitud.Estado, solicitud.MotivoEstado);
+                solicitud.Sugerencias, solicitud.Estado, solicitud.MotivoEstado, solicitud.Sesion);
             return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada));
         }
         catch (InvalidOperationException excepcion)
@@ -269,6 +269,8 @@ public class OrdenesTrabajoController : ControllerBase
                 });
             }
 
+            _ordenTrabajoDao.RegistrarSugerenciaGenerada(solicitud.Sesion, solicitud.Descripcion.Trim(),
+                solicitud.Numero, sugerencia);
             return Ok(new { sugerencia });
         }
         catch (Exception)
