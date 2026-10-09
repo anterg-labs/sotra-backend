@@ -20,4 +20,9 @@
     <ProjectReference Include="..\SOTRA-BACKEND\SOTRA-BACKEND.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Remove="..\version.json" />
+    <Content Include="..\version.json" Link="version.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

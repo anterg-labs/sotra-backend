@@ -1,4 +1,27 @@
 #!/bin/sh
 
 dotnet format --verify-no-changes
-gitleaks protect --staged
+gitleaks protect --staged || exit 1
+
+archivo_version="version.json"
+patron_version='s/.*"version": *"\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\)".*/\1 \2 \3/p'
+
+version_actual=$(sed -n "$patron_version" "$archivo_version")
+version_anterior=$(git show HEAD:"$archivo_version" 2>/dev/null | sed -n "$patron_version")
+
+mayor_actual=$(echo "$version_actual" | cut -d' ' -f1)
+menor_actual=$(echo "$version_actual" | cut -d' ' -f2)
+parche_actual=$(echo "$version_actual" | cut -d' ' -f3)
+mayor_anterior=$(echo "$version_anterior" | cut -d' ' -f1)
+menor_anterior=$(echo "$version_anterior" | cut -d' ' -f2)
+
+if [ "$mayor_actual" != "$mayor_anterior" ] || [ "$menor_actual" != "$menor_anterior" ]; then
+  echo "Versión cambiada a mano: se respeta $mayor_actual.$menor_actual.$parche_actual"
+  exit 0
+fi
+
+parche_nuevo=$((parche_actual + 1))
+version_nueva="$mayor_actual.$menor_actual.$parche_nuevo"
+printf '{\n  "version": "%s"\n}\n' "$version_nueva" > "$archivo_version"
+git add "$archivo_version"
+echo "Versión del backend: $version_nueva"
