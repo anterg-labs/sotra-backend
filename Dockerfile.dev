@@ -14,4 +14,4 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 
 EXPOSE 8080
 
-CMD ["dotnet", "watch", "--project", "Api/Api.csproj", "run", "--no-launch-profile", "--urls", "http://0.0.0.0:8080"]
+CMD ["dotnet", "watch", "--no-hot-reload", "--project", "Api/Api.csproj", "run", "--no-launch-profile", "--urls", "http://0.0.0.0:8080"]
