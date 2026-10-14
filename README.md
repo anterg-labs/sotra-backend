@@ -46,6 +46,18 @@ docker compose up -d --build
 
 Este comando usa `compose.yml`, levanta PostgreSQL y el backend, y deja la API disponible en `http://localhost:8080`.
 
+#### Carga automática de datos
+
+Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `db-datos` (`database/init/cargar-datos.sh`), que compara el SHA-256 de `database/init/01-init.sql` con el último que cargó, guardado en la tabla `public.carga_datos`.
+
+- **Sin diferencias:** no hace nada.
+- **Con diferencias o primera vez:** borra y recrea el esquema `operativo` con la estructura y los datos de `01-init.sql` (clientes, activos, usuarios, roles, permisos, órdenes, repuestos, etc.). Los cambios hechos a mano en `operativo` se pierden.
+- **Esquema `vectorial`:** `02-vectorial.sql` crea solo su estructura vacía, y únicamente si el esquema no existe. Si ya existe, no se toca. Los PDF, fragmentos y embeddings no vienen en el SQL; se generan con la asistencia documental.
+
+Las contraseñas de usuario que no eran un hash de ASP.NET Identity se reemplazaron por `REEMPLAZAR_POR_HASH_ASPNET_IDENTITY`: esos usuarios no pueden iniciar sesión hasta que se les asigne una contraseña.
+
+Para actualizar los datos, editar `01-init.sql` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
+
 ### Desarrollo local
 
 La configuración de desarrollo usa la base local publicada en `localhost:5432`. Si se utiliza `sotra-postgres-local`, debe iniciarse antes:

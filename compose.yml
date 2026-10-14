@@ -10,12 +10,27 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  db-datos:
+    image: pgvector/pgvector:pg18
+    container_name: sotra-db-datos
+    environment:
+      PGHOST: db
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: ${DB_NAME}
+    volumes:
+      - ./database/init:/datos:ro
+    entrypoint: ["sh", "/datos/cargar-datos.sh"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
 
   backend:
     build:
@@ -35,7 +50,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
     depends_on:
-      - db
+      db-datos:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
