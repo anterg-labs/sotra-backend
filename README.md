@@ -62,6 +62,7 @@ Servicios expuestos al equipo:
 - PostgreSQL: host `localhost` y puerto `5432`.
 - Backend de producción: `http://localhost:8080`.
 - Backend de desarrollo: `http://localhost:8081`.
+- Keycloak de desarrollo: `http://localhost:9080` (consola en `http://localhost:9080/admin`).
 
 Comprobar la conexión:
 
@@ -70,6 +71,60 @@ docker exec sotra-postgres-local pg_isready -U sotra -d sotra
 curl http://localhost:8080/api/v1/roles
 curl http://localhost:8081/api/v1/roles
 ```
+
+## Keycloak (autenticación)
+
+`compose.dev.yml` levanta Keycloak 26.7.4 en el contenedor `sotra-keycloak-dev`, en modo `start-dev` y publicado en el puerto `9080`. Guarda sus datos en la misma base de PostgreSQL que el backend (`DB_HOST`, `DB_PORT` y `DB_NAME`), dentro del esquema `keycloak` y con un usuario propio, `keycloak_user`, que no tiene acceso a `operativo` ni a `vectorial`.
+
+La configuración del realm `sotra` está versionada en `keycloak/realm-sotra.json`: clientes, roles, el client scope de audiencia, la política de contraseñas y la protección contra fuerza bruta. Keycloak arranca con `--import-realm` y lo importa solamente si el realm todavía no existe; si ya existe, no lo modifica. El archivo es una exportación parcial: no incluye usuarios (salvo la cuenta de servicio de `sotra-backend-admin`), ni claves de firma, y los secretos de los clientes aparecen como `**********`.
+
+### Primera puesta en marcha
+
+1. Copiar las variables `KC_*` de `.env.example` al `.env` y completar `KC_DB_PASSWORD` y `KC_BOOTSTRAP_ADMIN_PASSWORD` con valores propios.
+2. Crear en PostgreSQL el usuario y el esquema de Keycloak, usando la misma contraseña que `KC_DB_PASSWORD`:
+
+```sql
+CREATE ROLE keycloak_user WITH LOGIN PASSWORD 'TU_PASSWORD_KEYCLOAK_DB';
+CREATE SCHEMA keycloak AUTHORIZATION keycloak_user;
+ALTER ROLE keycloak_user SET search_path = keycloak;
+```
+
+3. Levantar Keycloak. La primera vez crea sus tablas e importa el realm `sotra`:
+
+```bash
+docker compose -f compose.dev.yml up -d keycloak
+```
+
+4. Entrar a `http://localhost:9080/admin` con `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`, cambiar al realm `sotra` y generar el secreto propio en **Clients** → `sotra-backend-admin` → **Credentials** → **Regenerate**.
+
+Comprobar que el realm responde:
+
+```bash
+curl http://localhost:9080/realms/sotra/.well-known/openid-configuration
+```
+
+### Contenido del realm `sotra`
+
+| Cliente | Tipo | Uso |
+|---|---|---|
+| `sotra-frontend` | Público, *Standard flow* con PKCE `S256` | Login de la PWA. Redirecciones y orígenes permitidos: `http://localhost`. |
+| `sotra-api` | Confidencial, sin flujos de login | Representa a la API. Los tokens llevan `aud: sotra-api` gracias al client scope `sotra-api-audience`. |
+| `sotra-backend-admin` | Confidencial, cuenta de servicio | La API lo usa para crear y modificar usuarios en Keycloak. Solo tiene `manage-users` y `view-users` de `realm-management`. |
+| `sotra-postman` | Público, *Direct access grants* | Solo para desarrollo: pedir tokens con usuario y contraseña desde Postman. No debe existir en producción. |
+
+Roles del realm: `administrador`, `jefe_mantenimiento`, `tecnico` y `panolero`. Viajan en el token dentro de `realm_access.roles`.
+
+El login usa el correo como nombre de usuario. La política de contraseñas exige al menos 8 caracteres, una mayúscula, un dígito y un carácter especial; no permite el correo ni el usuario como contraseña, ni repetir las últimas 3. Después de 5 intentos fallidos la cuenta se bloquea temporalmente (desde 1 minuto hasta 15). Una contraseña asignada como temporal obliga a cambiarla en el primer ingreso.
+
+Pedir un token de prueba con `sotra-postman`:
+
+```bash
+curl -d client_id=sotra-postman -d grant_type=password -d username=CORREO_DEL_USUARIO -d password=PASSWORD_DEL_USUARIO http://localhost:9080/realms/sotra/protocol/openid-connect/token
+```
+
+### Actualizar `realm-sotra.json`
+
+Si se cambia la configuración del realm desde la consola, hay que volver a exportarla para que el resto del equipo la reciba: **Realm settings** → **Action** → **Partial export**, con **Include groups and roles** e **Include clients** activados, y reemplazar `keycloak/realm-sotra.json` con el archivo descargado. Un integrante que ya tiene el realm creado no recibe los cambios al reiniciar, porque la importación se saltea si el realm existe; para aplicarlos debe hacerlos a mano en la consola o borrar el realm y reiniciar Keycloak.
 
 ## Contratos de modificación
 
@@ -313,10 +368,10 @@ Detener y eliminar los contenedores de producción sin borrar el volumen de Post
 docker compose down
 ```
 
-Detener y eliminar solamente el contenedor de desarrollo:
+Detener y eliminar solamente los contenedores de desarrollo (backend y Keycloak):
 
 ```bash
 docker compose -f compose.dev.yml down
 ```
 
-Este último comando no elimina `sotra-postgres-local` ni sus datos, porque la base utilizada en desarrollo se administra por separado.
+Este último comando no elimina `sotra-postgres-local` ni sus datos, porque la base utilizada en desarrollo se administra por separado. Tampoco borra la configuración de Keycloak, que queda guardada en el esquema `keycloak` de esa base.
