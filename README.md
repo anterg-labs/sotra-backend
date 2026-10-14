@@ -1,8 +1,33 @@
 # Backend de SOTRA
 
+## Requisitos
+
+### Linux
+
+Docker Engine con el plugin `docker compose`. El usuario debe pertenecer al grupo `docker` (`sudo usermod -aG docker $USER` y volver a iniciar sesión).
+
+### Windows
+
+Docker Desktop. Los comandos `docker compose` son los mismos; se pueden ejecutar desde PowerShell o Git Bash.
+
+Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattributes` lo fuerza al clonar.
+
 ## Configurar PostgreSQL con el archivo `.env`
 
 1. Copiar `.env.example` como `.env` en la raíz de `sotra-backend/`.
+
+Linux:
+
+```bash
+cp .env.example .env
+```
+
+Windows (PowerShell):
+
+```powershell
+Copy-Item .env.example .env
+```
+
 2. Configurar la conexión local sin publicar las credenciales:
 
 ```env
@@ -14,15 +39,15 @@ DB_PASSWORD=TU_PASSWORD
 FRONTEND_ORIGIN=http://localhost
 ```
 
-Esta configuración permite ejecutar el backend directamente en Windows contra PostgreSQL publicado en el puerto estándar `5432`.
+Esta configuración permite ejecutar el backend directamente en el equipo (Linux o Windows) contra PostgreSQL publicado en el puerto estándar `5432`.
 
 `compose.yml` conserva la configuración original de producción con PostgreSQL y el backend. La configuración de desarrollo está separada en `compose.dev.yml` y carga las variables desde `sotra-backend/.env`.
 
 El archivo `.env` no se debe versionar. `.env.example` se conserva como plantilla sin credenciales reales.
 
-## Ejecutar directamente en Windows
+## Ejecutar directamente en el equipo
 
-Comprobar la compilación:
+Con el SDK de .NET instalado (Linux, macOS o Windows). Comprobar la compilación:
 
 ```bash
 dotnet build
@@ -67,7 +92,7 @@ docker start sotra-postgres-local
 docker compose -f compose.dev.yml up -d --build
 ```
 
-La API queda disponible en `http://localhost:8081`. El código fuente está montado dentro del contenedor y `dotnet watch --no-hot-reload` reinicia la aplicación al guardar cambios. Así se evita que la recarga en caliente intente leer archivos temporales de recursos estáticos que no existen en este montaje de Windows. Esta configuración no modifica ni reemplaza el `Dockerfile` ni el `compose.yml` de producción.
+La API queda disponible en `http://localhost:8081`. El código fuente está montado dentro del contenedor y `dotnet watch --no-hot-reload` reinicia la aplicación al guardar cambios. Así se evita que la recarga en caliente intente leer archivos temporales de recursos estáticos que no existen cuando la carpeta se monta desde Windows. Esta configuración no modifica ni reemplaza el `Dockerfile` ni el `compose.yml` de producción.
 
 Servicios expuestos al equipo:
 
