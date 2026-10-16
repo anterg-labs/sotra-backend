@@ -47,18 +47,11 @@ public class UsuarioDAO
             consulta = consulta.Where(u => u.Estado == estado);
         }
 
-        var total = consulta.Count();
         var ordenada = filtro.Descendente
             ? consulta.OrderByDescending(u => u.IdUsuario)
             : consulta.OrderBy(u => u.IdUsuario);
 
-        var elementos = ordenada
-            .Skip((pagina - 1) * tamanoPagina)
-            .Take(tamanoPagina)
-            .Include(u => u.IdRols)
-            .ToList();
-
-        return (elementos, total);
+        return ConsultasDeTexto.Paginar(ordenada.Include(u => u.IdRols), pagina, tamanoPagina);
     }
 
     public Usuario? SeleccionarUsuario(long id)

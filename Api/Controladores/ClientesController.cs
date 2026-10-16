@@ -28,42 +28,15 @@ public class ClientesController : ControllerBase
             return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<ClienteListadoDto>();
-        foreach (var cliente in _clienteDao.ListarTodo())
-        {
-            var clienteDto = ClienteMapeador.AListadoDto(cliente);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<ClienteListadoDto>.Contiene(clienteDto.RazonSocial, textoBuscado)
-                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.NombreContacto, textoBuscado)
-                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.Correo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && clienteDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(clienteDto);
-        }
-
-        if (filtros.DireccionOrden == "desc")
-        {
-            respuesta.Reverse();
-        }
-
-        return Ok(PaginaDto<ClienteListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc");
+        var (entidades, total) = _clienteDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = entidades.Select(ClienteMapeador.AListadoDto).ToList();
+        return Ok(PaginaDto<ClienteListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]

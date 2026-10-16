@@ -25,6 +25,24 @@ public class TipoMaquinaDAO
             .ToList();
     }
 
+    public (List<TipoMaquina> Elementos, int Total) ListarPagina(FiltroTiposMaquina filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.TipoMaquinas.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(t => EF.Functions.ILike(t.Nombre, patron));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(t => t.Estado == estado);
+        }
+
+        return ConsultasDeTexto.Paginar(consulta.OrderBy(t => t.IdTipoMaquina), pagina, tamanoPagina);
+    }
+
     public TipoMaquina? SeleccionarTipoMaquina(long id)
     {
         return _contexto.TipoMaquinas

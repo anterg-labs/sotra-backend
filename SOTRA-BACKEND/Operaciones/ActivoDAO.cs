@@ -25,6 +25,37 @@ public class ActivoDAO
             .ToList();
     }
 
+    public (List<Activo> Elementos, int Total) ListarPagina(FiltroActivos filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.Activos.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(a => EF.Functions.ILike(a.NumSerie, patron)
+                                           || (a.Nombre != null && EF.Functions.ILike(a.Nombre, patron))
+                                           || (a.Ubicacion != null && EF.Functions.ILike(a.Ubicacion, patron))
+                                           || (a.Descripcion != null && EF.Functions.ILike(a.Descripcion, patron)));
+        }
+
+        if (filtro.ClienteId is { } clienteId)
+        {
+            consulta = consulta.Where(a => a.IdCliente == clienteId);
+        }
+
+        if (filtro.ModeloMaquinaId is { } modeloMaquinaId)
+        {
+            consulta = consulta.Where(a => a.IdModeloMaquina == modeloMaquinaId);
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(a => a.Estado == estado);
+        }
+
+        return ConsultasDeTexto.Paginar(consulta.OrderBy(a => a.IdActivo), pagina, tamanoPagina);
+    }
+
     public Activo? SeleccionarActivo(long id)
     {
         return _contexto.Activos

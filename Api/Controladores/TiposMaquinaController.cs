@@ -28,31 +28,15 @@ public class TiposMaquinaController : ControllerBase
             return BadRequest(PaginaDto<TipoMaquinaDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<TipoMaquinaDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<TipoMaquinaDto>();
-        foreach (var tipo in _tipoMaquinaDao.ListarTodo())
-        {
-            var tipoDto = TipoMaquinaMapeador.ADto(tipo);
-
-            if (textoBuscado != "" && !PaginaDto<TipoMaquinaDto>.Contiene(tipoDto.Nombre, textoBuscado))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && tipoDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(tipoDto);
-        }
-
-        return Ok(PaginaDto<TipoMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroTiposMaquina(filtros.Buscar, estado);
+        var (entidades, total) = _tipoMaquinaDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = entidades.Select(TipoMaquinaMapeador.ADto).ToList();
+        return Ok(PaginaDto<TipoMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]

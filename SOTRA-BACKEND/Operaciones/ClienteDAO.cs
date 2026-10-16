@@ -26,6 +26,30 @@ public class ClienteDAO
             .ToList();
     }
 
+    public (List<Cliente> Elementos, int Total) ListarPagina(FiltroClientes filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.Clientes.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(c => EF.Functions.ILike(c.RazonSocial, patron)
+                                           || EF.Functions.ILike(c.Nombre, patron)
+                                           || (c.Correo != null && EF.Functions.ILike(c.Correo, patron)));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(c => c.Estado == estado);
+        }
+
+        var ordenada = filtro.Descendente
+            ? consulta.OrderByDescending(c => c.IdCliente)
+            : consulta.OrderBy(c => c.IdCliente);
+
+        return ConsultasDeTexto.Paginar(ordenada.Include(c => c.Activos), pagina, tamanoPagina);
+    }
+
     public Cliente? SeleccionarCliente(long id)
     {
         return _contexto.Clientes

@@ -28,27 +28,15 @@ public class UsuariosController : ControllerBase
             return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
         }
 
-        var filtro = TraducirEstado(filtros.Estado, out var estado)
-            ? new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc")
-            : null;
-        if (filtro is null)
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<UsuarioListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
+        var filtro = new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc");
         var (usuarios, total) = _usuarioDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
         var elementos = usuarios.Select(UsuarioMapeador.AListadoDto).ToList();
         return Ok(PaginaDto<UsuarioListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
-    }
-
-    private static bool TraducirEstado(string? texto, out bool? estado)
-    {
-        estado = null;
-        if (string.IsNullOrEmpty(texto)) return true;
-        if (texto == "activo") estado = true;
-        else if (texto == "inactivo") estado = false;
-        else return false;
-        return true;
     }
 
     [HttpGet("{id:long}")]
