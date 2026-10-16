@@ -13,3 +13,8 @@ public sealed record FiltroRepuestos(string? Buscar, bool? Estado, string? Ubica
 public sealed record FiltroMovimientosStock(
     string? Buscar, long? RepuestoId, string? Tipo, DateOnly? FechaDesde, DateOnly? FechaHasta,
     string? Ubicacion, long? UsuarioId);
+
+public sealed record FiltroOrdenesTrabajo(
+    string? Buscar, long? ClienteId, long? ActivoId, long? TecnicoId, string? Estado, string? Prioridad,
+    bool? EsPreventivo, DateOnly? FechaDesde, DateOnly? FechaHasta, bool? ConSugerencias,
+    bool OrdenarPorCreacion, bool Descendente);
