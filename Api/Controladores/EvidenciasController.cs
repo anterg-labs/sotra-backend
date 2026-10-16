@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs.OrdenesTrabajo;
@@ -25,6 +26,7 @@ public class EvidenciasController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("ot.consultar")]
     public ActionResult<List<EvidenciaDto>> ObtenerTodas(long ordenTrabajoId)
     {
         var orden = _ordenTrabajoDao.Seleccionar(ordenTrabajoId);
@@ -43,6 +45,7 @@ public class EvidenciasController : ControllerBase
     }
 
     [HttpPost]
+    [Permiso("ot.registrar_avance")]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(DiezMegabytesEnBytes + 1024 * 1024)]
     public async Task<ActionResult<EvidenciaDto>> Crear(long ordenTrabajoId, [FromForm] string tipo,
@@ -153,6 +156,7 @@ public class EvidenciasController : ControllerBase
     }
 
     [HttpGet("{evidenciaId:long}/archivo")]
+    [Permiso("ot.consultar")]
     public IActionResult Descargar(long ordenTrabajoId, long evidenciaId)
     {
         var evidencia = _evidenciaDao.Seleccionar(ordenTrabajoId, evidenciaId);

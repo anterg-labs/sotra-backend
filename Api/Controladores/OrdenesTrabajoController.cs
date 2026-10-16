@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
@@ -25,6 +26,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("ot.consultar")]
     public ActionResult<PaginaDto<OrdenTrabajoDto>> ObtenerTodos([FromQuery] FiltrosOrdenesTrabajoDto filtros)
     {
         if (!PaginaDto<OrdenTrabajoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
@@ -64,6 +66,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("ot.consultar")]
     public ActionResult<OrdenTrabajoDto> ObtenerPorId(long id)
     {
         var orden = _ordenTrabajoDao.Seleccionar(id);
@@ -76,6 +79,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPost]
+    [Permiso("ot.crear")]
     public ActionResult<OrdenTrabajoDto> Crear(OrdenTrabajoCrearDto solicitud)
     {
         try
@@ -139,6 +143,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPatch("{id:long}/estado")]
+    [Permiso("ot.registrar_avance")]
     public ActionResult<OrdenTrabajoDto> CambiarEstado(long id, CambioEstadoOrdenTrabajoDto solicitud)
     {
         var orden = _ordenTrabajoDao.Seleccionar(id);
@@ -169,6 +174,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPatch("{id:long}/tecnico")]
+    [Permiso("ot.asignar_tecnico")]
     public ActionResult<OrdenTrabajoDto> AsignarTecnico(long id, AsignacionTecnicoDto solicitud)
     {
         var orden = _ordenTrabajoDao.Seleccionar(id);
@@ -239,6 +245,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPost("sugerencia")]
+    [Permiso("ot.crear")]
     [EnableRateLimiting(PoliticasDeLimite.Sugerencias)]
     public async Task<IActionResult> SolicitarSugerencia(SolicitudSugerenciaDto solicitud,
         CancellationToken cancellationToken)

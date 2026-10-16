@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.ModelosMaquina;
 using Api.Mapeadores;
@@ -20,6 +21,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("modelo.consultar")]
     [ProducesResponseType<PaginaDto<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<ModeloMaquinaDto>> ObtenerTodos([FromQuery] FiltrosModelosMaquinaDto filtros)
     {
@@ -40,6 +42,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("modelo.consultar")]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ModeloMaquinaDto> ObtenerPorId(long id)
@@ -49,6 +52,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpPost]
+    [Permiso("modelo.crear")]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

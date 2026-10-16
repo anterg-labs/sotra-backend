@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.Mapeadores;
 using Api.DTOs.Usuarios;
@@ -20,6 +21,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("usuario.consultar")]
     [ProducesResponseType<PaginaDto<UsuarioListadoDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<UsuarioListadoDto>> ObtenerTodos([FromQuery] FiltrosUsuariosDto filtros)
     {
@@ -40,6 +42,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("usuario.consultar")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<UsuarioListadoDto> ObtenerPorId(long id)
@@ -49,6 +52,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPost]
+    [Permiso("usuario.crear")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -72,6 +76,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Permiso("usuario.editar")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -100,6 +105,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
+    [Permiso("usuario.editar")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

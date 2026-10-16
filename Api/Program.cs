@@ -1,4 +1,5 @@
 using Api.Infraestructura;
+using Api.Infraestructura.Seguridad;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Formatting.Compact;
@@ -30,6 +31,7 @@ builder.Host.UseSerilog((contexto, configuracion) =>
 
 builder.Services.AgregarManejoDeErrores();
 builder.Services.AgregarLimiteDeSolicitudes(builder.Configuration);
+builder.Services.AgregarSeguridad(builder.Configuration);
 builder.Services.AgregarProxiesDeConfianza(builder.Configuration);
 
 builder.Services.AddControllers();
@@ -101,14 +103,15 @@ app.UseStatusCodePages();
 app.UseRouting();
 app.UseCors("FrontendPolicy");
 app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = comprobacion => comprobacion.Tags.Contains(SaludDeLaBaseDeDatos.EtiquetaDisponibilidad),
-});
+}).AllowAnonymous();
 
 app.Run();

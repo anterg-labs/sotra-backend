@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.DTOs.Repuestos;
@@ -23,6 +24,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("stock.consultar")]
     public ActionResult<PaginaDto<RepuestoDto>> ObtenerTodos([FromQuery] FiltrosRepuestosDto filtros)
     {
         if (!PaginaDto<RepuestoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
@@ -42,6 +44,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPost("{id:long}/ingresos")]
+    [Permiso("stock.registrar_movimiento")]
     public ActionResult<MovimientoStockDto> RegistrarIngreso(long id, IngresoStockDto solicitud)
     {
         var repuesto = _repuestoDao.Seleccionar(id);
@@ -117,6 +120,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("stock.consultar")]
     public ActionResult<RepuestoDto> ObtenerPorId(long id)
     {
         var repuesto = _repuestoDao.Seleccionar(id);

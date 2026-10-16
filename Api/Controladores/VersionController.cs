@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Api.DTOs.Version;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controladores;
 
 [ApiController]
+[AllowAnonymous]
 [Route("api/v1/version")]
 public class VersionController : ControllerBase
 {
