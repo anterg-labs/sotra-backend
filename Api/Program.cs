@@ -1,4 +1,5 @@
 using Api.Infraestructura;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Formatting.Compact;
 using SOTRA_BACKEND.Contexto;
@@ -49,7 +50,8 @@ builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<SaludDeLaBaseDeDatos>("base-de-datos", tags: [SaludDeLaBaseDeDatos.EtiquetaDisponibilidad]);
 
 builder.Services.AddOpenApi();
 
@@ -103,6 +105,10 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = comprobacion => comprobacion.Tags.Contains(SaludDeLaBaseDeDatos.EtiquetaDisponibilidad),
+});
 
 app.Run();
