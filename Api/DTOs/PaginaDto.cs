@@ -46,6 +46,18 @@ public class PaginaDto<T>
         return texto.ToLower().Contains(textoBuscado);
     }
 
+    public static PaginaDto<T> Crear(List<T> elementos, int totalElementos, int pagina, int tamanoPagina)
+    {
+        return new PaginaDto<T>
+        {
+            Elementos = elementos,
+            Pagina = pagina,
+            TamanoPagina = tamanoPagina,
+            TotalElementos = totalElementos,
+            TotalPaginas = (totalElementos + tamanoPagina - 1) / tamanoPagina
+        };
+    }
+
     public static PaginaDto<T> Crear(List<T> todos, int pagina, int tamanoPagina)
     {
         var totalPaginas = (todos.Count + tamanoPagina - 1) / tamanoPagina;

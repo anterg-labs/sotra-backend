@@ -28,59 +28,27 @@ public class UsuariosController : ControllerBase
             return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        var filtro = TraducirEstado(filtros.Estado, out var estado)
+            ? new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc")
+            : null;
+        if (filtro is null)
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<UsuarioListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<UsuarioListadoDto>();
-        foreach (var usuario in _usuarioDao.ListarTodo())
-        {
-            var usuarioDto = UsuarioMapeador.AListadoDto(usuario);
+        var (usuarios, total) = _usuarioDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = usuarios.Select(UsuarioMapeador.AListadoDto).ToList();
+        return Ok(PaginaDto<UsuarioListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
+    }
 
-            if (textoBuscado != "")
-            {
-                var nombreCompleto = usuarioDto.Nombre + " " + usuarioDto.Apellido;
-                var coincide = PaginaDto<UsuarioListadoDto>.Contiene(nombreCompleto, textoBuscado)
-                               || PaginaDto<UsuarioListadoDto>.Contiene(usuarioDto.Correo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.RolId is not null)
-            {
-                var tieneElRol = false;
-                foreach (var rol in usuarioDto.Roles)
-                {
-                    if (rol.Id == filtros.RolId)
-                    {
-                        tieneElRol = true;
-                    }
-                }
-
-                if (!tieneElRol)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && usuarioDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(usuarioDto);
-        }
-
-        if (filtros.DireccionOrden == "desc")
-        {
-            respuesta.Reverse();
-        }
-
-        return Ok(PaginaDto<UsuarioListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+    private static bool TraducirEstado(string? texto, out bool? estado)
+    {
+        estado = null;
+        if (string.IsNullOrEmpty(texto)) return true;
+        if (texto == "activo") estado = true;
+        else if (texto == "inactivo") estado = false;
+        else return false;
+        return true;
     }
 
     [HttpGet("{id:long}")]
