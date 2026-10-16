@@ -3,6 +3,7 @@ using Api.DTOs.Clientes;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -86,12 +87,9 @@ public class ClientesController : ControllerBase
             var respuesta = ClienteMapeador.AListadoDto(clienteCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion)
         {
-            return Conflict(new
-            {
-                mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado."
-            });
+            return Conflict(MensajeDeDuplicado(excepcion));
         }
     }
 
@@ -111,12 +109,9 @@ public class ClientesController : ControllerBase
 
             return Ok(ClienteMapeador.AListadoDto(cliente));
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion)
         {
-            return Conflict(new
-            {
-                mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado."
-            });
+            return Conflict(MensajeDeDuplicado(excepcion));
         }
     }
 
@@ -141,5 +136,18 @@ public class ClientesController : ControllerBase
 
         var cliente = _clienteDao.SeleccionarCliente(id)!;
         return Ok(ClienteMapeador.AListadoDto(cliente));
+    }
+
+    private static object MensajeDeDuplicado(DbUpdateException excepcion)
+    {
+        var restriccion = (excepcion.InnerException as PostgresException)?.ConstraintName;
+        return restriccion switch
+        {
+            "UK_RAZON_SOCIAL_CLIENTE" => new { codigo = "RAZON_SOCIAL_DUPLICADA", mensaje = "El nombre o razón social ya está registrado." },
+            "UK_NOMBRE_CLIENTE" => new { codigo = "NOMBRE_CONTACTO_DUPLICADO", mensaje = "El nombre de contacto ya está registrado." },
+            "UK_CORREO_CLIENTE" => new { codigo = "CORREO_DUPLICADO", mensaje = "El correo electrónico ya está registrado." },
+            "UK_TELEFONO_CLIENTE" => new { codigo = "TELEFONO_DUPLICADO", mensaje = "El número telefónico ya está registrado." },
+            _ => new { codigo = "CLIENTE_DUPLICADO", mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado." },
+        };
     }
 }
