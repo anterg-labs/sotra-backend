@@ -1,3 +1,6 @@
+using Api.Infraestructura;
+using Serilog;
+using Serilog.Formatting.Compact;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Operaciones;
 using Api.Servicios;
@@ -7,6 +10,24 @@ DotNetEnv.Env.TraversePath().Load();
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((contexto, configuracion) =>
+{
+    configuracion
+        .ReadFrom.Configuration(contexto.Configuration)
+        .Enrich.FromLogContext();
+
+    if (contexto.HostingEnvironment.IsDevelopment())
+    {
+        configuracion.WriteTo.Console();
+    }
+    else
+    {
+        configuracion.WriteTo.Console(new CompactJsonFormatter());
+    }
+});
+
+builder.Services.AgregarManejoDeErrores();
 
 builder.Services.AddControllers();
 builder.Services.AddDbContext<SotraContext>();
@@ -59,6 +80,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseMiddleware<CorrelacionMiddleware>();
+app.UseSerilogRequestLogging(opciones =>
+{
+    opciones.EnrichDiagnosticContext = (diagnostico, contexto) =>
+        diagnostico.Set("DireccionIp", contexto.Connection.RemoteIpAddress?.ToString());
+});
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 app.UseRouting();
 app.UseCors("FrontendPolicy");
 app.UseAuthorization();
