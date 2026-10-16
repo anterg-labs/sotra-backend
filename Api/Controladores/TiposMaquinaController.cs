@@ -80,7 +80,7 @@ public class TiposMaquinaController : ControllerBase
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un tipo de máquina con ese nombre." });
+            return Conflict(new { codigo = "TIPO_MAQUINA_DUPLICADO", mensaje = "Ya existe un tipo de máquina con ese nombre." });
         }
     }
 
@@ -104,7 +104,7 @@ public class TiposMaquinaController : ControllerBase
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un tipo de máquina con ese nombre." });
+            return Conflict(new { codigo = "TIPO_MAQUINA_DUPLICADO", mensaje = "Ya existe un tipo de máquina con ese nombre." });
         }
     }
 

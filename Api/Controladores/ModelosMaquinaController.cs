@@ -91,11 +91,19 @@ public class ModelosMaquinaController : ControllerBase
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
+        catch (ConflictoDeDatosException excepcion)
+        {
+            return Conflict(new { codigo = excepcion.Codigo, mensaje = excepcion.Message });
+        }
         catch (DbUpdateException excepcion)
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un modelo de máquina con ese nombre." });
+            return Conflict(new
+            {
+                codigo = "MODELO_DUPLICADO",
+                mensaje = "Ya existe un modelo de máquina con ese nombre para el tipo seleccionado."
+            });
         }
     }
 
@@ -119,11 +127,19 @@ public class ModelosMaquinaController : ControllerBase
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
+        catch (ConflictoDeDatosException excepcion)
+        {
+            return Conflict(new { codigo = excepcion.Codigo, mensaje = excepcion.Message });
+        }
         catch (DbUpdateException excepcion)
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un modelo de máquina con ese nombre." });
+            return Conflict(new
+            {
+                codigo = "MODELO_DUPLICADO",
+                mensaje = "Ya existe un modelo de máquina con ese nombre para el tipo seleccionado."
+            });
         }
     }
 
