@@ -21,6 +21,38 @@ public class RepuestoDAO
             .ToList();
     }
 
+    public (List<Repuesto> Elementos, int Total) ListarPagina(FiltroRepuestos filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.Repuestos.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(r => EF.Functions.ILike(r.Codigo, patron)
+                                           || EF.Functions.ILike(r.Nombre, patron)
+                                           || (r.Marca != null && EF.Functions.ILike(r.Marca, patron))
+                                           || (r.Descripcion != null && EF.Functions.ILike(r.Descripcion, patron)));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(r => r.Estado == estado);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Ubicacion))
+        {
+            var patronUbicacion = ConsultasDeTexto.PatronContiene(filtro.Ubicacion);
+            consulta = consulta.Where(r => r.Ubicacion != null && EF.Functions.ILike(r.Ubicacion, patronUbicacion));
+        }
+
+        if (filtro.BajoStock == true)
+        {
+            consulta = consulta.Where(r => r.Cantidad <= (r.CantMin ?? 0));
+        }
+
+        return ConsultasDeTexto.Paginar(consulta.OrderBy(r => r.IdRepuesto), pagina, tamanoPagina);
+    }
+
     public Repuesto? Seleccionar(long id)
     {
         return _contexto.Repuestos.FirstOrDefault(repuesto => repuesto.IdRepuesto == id);

@@ -7,3 +7,9 @@ public sealed record FiltroTiposMaquina(string? Buscar, bool? Estado);
 public sealed record FiltroModelosMaquina(string? Buscar, long? TipoMaquinaId, bool? Estado);
 
 public sealed record FiltroActivos(string? Buscar, long? ClienteId, long? ModeloMaquinaId, bool? Estado);
+
+public sealed record FiltroRepuestos(string? Buscar, bool? Estado, string? Ubicacion, bool? BajoStock);
+
+public sealed record FiltroMovimientosStock(
+    string? Buscar, long? RepuestoId, string? Tipo, DateOnly? FechaDesde, DateOnly? FechaHasta,
+    string? Ubicacion, long? UsuarioId);
