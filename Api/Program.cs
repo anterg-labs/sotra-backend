@@ -28,6 +28,8 @@ builder.Host.UseSerilog((contexto, configuracion) =>
 });
 
 builder.Services.AgregarManejoDeErrores();
+builder.Services.AgregarLimiteDeSolicitudes(builder.Configuration);
+builder.Services.AgregarProxiesDeConfianza(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddDbContext<SotraContext>();
@@ -63,8 +65,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy.WithOrigins(frontendOrigin)
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+              .WithHeaders("Content-Type", "Authorization", CorrelacionMiddleware.Cabecera)
+              .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+              .WithExposedHeaders(CorrelacionMiddleware.Cabecera, "Content-Disposition", "Retry-After");
     });
 });
 
@@ -75,10 +78,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
+    app.UseHsts();
     app.UseHttpsRedirection();
 }
+
+app.UseMiddleware<CabecerasDeSeguridadMiddleware>();
 
 app.UseMiddleware<CorrelacionMiddleware>();
 app.UseSerilogRequestLogging(opciones =>
@@ -90,6 +98,7 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseRouting();
 app.UseCors("FrontendPolicy");
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

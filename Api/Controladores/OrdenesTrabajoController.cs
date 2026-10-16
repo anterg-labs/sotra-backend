@@ -1,3 +1,5 @@
+using Api.Infraestructura;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
@@ -237,6 +239,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPost("sugerencia")]
+    [EnableRateLimiting(PoliticasDeLimite.Sugerencias)]
     public async Task<IActionResult> SolicitarSugerencia(SolicitudSugerenciaDto solicitud,
         CancellationToken cancellationToken)
     {

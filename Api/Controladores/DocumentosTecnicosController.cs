@@ -1,3 +1,5 @@
+using Api.Infraestructura;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
 using Api.DTOs.DocumentosTecnicos;
 using Api.Servicios;
@@ -71,6 +73,7 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(CincuentaMegabytesEnBytes)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Crear(IFormFile archivo,
         [FromForm] bool usaSugerenciasIA, [FromForm] long? activoId,

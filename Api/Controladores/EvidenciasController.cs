@@ -1,3 +1,5 @@
+using Api.Infraestructura;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
@@ -41,6 +43,7 @@ public class EvidenciasController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(DiezMegabytesEnBytes + 1024 * 1024)]
     public async Task<ActionResult<EvidenciaDto>> Crear(long ordenTrabajoId, [FromForm] string tipo,
         [FromForm] string? observacion, [FromForm] DateOnly fechaRegistro, IFormFile? archivo,
