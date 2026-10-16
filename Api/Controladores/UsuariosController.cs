@@ -3,6 +3,7 @@ using Api.Mapeadores;
 using Api.DTOs.Usuarios;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -108,9 +109,9 @@ public class UsuariosController : ControllerBase
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion)
         {
-            return Conflict(new { mensaje = "Ya existe un usuario con el correo o teléfono indicado." });
+            return Conflict(MensajeDeDuplicado(excepcion));
         }
     }
 
@@ -136,9 +137,9 @@ public class UsuariosController : ControllerBase
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion)
         {
-            return Conflict(new { mensaje = "Ya existe un usuario con el correo o teléfono indicado." });
+            return Conflict(MensajeDeDuplicado(excepcion));
         }
     }
 
@@ -155,5 +156,16 @@ public class UsuariosController : ControllerBase
 
         var usuario = _usuarioDao.SeleccionarUsuario(id)!;
         return Ok(UsuarioMapeador.AListadoDto(usuario));
+    }
+
+    private static object MensajeDeDuplicado(DbUpdateException excepcion)
+    {
+        var restriccion = (excepcion.InnerException as PostgresException)?.ConstraintName;
+        return restriccion switch
+        {
+            "UK_MAIL_USUARIO" => new { codigo = "CORREO_DUPLICADO", mensaje = "El correo electrónico ya está registrado." },
+            "UK_TELEFONO_USUARIO" => new { codigo = "TELEFONO_DUPLICADO", mensaje = "El número de teléfono ya está registrado." },
+            _ => new { codigo = "USUARIO_DUPLICADO", mensaje = "Ya existe un usuario con el correo o teléfono indicado." },
+        };
     }
 }
