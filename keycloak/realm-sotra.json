@@ -1887,7 +1887,18 @@
     "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
-  "smtpServer": {},
+  "smtpServer": {
+    "starttls": "true",
+    "auth": "true",
+    "authType": "basic",
+    "port": "${KC_SMTP_PORT}",
+    "host": "${KC_SMTP_HOST}",
+    "from": "${KC_SMTP_FROM}",
+    "fromDisplayName": "SOTRA",
+    "user": "${KC_SMTP_USER}",
+    "password": "${KC_SMTP_PASSWORD}",
+    "ssl": "false"
+  },
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"

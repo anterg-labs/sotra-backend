@@ -80,7 +80,17 @@ La configuración del realm `sotra` está versionada en `keycloak/realm-sotra.js
 
 ### Primera puesta en marcha
 
-1. Copiar las variables `KC_*` de `.env.example` al `.env` y completar `KC_DB_PASSWORD` y `KC_BOOTSTRAP_ADMIN_PASSWORD` con valores propios.
+1. Copiar las variables `KC_*` de `.env.example` al `.env` y completarlas con valores propios del entorno.
+   - `KC_DB_PASSWORD`: contraseña del usuario `keycloak_user` de la base. Debe ser la misma que se usa en el SQL del paso 2; si no coinciden, Keycloak no puede conectarse y no arranca.
+   - `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`: usuario y contraseña del administrador temporal que Keycloak crea al arrancar por primera vez. Solo se usan esa vez, cuando el realm `master` no tiene ningún administrador; cambiarlos después en el `.env` no tiene efecto. Conviene anotarlos antes de levantar Keycloak.
+   - `KC_SMTP_*`: la cuenta de Gmail que envía los correos (ver "Correos con Gmail").
+
+   Para generar una contraseña segura:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(24))"
+   ```
+
 2. Crear en PostgreSQL el usuario y el esquema de Keycloak, usando la misma contraseña que `KC_DB_PASSWORD`:
 
 ```sql
@@ -96,6 +106,12 @@ docker compose -f compose.dev.yml up -d keycloak
 ```
 
 4. Entrar a `http://localhost:9080/admin` con `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`, cambiar al realm `sotra` y generar el secreto propio en **Clients** → `sotra-backend-admin` → **Credentials** → **Regenerate**.
+5. Reemplazar el administrador temporal por uno definitivo, en el realm `master`:
+   1. **Users** → **Create new user** con un usuario propio (por ejemplo `nombre.admin`), correo y **Email verified** activado.
+   2. **Credentials** → **Set password** con una contraseña fuerte y **Temporary** desactivado.
+   3. **Role mapping** → **Assign role** → **Filter by realm roles** → `admin`.
+   4. Cerrar sesión y entrar con el usuario nuevo. Comprobar que ya no aparece el aviso de administrador temporal.
+   5. Recién entonces borrar el temporal: **Users** → `admin` → **Action** → **Delete**. Si se borra antes de comprobar el nuevo y algo falla, no queda ningún administrador.
 
 Comprobar que el realm responde:
 
@@ -116,6 +132,20 @@ Roles del realm: `administrador`, `jefe_mantenimiento`, `tecnico` y `panolero`. 
 
 El login usa el correo como nombre de usuario. La política de contraseñas exige al menos 8 caracteres, una mayúscula, un dígito y un carácter especial; no permite el correo ni el usuario como contraseña, ni repetir las últimas 3. Después de 5 intentos fallidos la cuenta se bloquea temporalmente (desde 1 minuto hasta 15). Una contraseña asignada como temporal obliga a cambiarla en el primer ingreso.
 
+### Correos con Gmail
+
+Para "¿Olvidaste tu contraseña?" (RF001-12) Keycloak envía correos por el SMTP de Gmail (`smtp.gmail.com`, puerto `587`, con StartTLS y autenticación). En `realm-sotra.json` el servidor, el puerto, el remitente, el usuario y la contraseña no están escritos: son las variables `${KC_SMTP_HOST}`, `${KC_SMTP_PORT}`, `${KC_SMTP_FROM}`, `${KC_SMTP_USER}` y `${KC_SMTP_PASSWORD}`, que Keycloak reemplaza con los valores del `.env` al importar el realm. Así la contraseña nunca queda en el repositorio. Como el resto del archivo, esto solo se aplica cuando el realm se crea; en un realm que ya existe, el correo se cambia en la consola, en **Realm settings** → **Email**.
+
+Gmail no acepta la contraseña normal de la cuenta, sino una contraseña de aplicación:
+
+1. Activar la verificación en dos pasos de la cuenta en `https://myaccount.google.com/security`.
+2. Crear la contraseña de aplicación en `https://myaccount.google.com/apppasswords` (por ejemplo, con el nombre `SOTRA Keycloak`).
+3. Copiar los 16 caracteres, sin espacios, en `KC_SMTP_PASSWORD`. `KC_SMTP_FROM` y `KC_SMTP_USER` deben ser la misma dirección de Gmail.
+
+Gmail permite unos 500 correos por día.
+
+Para probarlo: crear en el realm `sotra` un usuario con un correo real, abrir `http://localhost:9080/realms/sotra/account`, elegir **¿Has olvidado tu contraseña?**, escribir ese correo y abrir el enlace que llega (puede caer en spam). El enlace vence a los 5 minutos.
+
 Pedir un token de prueba con `sotra-postman`:
 
 ```bash
@@ -124,7 +154,7 @@ curl -d client_id=sotra-postman -d grant_type=password -d username=CORREO_DEL_US
 
 ### Actualizar `realm-sotra.json`
 
-Si se cambia la configuración del realm desde la consola, hay que volver a exportarla para que el resto del equipo la reciba: **Realm settings** → **Action** → **Partial export**, con **Include groups and roles** e **Include clients** activados, y reemplazar `keycloak/realm-sotra.json` con el archivo descargado. Un integrante que ya tiene el realm creado no recibe los cambios al reiniciar, porque la importación se saltea si el realm existe; para aplicarlos debe hacerlos a mano en la consola o borrar el realm y reiniciar Keycloak.
+Si se cambia la configuración del realm desde la consola, hay que volver a exportarla para que quede versionada: **Realm settings** → **Action** → **Partial export**, con **Include groups and roles** e **Include clients** activados, y reemplazar `keycloak/realm-sotra.json` con el archivo descargado. La exportación trae el correo con los valores reales de quien exporta (su cuenta de Gmail); antes de subirla hay que volver a dejar el bloque `smtpServer` con las variables `${KC_SMTP_*}`. Un Keycloak que ya tiene el realm creado no recibe los cambios al reiniciar, porque la importación se saltea si el realm existe; hay que aplicarlos a mano en la consola o borrar el realm y reiniciar Keycloak.
 
 ## Contratos de modificación
 
