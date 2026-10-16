@@ -101,7 +101,7 @@ public class ActivosController : ControllerBase
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un activo con ese número de serie." });
+            return Conflict(new { codigo = "NUMERO_SERIE_DUPLICADO", mensaje = "Ya existe un activo con ese número de serie." });
         }
     }
 
@@ -129,7 +129,7 @@ public class ActivosController : ControllerBase
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un activo con ese número de serie." });
+            return Conflict(new { codigo = "NUMERO_SERIE_DUPLICADO", mensaje = "Ya existe un activo con ese número de serie." });
         }
     }
 
