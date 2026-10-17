@@ -1,0 +1,2 @@
+# Los scripts de Bash necesitan saltos de línea LF; con CRLF fallan dentro de los contenedores.
+*.sh text eol=lf

@@ -1,24 +1,20 @@
 # Backend de SOTRA
 
-## Configurar PostgreSQL con el archivo `.env`
+## Configuración con el archivo `.env`
 
 1. Copiar `.env.example` como `.env` en la raíz de `sotra-backend/`.
-2. Configurar la conexión local sin publicar las credenciales:
+2. Completar los valores. El archivo `.env` no se debe versionar; `.env.example` es la plantilla sin credenciales reales.
 
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=sotra
-DB_USER=TU_USUARIO
-DB_PASSWORD=TU_PASSWORD
-FRONTEND_ORIGIN=http://localhost
-```
-
-Esta configuración permite ejecutar el backend directamente en Windows contra PostgreSQL publicado en el puerto estándar `5432`.
-
-`compose.yml` conserva la configuración original de producción con PostgreSQL y el backend. La configuración de desarrollo está separada en `compose.dev.yml` y carga las variables desde `sotra-backend/.env`.
-
-El archivo `.env` no se debe versionar. `.env.example` se conserva como plantilla sin credenciales reales.
+| Variable | Uso |
+|---|---|
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Base de datos que crea el contenedor `sotra-db` la primera vez. |
+| `DB_HOST`, `DB_PORT` | Conexión desde la máquina (pgAdmin, `dotnet run`). `DB_PORT` es también el puerto que publica `sotra-db`. Dentro de Docker, el backend y Keycloak usan `db:5432`. |
+| `API_PORT` | Puerto donde se publica la API (`8081`). |
+| `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi`. |
+| `FRONTEND_ORIGIN` | Origen permitido por CORS. |
+| `OLLAMA_BASE_URL` | Ollama, que corre en la máquina: `http://host.docker.internal:11434`. |
+| `RERANKER_CARPETA` | Carpeta con `model_quantized.onnx` y `tokenizer.json`, relativa a `compose.yml`. Se monta en `/modelos`. |
+| `KC_*` | Keycloak (ver "Keycloak"). |
 
 ## Ejecutar directamente en Windows
 
@@ -34,56 +30,57 @@ Comprobar Entity Framework:
 dotnet ef dbcontext info --context SotraContext
 ```
 
-## Levantar PostgreSQL y el backend con Docker
+Fuera de Docker, la API lee el `.env` (DotNetEnv) y se conecta a `DB_HOST:DB_PORT`.
 
-### Producción local
+## Levantar el sistema con Docker
 
-Construir y levantar la configuración original de producción en segundo plano:
+Hay un único `compose.yml` y un único `Dockerfile`. `compose.yml` levanta tres servicios:
+
+| Servicio | Contenedor | Puerto | Qué es |
+|---|---|---|---|
+| `db` | `sotra-db` | `DB_PORT` | PostgreSQL 18 con pgvector (`pgvector/pgvector:pg18-trixie`). Datos en el volumen `postgres_data`. |
+| `backend` | `sotra-backend` | `API_PORT` (8081) | La API, compilada en Release con el `Dockerfile`. |
+| `keycloak` | `sotra-keycloak` | `KC_PORT` (9080) | Autenticación (ver "Keycloak"). |
+
+Construir y levantar todo:
 
 ```bash
 docker compose up -d --build
 ```
 
-Este comando usa `compose.yml`, levanta PostgreSQL y el backend, y deja la API disponible en `http://localhost:8080`.
+La API queda en `http://localhost:8081` y la consola de Keycloak en `http://localhost:9080/admin`. El backend y Keycloak esperan a que la base esté lista. El backend llega a Ollama por `host.docker.internal`, que `compose.yml` define también para Linux (`host-gateway`).
 
-### Desarrollo local
+El backend se ejecuta compilado, sin recarga automática: después de cambiar código hay que reconstruirlo con `docker compose up -d --build backend`. El `Dockerfile` restaura los paquetes NuGet en una capa aparte, así que la reconstrucción no los vuelve a descargar mientras no cambien las dependencias.
 
-La configuración de desarrollo usa la base local publicada en `localhost:5432`. Si se utiliza `sotra-postgres-local`, debe iniciarse antes:
+La imagen de la base está fijada en la variante `trixie` (Debian 13). PostgreSQL ordena el texto con la glibc del sistema: si un volumen creado con una variante se abre con otra (por ejemplo `pg18`, que es Debian 12), PostgreSQL no permite crear bases nuevas. No hay que cambiar la variante sobre un volumen existente.
 
-```bash
-docker start sotra-postgres-local
-docker compose -f compose.dev.yml up -d --build
-```
+### Base de datos inicial
 
-`compose.dev.yml` usa su propio nombre de proyecto (`sotra-backend-dev`) y, por lo tanto, su propia red. Así no choca con los contenedores de `compose.yml` (proyecto `sotra-backend`) si los dos están levantados en la misma máquina.
+La primera vez, con el volumen vacío, PostgreSQL ejecuta los scripts de `database/init/` en orden:
 
-La API queda disponible en `http://localhost:8081`. El código fuente está montado dentro del contenedor y `dotnet watch --no-hot-reload` reinicia la aplicación al guardar cambios. Así se evita que la recarga en caliente intente leer archivos temporales de recursos estáticos que no existen en este montaje de Windows. Esta configuración no modifica ni reemplaza el `Dockerfile` ni el `compose.yml` de producción.
+1. `00-keycloak.sh`: crea el usuario `KC_DB_USERNAME` con la contraseña `KC_DB_PASSWORD` y el esquema `keycloak`, de su propiedad.
+2. `01-init.sql`: crea la extensión `vector`, los esquemas `operativo` y `vectorial` con todas sus tablas, y carga los catálogos que el sistema necesita (roles, permisos, sus asignaciones y los estados de las órdenes). No incluye datos de prueba ni usuarios.
 
-Servicios expuestos al equipo:
+Estos scripts no vuelven a correr si el volumen ya tiene datos. `.gitattributes` fuerza saltos de línea LF en los `.sh`, porque con CRLF fallan dentro del contenedor.
 
-- PostgreSQL: host `localhost` y puerto `5432`.
-- Backend de producción: `http://localhost:8080`.
-- Backend de desarrollo: `http://localhost:8081`.
-- Keycloak de desarrollo: `http://localhost:9080` (consola en `http://localhost:9080/admin`).
-
-Comprobar la conexión:
+Comprobar que todo responde:
 
 ```bash
-docker exec sotra-postgres-local pg_isready -U sotra -d sotra
-curl http://localhost:8080/api/v1/roles
+docker exec sotra-db pg_isready -U TU_USUARIO -d sotra
+curl http://localhost:8081/health
 curl http://localhost:8081/api/v1/roles
 ```
 
 ## Keycloak (autenticación)
 
-`compose.dev.yml` levanta Keycloak 26.7.4 en el contenedor `sotra-keycloak-dev`, en modo `start-dev` y publicado en el puerto `9080`. Guarda sus datos en la misma base de PostgreSQL que el backend (`DB_HOST`, `DB_PORT` y `DB_NAME`), dentro del esquema `keycloak` y con un usuario propio, `keycloak_user`, que no tiene acceso a `operativo` ni a `vectorial`.
+`compose.yml` levanta Keycloak 26.7.4 en el contenedor `sotra-keycloak`, publicado en el puerto `KC_PORT` (9080). Por ahora corre en modo `start-dev` (HTTP y `localhost`); para producción hay que pasarlo a `start` con el dominio real y HTTPS. Guarda sus datos en la misma base que el backend, dentro del esquema `keycloak` y con un usuario propio (`KC_DB_USERNAME`, por defecto `keycloak_user`), que no tiene acceso a `operativo` ni a `vectorial`.
 
 La configuración del realm `sotra` está versionada en `keycloak/realm-sotra.json`: clientes, roles, el client scope de audiencia, la política de contraseñas y la protección contra fuerza bruta. Keycloak arranca con `--import-realm` y lo importa solamente si el realm todavía no existe; si ya existe, no lo modifica. El archivo es una exportación parcial: no incluye usuarios (salvo la cuenta de servicio de `sotra-backend-admin`), ni claves de firma, y los secretos de los clientes aparecen como `**********`.
 
 ### Primera puesta en marcha
 
 1. Copiar las variables `KC_*` de `.env.example` al `.env` y completarlas con valores propios del entorno.
-   - `KC_DB_PASSWORD`: contraseña del usuario `keycloak_user` de la base. Debe ser la misma que se usa en el SQL del paso 2; si no coinciden, Keycloak no puede conectarse y no arranca.
+   - `KC_DB_USERNAME` y `KC_DB_PASSWORD`: usuario de la base con el que se conecta Keycloak. `00-keycloak.sh` lo crea con esa contraseña cuando la base se inicia por primera vez.
    - `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`: usuario y contraseña del administrador temporal que Keycloak crea al arrancar por primera vez. Solo se usan esa vez, cuando el realm `master` no tiene ningún administrador; cambiarlos después en el `.env` no tiene efecto. Conviene anotarlos antes de levantar Keycloak.
    - `KC_SMTP_*`: la cuenta de Gmail que envía los correos (ver "Correos con Gmail").
 
@@ -93,22 +90,9 @@ La configuración del realm `sotra` está versionada en `keycloak/realm-sotra.js
    python -c "import secrets; print(secrets.token_urlsafe(24))"
    ```
 
-2. Crear en PostgreSQL el usuario y el esquema de Keycloak, usando la misma contraseña que `KC_DB_PASSWORD`:
-
-```sql
-CREATE ROLE keycloak_user WITH LOGIN PASSWORD 'TU_PASSWORD_KEYCLOAK_DB';
-CREATE SCHEMA keycloak AUTHORIZATION keycloak_user;
-ALTER ROLE keycloak_user SET search_path = keycloak;
-```
-
-3. Levantar Keycloak. La primera vez crea sus tablas e importa el realm `sotra`:
-
-```bash
-docker compose -f compose.dev.yml up -d keycloak
-```
-
-4. Entrar a `http://localhost:9080/admin` con `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`, cambiar al realm `sotra` y generar el secreto propio en **Clients** → `sotra-backend-admin` → **Credentials** → **Regenerate**.
-5. Reemplazar el administrador temporal por uno definitivo, en el realm `master`:
+2. Levantar el sistema (`docker compose up -d --build`). La primera vez, Keycloak crea sus tablas e importa el realm `sotra`.
+3. Entrar a `http://localhost:9080/admin` con `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`, cambiar al realm `sotra` y generar el secreto propio en **Clients** → `sotra-backend-admin` → **Credentials** → **Regenerate**.
+4. Reemplazar el administrador temporal por uno definitivo, en el realm `master`:
    1. **Users** → **Create new user** con un usuario propio (por ejemplo `nombre.admin`), correo y **Email verified** activado.
    2. **Credentials** → **Set password** con una contraseña fuerte y **Temporary** desactivado.
    3. **Role mapping** → **Assign role** → **Filter by realm roles** → `admin`.
@@ -315,7 +299,7 @@ Tipos de reporte (`tipoReporte`):
 
 Acepta los mismos filtros que `/indicadores` y además `prioridad` (`baja`, `media` o `alta`), que también vale para `/indicadores`. Errores: `400` con `TIPO_REPORTE_INVALIDO` si el tipo no existe y `RANGO_FECHAS_INVALIDO` si las fechas están invertidas.
 
-Al agregar el paquete, el contenedor `sotra-backend-dev` necesita reiniciarse (`docker restart sotra-backend-dev`) para restaurarlo.
+Al agregar un paquete, hay que reconstruir la imagen del backend (`docker compose up -d --build backend`) para restaurarlo.
 
 ### Sugerencias (`POST /api/v1/ordenes-trabajo/sugerencia`)
 
@@ -380,30 +364,24 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 
 Requisito: Ollama debe tener `qwen2.5:7b` además de `bge-m3` (`ollama pull qwen2.5:7b`, unos 4,7 GB). En CPU, cada sugerencia tarda entre 25 segundos y 1 minuto; la primera, algo más, porque carga el modelo en memoria (unos 5 GB de RAM).
 
-## Detener el backend
+## Detener el sistema
 
-Detener temporalmente la configuración de producción:
+Detener temporalmente los contenedores:
 
 ```bash
 docker compose stop
 ```
 
-Iniciar nuevamente la configuración de producción:
+Iniciarlos nuevamente:
 
 ```bash
 docker compose start
 ```
 
-Detener y eliminar los contenedores de producción sin borrar el volumen de PostgreSQL:
+Detener y eliminar los contenedores sin borrar los datos:
 
 ```bash
 docker compose down
 ```
 
-Detener y eliminar solamente los contenedores de desarrollo (backend y Keycloak):
-
-```bash
-docker compose -f compose.dev.yml down
-```
-
-Este último comando no elimina `sotra-postgres-local` ni sus datos, porque la base utilizada en desarrollo se administra por separado. Tampoco borra la configuración de Keycloak, que queda guardada en el esquema `keycloak` de esa base.
+Los datos de la base, incluida la configuración de Keycloak, quedan en el volumen `postgres_data`. `docker compose down -v` también borra el volumen y deja la base vacía: la próxima vez se vuelve a crear con los scripts de `database/init/`.

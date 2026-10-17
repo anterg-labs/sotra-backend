@@ -1,14 +1,23 @@
+-- Estructura inicial de la base de SOTRA (esquemas operativo y vectorial) y
+-- catálogos que el sistema necesita: roles, permisos y estados de las órdenes.
+-- No incluye datos de prueba. PostgreSQL lo ejecuta una sola vez, cuando el
+-- volumen de datos está vacío.
+
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+
 --
 -- PostgreSQL database dump
 --
 
+\restrict AnNWE7sjfKi1QgkIVlFt1TBsw7Rb4UjlRsHHnJ9tAoTxx1vcVy2mapnb8FXrINm
 
--- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
--- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
+-- Dumped from database version 18.6
+-- Dumped by pg_dump version 18.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -29,20 +38,6 @@ CREATE SCHEMA operativo;
 --
 
 CREATE SCHEMA vectorial;
-
-
---
--- Name: vector; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
-
-
---
--- Name: EXTENSION vector; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION vector IS 'vector data type and ivfflat and hnsw access methods';
 
 
 SET default_tablespace = '';
@@ -154,6 +149,44 @@ ALTER SEQUENCE operativo."SEC_ESTADO_OT_ID" OWNED BY operativo.estado_ot.id_esta
 
 
 --
+-- Name: evidencia_ot; Type: TABLE; Schema: operativo; Owner: -
+--
+
+CREATE TABLE operativo.evidencia_ot (
+    id_evidencia bigint NOT NULL,
+    id_orden bigint NOT NULL,
+    id_usuario bigint,
+    tipo character varying(20) NOT NULL,
+    observacion text,
+    fecha_registro date NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    nombre_archivo character varying(255),
+    tipo_contenido character varying(100),
+    archivo bytea,
+    CONSTRAINT "CK_EVIDENCIA_OT_TIPO" CHECK (((tipo)::text = ANY (ARRAY[('foto'::character varying)::text, ('documento'::character varying)::text, ('observacion'::character varying)::text])))
+);
+
+
+--
+-- Name: SEC_EVIDENCIA_OT_ID; Type: SEQUENCE; Schema: operativo; Owner: -
+--
+
+CREATE SEQUENCE operativo."SEC_EVIDENCIA_OT_ID"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: SEC_EVIDENCIA_OT_ID; Type: SEQUENCE OWNED BY; Schema: operativo; Owner: -
+--
+
+ALTER SEQUENCE operativo."SEC_EVIDENCIA_OT_ID" OWNED BY operativo.evidencia_ot.id_evidencia;
+
+
+--
 -- Name: historial_estado_ot; Type: TABLE; Schema: operativo; Owner: -
 --
 
@@ -193,8 +226,14 @@ ALTER SEQUENCE operativo."SEC_HISTORIAL_ESTADO_OT_ID" OWNED BY operativo.histori
 CREATE TABLE operativo.historial_recomendaciones_ia (
     id_recomendacion_ia bigint NOT NULL,
     recomendacion text NOT NULL,
-    id_orden bigint NOT NULL,
-    estado boolean DEFAULT true NOT NULL
+    id_orden bigint,
+    estado boolean DEFAULT true NOT NULL,
+    sesion uuid,
+    consulta text,
+    numero_intento integer,
+    fecha_generacion timestamp with time zone DEFAULT now() NOT NULL,
+    resultado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    CONSTRAINT "CK_HISTORIAL_RECOMENDACIONES_IA_RESULTADO" CHECK (((resultado)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('aceptada'::character varying)::text, ('descartada'::character varying)::text])))
 );
 
 
@@ -286,9 +325,16 @@ CREATE TABLE operativo.movimiento_stock (
     id_movimiento bigint NOT NULL,
     estado boolean NOT NULL,
     fecha timestamp with time zone NOT NULL,
-    cantidad numeric(4,2) NOT NULL,
+    cantidad integer NOT NULL,
     id_repuesto bigint NOT NULL,
-    id_usuario bigint NOT NULL
+    id_usuario bigint,
+    tipo character varying(20) DEFAULT 'ingreso'::character varying NOT NULL,
+    motivo character varying(200),
+    ubicacion character varying(150),
+    observaciones text,
+    stock_anterior integer,
+    stock_posterior integer,
+    CONSTRAINT "CK_MOVIMIENTO_STOCK_TIPO" CHECK (((tipo)::text = ANY (ARRAY[('ingreso'::character varying)::text, ('egreso'::character varying)::text, ('ajuste'::character varying)::text])))
 );
 
 
@@ -574,7 +620,7 @@ CREATE TABLE vectorial.documento_tecnico (
     activo_id bigint,
     usa_sugerencias_ia boolean NOT NULL,
     cantidad_fragmentos integer DEFAULT 0 NOT NULL,
-    archivo bytea NOT NULL,
+    archivo bytea,
     texto text DEFAULT ''::text NOT NULL,
     creado_en timestamp with time zone NOT NULL,
     documento_vectorial_id bigint
@@ -637,7 +683,7 @@ CREATE TABLE vectorial.fragmentos (
     posicion integer NOT NULL,
     pagina integer NOT NULL,
     texto text NOT NULL,
-    embedding public.vector(1024) NOT NULL,
+    embedding public.vector(1024),
     texto_busqueda tsvector GENERATED ALWAYS AS (to_tsvector('spanish'::regconfig, texto)) STORED
 );
 
@@ -680,6 +726,13 @@ ALTER TABLE ONLY operativo.cliente ALTER COLUMN id_cliente SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY operativo.estado_ot ALTER COLUMN id_estado_ot SET DEFAULT nextval('operativo."SEC_ESTADO_OT_ID"'::regclass);
+
+
+--
+-- Name: evidencia_ot id_evidencia; Type: DEFAULT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.evidencia_ot ALTER COLUMN id_evidencia SET DEFAULT nextval('operativo."SEC_EVIDENCIA_OT_ID"'::regclass);
 
 
 --
@@ -802,6 +855,14 @@ ALTER TABLE ONLY operativo.cliente
 
 ALTER TABLE ONLY operativo.estado_ot
     ADD CONSTRAINT "PK_ESTADO_OT" PRIMARY KEY (id_estado_ot);
+
+
+--
+-- Name: evidencia_ot PK_EVIDENCIA_OT; Type: CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.evidencia_ot
+    ADD CONSTRAINT "PK_EVIDENCIA_OT" PRIMARY KEY (id_evidencia);
 
 
 --
@@ -1059,10 +1120,31 @@ CREATE INDEX "IX_ACTIVO_ID_MODELO_MAQUINA" ON operativo.activo USING btree (id_m
 
 
 --
+-- Name: IX_EVIDENCIA_OT_ID_ORDEN; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE INDEX "IX_EVIDENCIA_OT_ID_ORDEN" ON operativo.evidencia_ot USING btree (id_orden);
+
+
+--
+-- Name: IX_HISTORIAL_RECOMENDACIONES_IA_SESION; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE INDEX "IX_HISTORIAL_RECOMENDACIONES_IA_SESION" ON operativo.historial_recomendaciones_ia USING btree (sesion);
+
+
+--
 -- Name: IX_MODELO_MAQUINA_ID_TIPO_MAQUINA; Type: INDEX; Schema: operativo; Owner: -
 --
 
 CREATE INDEX "IX_MODELO_MAQUINA_ID_TIPO_MAQUINA" ON operativo.modelo_maquina USING btree (id_tipo_maquina);
+
+
+--
+-- Name: IX_MOVIMIENTO_STOCK_ID_REPUESTO; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE INDEX "IX_MOVIMIENTO_STOCK_ID_REPUESTO" ON operativo.movimiento_stock USING btree (id_repuesto);
 
 
 --
@@ -1163,6 +1245,14 @@ ALTER TABLE ONLY operativo.historial_estado_ot
 
 
 --
+-- Name: evidencia_ot FK_ORDEN_TRABAJO_EVIDENCIA_OT; Type: FK CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.evidencia_ot
+    ADD CONSTRAINT "FK_ORDEN_TRABAJO_EVIDENCIA_OT" FOREIGN KEY (id_orden) REFERENCES operativo.orden_trabajo(id_orden);
+
+
+--
 -- Name: historial_estado_ot FK_ORDEN_TRABAJO_HISTORIAL_ESTADO_OT; Type: FK CONSTRAINT; Schema: operativo; Owner: -
 --
 
@@ -1243,6 +1333,14 @@ ALTER TABLE ONLY operativo.modelo_maquina
 
 
 --
+-- Name: evidencia_ot FK_USUARIO_EVIDENCIA_OT; Type: FK CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.evidencia_ot
+    ADD CONSTRAINT "FK_USUARIO_EVIDENCIA_OT" FOREIGN KEY (id_usuario) REFERENCES operativo.usuario(id_usuario);
+
+
+--
 -- Name: movimiento_stock FK_USUARIO_MOVIMIENTO_STOCK; Type: FK CONSTRAINT; Schema: operativo; Owner: -
 --
 
@@ -1283,46 +1381,138 @@ ALTER TABLE ONLY vectorial.fragmentos
 
 
 --
-BEGIN;
-
-INSERT INTO operativo.rol (nombre, descripcion, activo)
-VALUES ('Jefe de mantenimiento', 'Gestión de mantenimiento y órdenes de trabajo', TRUE);
-
-INSERT INTO operativo.permiso (nombre, descripcion)
-VALUES
-    ('activo.consultar', 'Consultar activos'),
-    ('activo.crear', 'Registrar activos'),
-    ('activo.editar', 'Modificar activos'),
-    ('modelo.consultar', 'Consultar modelos de máquinas'),
-    ('modelo.crear', 'Registrar modelos de máquinas'),
-    ('ot.consultar', 'Consultar órdenes de trabajo'),
-    ('ot.crear', 'Crear órdenes de trabajo'),
-    ('ot.asignar_tecnico', 'Asignar un técnico a una orden de trabajo'),
-    ('ot.registrar_avance', 'Registrar avances de una orden de trabajo');
-
-INSERT INTO operativo.rol_permiso (id_rol, id_permiso)
-SELECT rol.id_rol, permiso.id_permiso
-FROM operativo.rol rol
-CROSS JOIN operativo.permiso permiso
-WHERE rol.nombre = 'Jefe de mantenimiento';
-
-INSERT INTO operativo.usuario
-    (nombre, apellido, mail, telefono, contrasena, estado, fecha_ingreso)
-VALUES
-    ('Jefe', 'Mantenimiento', 'jefe.mantenimiento@example.test', '000000000',
-     'REEMPLAZAR_POR_HASH_ASPNET_IDENTITY', FALSE, CURRENT_DATE);
-
-INSERT INTO operativo.usuario_rol (id_usuario, id_rol)
-SELECT usuario.id_usuario, rol.id_rol
-FROM operativo.usuario usuario
-CROSS JOIN operativo.rol rol
-WHERE usuario.mail = 'jefe.mantenimiento@example.test'
-  AND rol.nombre = 'Jefe de mantenimiento';
-
-COMMIT;
-
 -- PostgreSQL database dump complete
 --
 
+\unrestrict AnNWE7sjfKi1QgkIVlFt1TBsw7Rb4UjlRsHHnJ9tAoTxx1vcVy2mapnb8FXrINm
 
+
+-- Catálogos
+
+--
+-- PostgreSQL database dump
+--
+
+\restrict XeBDGBpmk0b2K51HDnlZYJkoMgfMiYvgFSopsdoduI7MoZADx90lddX1chdxz4x
+
+-- Dumped from database version 18.6
+-- Dumped by pg_dump version 18.6
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Data for Name: estado_ot; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+INSERT INTO operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) VALUES (1, 'creada', NULL, true);
+INSERT INTO operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) VALUES (2, 'en_ejecucion', NULL, true);
+INSERT INTO operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) VALUES (3, 'asignada', NULL, true);
+INSERT INTO operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) VALUES (4, 'pausada', NULL, true);
+INSERT INTO operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) VALUES (5, 'finalizada', NULL, true);
+INSERT INTO operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) VALUES (6, 'cerrada', NULL, true);
+
+
+--
+-- Data for Name: permiso; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (1, 'usuario.consultar', 'Consultar usuarios');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (2, 'usuario.crear', 'Crear usuarios');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (3, 'usuario.editar', 'Modificar usuarios');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (4, 'activo.consultar', 'Consultar activos');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (5, 'activo.crear', 'Registrar activos');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (6, 'activo.editar', 'Modificar activos');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (7, 'modelo.consultar', 'Consultar modelos de máquinas');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (8, 'modelo.crear', 'Registrar modelos de máquinas');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (9, 'ot.consultar', 'Consultar órdenes de trabajo');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (10, 'ot.crear', 'Crear órdenes de trabajo');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (11, 'ot.asignar_tecnico', 'Asignar un técnico a una orden de trabajo');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (12, 'ot.registrar_avance', 'Registrar avances de una orden de trabajo');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (13, 'stock.consultar', 'Consultar stock');
+INSERT INTO operativo.permiso (id_permiso, nombre, descripcion) VALUES (14, 'stock.registrar_movimiento', 'Registrar movimientos de stock');
+
+
+--
+-- Data for Name: rol; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+INSERT INTO operativo.rol (id_rol, nombre, descripcion, activo) VALUES (1, 'Administrador', 'Administración general del sistema', true);
+INSERT INTO operativo.rol (id_rol, nombre, descripcion, activo) VALUES (2, 'Jefe de mantenimiento', 'Gestión de mantenimiento y órdenes de trabajo', true);
+INSERT INTO operativo.rol (id_rol, nombre, descripcion, activo) VALUES (3, 'Técnico', 'Ejecución y registro de tareas de mantenimiento', true);
+INSERT INTO operativo.rol (id_rol, nombre, descripcion, activo) VALUES (4, 'Pañolero', 'Gestión de repuestos y movimientos de stock', true);
+
+
+--
+-- Data for Name: rol_permiso; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 1);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 2);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 3);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 4);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 5);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 6);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 7);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 8);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 9);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 10);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 11);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 12);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 13);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (1, 14);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 4);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 5);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 6);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 7);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 8);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 9);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 10);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 11);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (2, 12);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (3, 4);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (3, 7);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (3, 9);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (3, 12);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (4, 4);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (4, 9);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (4, 13);
+INSERT INTO operativo.rol_permiso (id_rol, id_permiso) VALUES (4, 14);
+
+
+--
+-- Name: SEC_ESTADO_OT_ID; Type: SEQUENCE SET; Schema: operativo; Owner: -
+--
+
+SELECT pg_catalog.setval('operativo."SEC_ESTADO_OT_ID"', 6, true);
+
+
+--
+-- Name: SEC_PERMISO_ID; Type: SEQUENCE SET; Schema: operativo; Owner: -
+--
+
+SELECT pg_catalog.setval('operativo."SEC_PERMISO_ID"', 14, true);
+
+
+--
+-- Name: SEC_ROL_ID; Type: SEQUENCE SET; Schema: operativo; Owner: -
+--
+
+SELECT pg_catalog.setval('operativo."SEC_ROL_ID"', 4, true);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict XeBDGBpmk0b2K51HDnlZYJkoMgfMiYvgFSopsdoduI7MoZADx90lddX1chdxz4x
 

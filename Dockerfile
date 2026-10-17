@@ -3,9 +3,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 WORKDIR /src
 
-COPY . .
+# Se copian primero los proyectos y se restauran los paquetes: mientras no
+# cambien las dependencias, Docker reutiliza esta capa y no los vuelve a bajar.
+COPY SOTRA-BACKEND/SOTRA-BACKEND.csproj SOTRA-BACKEND/
+COPY Api/Api.csproj Api/
 
 RUN dotnet restore Api/Api.csproj
+
+COPY . .
 
 RUN dotnet publish Api/Api.csproj \
     -c Release \
