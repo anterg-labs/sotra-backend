@@ -50,6 +50,11 @@ builder.Services.AddScoped<ActivoDAO>();
 builder.Services.AddScoped<RepuestoDAO>();
 builder.Services.AddScoped<MovimientoStockDAO>();
 builder.Services.AddScoped<OrdenTrabajoDAO>();
+builder.Services.AddScoped<AnaliticaDAO>();
+builder.Services.AddOptions<OpcionesDeAlertasDeMaquinaria>()
+    .Bind(builder.Configuration.GetSection(OpcionesDeAlertasDeMaquinaria.Seccion))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.AddScoped<EvidenciaOtDAO>();
 builder.Services.AddScoped<ServicioOllama>();
 builder.Services.AddSingleton<ServicioReranker>();
