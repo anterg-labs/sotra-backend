@@ -240,7 +240,7 @@ Si se cambia la configuración del realm desde la consola, hay que volver a expo
 
 Los endpoints `PUT` reciben todos los campos editables del recurso. No funcionan como modificaciones parciales.
 
-En usuarios son obligatorios `nombre`, `apellido`, `correo`, `telefono`, `idsRol`, `estado` y `fechaIngreso`. `contrasena` puede omitirse para conservar la contraseña actual.
+En usuarios son obligatorios `nombre`, `apellido`, `correo`, `telefono`, `idsRol`, `estado` y `fechaIngreso`. La API no recibe contraseñas: la contraseña vive solo en Keycloak (ver "Gestión de usuarios con Keycloak").
 
 En activos, `estado` es opcional y acepta `activo` o `inactivo`. Si se omite, el estado no cambia; cualquier otro valor responde `400`. Permite reactivar un activo dado de baja. El cliente y el modelo de máquina deben estar activos.
 
@@ -464,11 +464,13 @@ Requisito: Ollama debe tener `qwen2.5:7b` además de `bge-m3` (`ollama pull qwen
 
 ```bash
 docker exec -i sotra-db psql -U TU_USUARIO -d sotra < database/migraciones/001-usuario-id-keycloak.sql
+docker exec -i sotra-db psql -U TU_USUARIO -d sotra < database/migraciones/002-usuario-sin-contrasena.sql
 ```
 
 | Migración | Cambio |
 |---|---|
 | `001-usuario-id-keycloak.sql` | Columna `id_keycloak` (uuid, única) en `operativo.usuario`. |
+| `002-usuario-sin-contrasena.sql` | Elimina la columna `contrasena` de `operativo.usuario`: la contraseña vive solo en Keycloak. Hay que aplicarla con la versión de la API que ya no usa esa columna (detener el backend, migrar y volver a levantarlo). |
 
 ## Detener el sistema
 

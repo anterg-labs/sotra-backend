@@ -565,7 +565,6 @@ CREATE TABLE operativo.usuario (
     apellido character varying(100) NOT NULL,
     mail character varying(254) NOT NULL,
     telefono character varying(30) NOT NULL,
-    contrasena character varying(255) NOT NULL,
     estado boolean NOT NULL,
     fecha_ingreso date DEFAULT CURRENT_DATE NOT NULL,
     id_keycloak uuid

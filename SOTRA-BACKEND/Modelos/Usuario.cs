@@ -15,8 +15,6 @@ public partial class Usuario
 
     public string Telefono { get; set; } = null!;
 
-    public string Contrasena { get; set; } = null!;
-
     public bool Estado { get; set; }
 
     public DateOnly FechaIngreso { get; set; }

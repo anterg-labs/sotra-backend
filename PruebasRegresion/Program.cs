@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
-using SOTRA_BACKEND.Seguridad;
 
 var contador = new ContadorGuardados();
 using var contexto = new ContextoPrueba(new DbContextOptionsBuilder<SotraContext>()
@@ -24,7 +23,6 @@ Usuario Nuevo(int n) => new()
     Apellido = "Fecha",
     Mail = $"u{n}@example.com",
     Telefono = n.ToString(),
-    Contrasena = "Prueba!123",
     Estado = true,
     FechaIngreso = fecha
 };
@@ -49,28 +47,26 @@ contexto.ChangeTracker.Clear();
 usuario = dao.SeleccionarUsuario(id)!;
 Verificar(usuario.IdRols.Count == 1, "Rol duplicado se normaliza y relacion se persiste");
 Verificar(usuario.FechaIngreso == fecha, "Fecha bisiesta persiste sin hora");
-var hash = usuario.Contrasena;
-Verificar(hash != "Prueba!123" && Contrasenas.Verificar(hash, "Prueba!123") && !Contrasenas.Verificar(hash, "incorrecta"), "Hash acepta clave correcta y rechaza incorrecta");
-Verificar(hash != Contrasenas.CrearHash("Prueba!123"), "Hashes usan sal aleatoria");
-Verificar(!Contrasenas.Verificar("texto antiguo", "texto antiguo"), "No autentica contrasenas antiguas como hashes");
 Rechazar(() => dao.ActualizarUsuario(usuario, [99]), "Actualizacion rechaza rol inexistente");
 Rechazar(() => dao.ActualizarUsuario(usuario, [2]), "Actualizacion rechaza rol inactivo");
 Rechazar(() => dao.ActualizarUsuario(usuario, [0]), "Actualizacion rechaza rol cero");
-Rechazar(() => dao.ActualizarUsuario(usuario, [1], " "), "Cambio rechaza contrasena vacia");
 usuario.Nombre = "Editado";
 Verificar(dao.ActualizarUsuario(usuario, [1]), "Actualiza usuario rastreado");
 contexto.ChangeTracker.Clear();
 usuario = dao.SeleccionarUsuario(id)!;
-Verificar(usuario.Contrasena == hash && usuario.Nombre == "Editado", "Edicion conserva hash sin duplicarlo");
+Verificar(usuario.Nombre == "Editado", "Edicion persiste los cambios");
 var desconectado = Nuevo(1); desconectado.IdUsuario = id;
-Verificar(dao.ActualizarUsuario(desconectado, [3], "Nueva!456"), "Actualiza entidad desconectada y cambia roles y clave");
+Verificar(dao.ActualizarUsuario(desconectado, [3]), "Actualiza entidad desconectada y cambia roles");
 contexto.ChangeTracker.Clear();
 usuario = dao.SeleccionarUsuario(id)!;
-Verificar(usuario.IdRols.Single().IdRol == 3 && Contrasenas.Verificar(usuario.Contrasena, "Nueva!456"), "Cambio de roles y hash persistido");
-hash = usuario.Contrasena;
-dao.ActualizarUsuario(desconectado, [3]);
+Verificar(usuario.IdRols.Single().IdRol == 3, "Cambio de roles persistido");
+var idKeycloak = Guid.NewGuid();
+Verificar(dao.SeleccionarOVincularPorKeycloak(idKeycloak, "otro@example.com") is null, "Keycloak sin usuario con ese correo no vincula");
+Verificar(dao.SeleccionarOVincularPorKeycloak(idKeycloak, "U1@EXAMPLE.COM")?.IdUsuario == id, "Keycloak vincula por correo sin distinguir mayusculas");
 contexto.ChangeTracker.Clear();
-Verificar(dao.SeleccionarUsuario(id)!.Contrasena == hash, "Entidad desconectada no sobrescribe clave sin parametro explicito");
+Verificar(dao.SeleccionarUsuario(id)!.IdKeycloak == idKeycloak, "Vinculo con Keycloak persistido");
+Verificar(dao.SeleccionarOVincularPorKeycloak(idKeycloak, null)?.IdUsuario == id, "Usuario vinculado se encuentra por id de Keycloak sin correo");
+Verificar(dao.SeleccionarOVincularPorKeycloak(Guid.NewGuid(), "u1@example.com") is null, "Otro id de Keycloak no toma un usuario ya vinculado");
 for (var n = 2; n <= 23; n++) dao.InsertarUsuario(Nuevo(n), []);
 var listado = dao.ListarTodo().Select(UsuarioMapeador.AListadoDto).ToList();
 Verificar(listado.Count == 23, "Listado devuelve todos los usuarios sin limite de 20");

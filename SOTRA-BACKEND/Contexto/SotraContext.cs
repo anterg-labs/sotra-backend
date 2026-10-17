@@ -543,9 +543,6 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.Apellido)
                 .HasMaxLength(100)
                 .HasColumnName("apellido");
-            entity.Property(e => e.Contrasena)
-                .HasMaxLength(255)
-                .HasColumnName("contrasena");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.FechaIngreso)
                 .HasDefaultValueSql("CURRENT_DATE")

@@ -57,9 +57,6 @@ public static class testUsuario
         Console.Write("Telefono: ");
         usuario.Telefono = Console.ReadLine() ?? string.Empty;
 
-        Console.Write("Contrasena: ");
-        usuario.Contrasena = LeerContrasena();
-
         Console.Write("Estado (true/false): ");
         usuario.Estado = LeerBool();
 
@@ -116,9 +113,6 @@ public static class testUsuario
             usuario.Telefono = telefono;
         }
 
-        Console.Write("Nueva contrasena (ENTER para conservar): ");
-        string contrasena = LeerContrasena();
-
         Console.Write($"Estado ({usuario.Estado}): ");
         string? estado = Console.ReadLine();
         if (!string.IsNullOrWhiteSpace(estado) && bool.TryParse(estado, out bool estadoBool))
@@ -129,7 +123,7 @@ public static class testUsuario
         List<long> idsRolActuales = usuario.IdRols.Select(r => r.IdRol).ToList();
         List<long> idsRol = LeerRolesUsuario(idsRolActuales);
 
-        bool actualizado = dao.ActualizarUsuario(usuario, idsRol, contrasena.Length == 0 ? null : contrasena);
+        bool actualizado = dao.ActualizarUsuario(usuario, idsRol);
         Console.WriteLine(actualizado ? "Usuario actualizado correctamente." : "No se pudo actualizar el registro.");
         if (actualizado)
         {
@@ -244,26 +238,6 @@ public static class testUsuario
             }
 
             Console.Write("Valor inválido. Intente nuevamente: ");
-        }
-    }
-
-    private static string LeerContrasena()
-    {
-        if (Console.IsInputRedirected) return Console.ReadLine() ?? string.Empty;
-        var texto = new System.Text.StringBuilder();
-        while (true)
-        {
-            var tecla = Console.ReadKey(intercept: true);
-            if (tecla.Key == ConsoleKey.Enter)
-            {
-                Console.WriteLine();
-                return texto.ToString();
-            }
-            if (tecla.Key == ConsoleKey.Backspace)
-            {
-                if (texto.Length > 0) texto.Length--;
-            }
-            else if (!char.IsControl(tecla.KeyChar)) texto.Append(tecla.KeyChar);
         }
     }
 
