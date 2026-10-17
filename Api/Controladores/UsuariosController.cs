@@ -1,6 +1,8 @@
 using Api.DTOs;
-using Api.Mapeadores;
 using Api.DTOs.Usuarios;
+using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Operaciones;
@@ -18,6 +20,7 @@ public class UsuariosController : ControllerBase
         _usuarioDao = usuarioDao;
     }
 
+    [Authorize(Policy = Politicas.UsuarioListar)]
     [HttpGet]
     [ProducesResponseType<PaginaDto<UsuarioListadoDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<UsuarioListadoDto>> ObtenerTodos([FromQuery] FiltrosUsuariosDto filtros)
@@ -82,6 +85,7 @@ public class UsuariosController : ControllerBase
         return Ok(PaginaDto<UsuarioListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.UsuarioConsultar)]
     [HttpGet("{id:long}")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -91,6 +95,7 @@ public class UsuariosController : ControllerBase
         return usuario is null ? NotFound() : Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 
+    [Authorize(Policy = Politicas.UsuarioCrear)]
     [HttpPost]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -114,6 +119,7 @@ public class UsuariosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.UsuarioEditar)]
     [HttpPut("{id:long}")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -142,6 +148,7 @@ public class UsuariosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.UsuarioEditar)]
     [HttpPatch("{id:long}")]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

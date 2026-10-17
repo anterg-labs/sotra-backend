@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.DocumentosTecnicos;
+using Api.Seguridad;
 using Api.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controladores;
@@ -17,6 +19,7 @@ public class DocumentosTecnicosController : ControllerBase
         _servicio = servicio;
     }
 
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     [HttpGet]
     public async Task<ActionResult<PaginaDto<DocumentoTecnicoDto>>> ObtenerTodos(
         [FromQuery] FiltrosDocumentosTecnicosDto filtros, CancellationToken cancellationToken)
@@ -56,6 +59,7 @@ public class DocumentosTecnicosController : ControllerBase
         return Ok(PaginaDto<DocumentoTecnicoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     [HttpGet("{id:long}")]
     public async Task<ActionResult<DocumentoTecnicoDto>> ObtenerPorId(long id, CancellationToken cancellationToken)
     {
@@ -70,6 +74,7 @@ public class DocumentosTecnicosController : ControllerBase
         return NotFound();
     }
 
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
     [HttpPost]
     [RequestSizeLimit(CincuentaMegabytesEnBytes)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Crear(IFormFile archivo,
@@ -118,6 +123,7 @@ public class DocumentosTecnicosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     [HttpGet("{id:long}/archivo")]
     public async Task<IActionResult> Descargar(long id, CancellationToken cancellationToken)
     {
@@ -130,6 +136,7 @@ public class DocumentosTecnicosController : ControllerBase
         return File(documento.Contenido, "application/pdf", documento.NombreArchivo);
     }
 
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Eliminar(long id, CancellationToken cancellationToken)
     {

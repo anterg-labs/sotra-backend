@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -17,6 +19,7 @@ public class MovimientosStockController : ControllerBase
         _movimientoStockDao = movimientoStockDao;
     }
 
+    [Authorize(Policy = Politicas.StockConsultar)]
     [HttpGet]
     public ActionResult<PaginaDto<MovimientoStockDto>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros)
     {
@@ -100,6 +103,7 @@ public class MovimientosStockController : ControllerBase
         return Ok(PaginaDto<MovimientoStockDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.StockConsultar)]
     [HttpGet("{id:long}")]
     public ActionResult<MovimientoStockDto> ObtenerPorId(long id)
     {

@@ -1,7 +1,9 @@
 using Api.DTOs;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
+using Api.Seguridad;
 using Api.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -22,6 +24,7 @@ public class OrdenesTrabajoController : ControllerBase
         _servicioSugerencias = servicioSugerencias;
     }
 
+    [Authorize(Policy = Politicas.OtConsultar)]
     [HttpGet]
     public ActionResult<PaginaDto<OrdenTrabajoDto>> ObtenerTodos([FromQuery] FiltrosOrdenesTrabajoDto filtros)
     {
@@ -68,6 +71,7 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(PaginaDto<OrdenTrabajoDto>.Crear(ordenes, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.OtConsultar)]
     [HttpGet("{id:long}")]
     public ActionResult<OrdenTrabajoDto> ObtenerPorId(long id)
     {
@@ -80,6 +84,7 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(OrdenTrabajoMapeador.ADto(orden));
     }
 
+    [Authorize(Policy = Politicas.OtCrear)]
     [HttpPost]
     public ActionResult<OrdenTrabajoDto> Crear(OrdenTrabajoCrearDto solicitud)
     {
@@ -108,6 +113,7 @@ public class OrdenesTrabajoController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.OtEditar)]
     [HttpPut("{id:long}")]
     public ActionResult<OrdenTrabajoDto> Actualizar(long id, OrdenTrabajoActualizarDto solicitud)
     {
@@ -143,6 +149,7 @@ public class OrdenesTrabajoController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.OtRegistrarAvance)]
     [HttpPatch("{id:long}/estado")]
     public ActionResult<OrdenTrabajoDto> CambiarEstado(long id, CambioEstadoOrdenTrabajoDto solicitud)
     {
@@ -173,6 +180,7 @@ public class OrdenesTrabajoController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.OtAsignarTecnico)]
     [HttpPatch("{id:long}/tecnico")]
     public ActionResult<OrdenTrabajoDto> AsignarTecnico(long id, AsignacionTecnicoDto solicitud)
     {
@@ -243,6 +251,7 @@ public class OrdenesTrabajoController : ControllerBase
         throw excepcion;
     }
 
+    [Authorize(Policy = Politicas.OtCrear)]
     [HttpPost("sugerencia")]
     public async Task<IActionResult> SolicitarSugerencia(SolicitudSugerenciaDto solicitud,
         CancellationToken cancellationToken)

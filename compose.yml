@@ -41,6 +41,7 @@ services:
       KEYCLOAK_EMISOR: http://localhost:${KC_PORT}/realms/sotra
       KEYCLOAK_METADATA: http://keycloak:8080/realms/sotra/.well-known/openid-configuration
       KEYCLOAK_AUDIENCIA: sotra-api
+      AUTH_OBLIGATORIA: ${AUTH_OBLIGATORIA:-true}
     ports:
       - "${API_PORT}:8080"
     volumes:

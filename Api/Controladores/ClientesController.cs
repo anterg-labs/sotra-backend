@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.Clientes;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Operaciones;
@@ -18,6 +20,7 @@ public class ClientesController : ControllerBase
         _clienteDao = clienteDao;
     }
 
+    [Authorize(Policy = Politicas.ClienteConsultar)]
     [HttpGet]
     [ProducesResponseType<PaginaDto<ClienteListadoDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<ClienteListadoDto>> ObtenerTodos([FromQuery] FiltrosClientesDto filtros)
@@ -65,6 +68,7 @@ public class ClientesController : ControllerBase
         return Ok(PaginaDto<ClienteListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.ClienteConsultar)]
     [HttpGet("{id:long}")]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -74,6 +78,7 @@ public class ClientesController : ControllerBase
         return cliente is null ? NotFound() : Ok(ClienteMapeador.AListadoDto(cliente));
     }
 
+    [Authorize(Policy = Politicas.ClienteGestionar)]
     [HttpPost]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -95,6 +100,7 @@ public class ClientesController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.ClienteGestionar)]
     [HttpPut("{id:long}")]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -120,6 +126,7 @@ public class ClientesController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.ClienteGestionar)]
     [HttpPatch("{id:long}")]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

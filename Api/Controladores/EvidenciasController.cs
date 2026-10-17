@@ -1,5 +1,7 @@
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -22,6 +24,7 @@ public class EvidenciasController : ControllerBase
         _evidenciaDao = evidenciaDao;
     }
 
+    [Authorize(Policy = Politicas.OtConsultar)]
     [HttpGet]
     public ActionResult<List<EvidenciaDto>> ObtenerTodas(long ordenTrabajoId)
     {
@@ -40,6 +43,7 @@ public class EvidenciasController : ControllerBase
         return Ok(respuesta);
     }
 
+    [Authorize(Policy = Politicas.OtRegistrarAvance)]
     [HttpPost]
     [RequestSizeLimit(DiezMegabytesEnBytes + 1024 * 1024)]
     public async Task<ActionResult<EvidenciaDto>> Crear(long ordenTrabajoId, [FromForm] string tipo,
@@ -149,6 +153,7 @@ public class EvidenciasController : ControllerBase
         return CreatedAtAction(nameof(ObtenerTodas), new { ordenTrabajoId = ordenTrabajoId }, ADto(evidenciaCreada));
     }
 
+    [Authorize(Policy = Politicas.OtConsultar)]
     [HttpGet("{evidenciaId:long}/archivo")]
     public IActionResult Descargar(long ordenTrabajoId, long evidenciaId)
     {

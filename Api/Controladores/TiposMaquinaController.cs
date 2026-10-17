@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.TiposMaquina;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -19,6 +21,7 @@ public class TiposMaquinaController : ControllerBase
         _tipoMaquinaDao = tipoMaquinaDao;
     }
 
+    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [HttpGet]
     [ProducesResponseType<PaginaDto<TipoMaquinaDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<TipoMaquinaDto>> ObtenerTodos([FromQuery] FiltrosTiposMaquinaDto filtros)
@@ -55,6 +58,7 @@ public class TiposMaquinaController : ControllerBase
         return Ok(PaginaDto<TipoMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [HttpGet("{id:long}")]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -64,6 +68,7 @@ public class TiposMaquinaController : ControllerBase
         return tipo is null ? NotFound() : Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [HttpPost]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -84,6 +89,7 @@ public class TiposMaquinaController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [HttpPut("{id:long}")]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -108,6 +114,7 @@ public class TiposMaquinaController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [HttpPatch("{id:long}")]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

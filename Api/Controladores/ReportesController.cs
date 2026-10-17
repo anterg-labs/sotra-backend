@@ -2,7 +2,9 @@ using Api.DTOs.OrdenesTrabajo;
 using Api.DTOs.Reportes;
 using Api.DTOs.Repuestos;
 using Api.Mapeadores;
+using Api.Seguridad;
 using Api.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -24,6 +26,7 @@ public class ReportesController : ControllerBase
         _repuestoDao = repuestoDao;
     }
 
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [HttpGet("indicadores")]
     public ActionResult<IndicadoresDto> ObtenerIndicadores([FromQuery] FiltrosIndicadoresDto filtros)
     {
@@ -120,6 +123,7 @@ public class ReportesController : ControllerBase
         });
     }
 
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [HttpGet("{tipoReporte}/pdf")]
     public IActionResult DescargarReportePdf(string tipoReporte, [FromQuery] FiltrosIndicadoresDto filtros)
     {

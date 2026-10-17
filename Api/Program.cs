@@ -27,8 +27,9 @@ builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
 
+var autenticacionObligatoria = PoliticasDeAcceso.AutenticacionObligatoria();
 builder.Services.AgregarAutenticacionKeycloak();
-builder.Services.AddAuthorization();
+builder.Services.AgregarPoliticasDeAcceso(autenticacionObligatoria);
 
 builder.Services.AddHealthChecks();
 
@@ -53,9 +54,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+if (!autenticacionObligatoria)
+{
+    app.Logger.LogWarning("AUTH_OBLIGATORIA=false: la API no exige token en los endpoints protegidos.");
+}
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
 if (!app.Environment.IsDevelopment())
@@ -70,6 +76,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 
 app.Run();

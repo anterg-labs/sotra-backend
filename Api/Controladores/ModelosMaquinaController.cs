@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.ModelosMaquina;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -19,6 +21,7 @@ public class ModelosMaquinaController : ControllerBase
         _modeloMaquinaDao = modeloMaquinaDao;
     }
 
+    [Authorize(Policy = Politicas.ModeloConsultar)]
     [HttpGet]
     [ProducesResponseType<PaginaDto<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<ModeloMaquinaDto>> ObtenerTodos([FromQuery] FiltrosModelosMaquinaDto filtros)
@@ -65,6 +68,7 @@ public class ModelosMaquinaController : ControllerBase
         return Ok(PaginaDto<ModeloMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.ModeloConsultar)]
     [HttpGet("{id:long}")]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -74,6 +78,7 @@ public class ModelosMaquinaController : ControllerBase
         return modelo is null ? NotFound() : Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 
+    [Authorize(Policy = Politicas.ModeloCrear)]
     [HttpPost]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -99,6 +104,7 @@ public class ModelosMaquinaController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.ModeloEditar)]
     [HttpPut("{id:long}")]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -127,6 +133,7 @@ public class ModelosMaquinaController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.ModeloEditar)]
     [HttpPatch("{id:long}")]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

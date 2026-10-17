@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.Activos;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -19,6 +21,7 @@ public class ActivosController : ControllerBase
         _activoDao = activoDao;
     }
 
+    [Authorize(Policy = Politicas.ActivoConsultar)]
     [HttpGet]
     [ProducesResponseType<PaginaDto<ActivoDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<ActivoDto>> ObtenerTodos([FromQuery] FiltrosActivosDto filtros)
@@ -72,6 +75,7 @@ public class ActivosController : ControllerBase
         return Ok(PaginaDto<ActivoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.ActivoConsultar)]
     [HttpGet("{id:long}")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -81,6 +85,7 @@ public class ActivosController : ControllerBase
         return activo is null ? NotFound() : Ok(ActivoMapeador.ADto(activo));
     }
 
+    [Authorize(Policy = Politicas.ActivoCrear)]
     [HttpPost]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -105,6 +110,7 @@ public class ActivosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.ActivoEditar)]
     [HttpPut("{id:long}")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -133,6 +139,7 @@ public class ActivosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.ActivoEditar)]
     [HttpPatch("{id:long}")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

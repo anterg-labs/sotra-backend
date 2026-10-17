@@ -2,6 +2,8 @@ using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.DTOs.Repuestos;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -22,6 +24,7 @@ public class RepuestosController : ControllerBase
         _movimientoStockDao = movimientoStockDao;
     }
 
+    [Authorize(Policy = Politicas.StockConsultar)]
     [HttpGet]
     public ActionResult<PaginaDto<RepuestoDto>> ObtenerTodos([FromQuery] FiltrosRepuestosDto filtros)
     {
@@ -80,6 +83,7 @@ public class RepuestosController : ControllerBase
         return Ok(PaginaDto<RepuestoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     [HttpPost("{id:long}/ingresos")]
     public ActionResult<MovimientoStockDto> RegistrarIngreso(long id, IngresoStockDto solicitud)
     {
@@ -155,6 +159,7 @@ public class RepuestosController : ControllerBase
         return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
     }
 
+    [Authorize(Policy = Politicas.StockConsultar)]
     [HttpGet("{id:long}")]
     public ActionResult<RepuestoDto> ObtenerPorId(long id)
     {
@@ -167,6 +172,7 @@ public class RepuestosController : ControllerBase
         return Ok(RepuestoMapeador.ADto(repuesto));
     }
 
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     [HttpPost]
     public ActionResult<RepuestoDto> Crear(RepuestoCrearDto solicitud)
     {
@@ -183,6 +189,7 @@ public class RepuestosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     [HttpPut("{id:long}")]
     public ActionResult<RepuestoDto> Actualizar(long id, RepuestoActualizarDto solicitud)
     {
@@ -205,6 +212,7 @@ public class RepuestosController : ControllerBase
         }
     }
 
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     [HttpPatch("{id:long}")]
     public ActionResult<RepuestoDto> Desactivar(long id, RepuestoEstadoDto solicitud)
     {

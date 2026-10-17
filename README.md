@@ -157,7 +157,38 @@ La API acepta los tokens de acceso que emite Keycloak para el realm `sotra` (`Mi
 
 Keycloak manda los roles del realm dentro de `realm_access.roles`; la API los convierte en roles de .NET, así que se pueden usar con `[Authorize(Roles = "tecnico")]`. El nombre de usuario (`User.Identity.Name`) es `preferred_username`, que en este realm es el correo.
 
-`GET /api/v1/sesion` exige token y devuelve el usuario que inició sesión: `idKeycloak` (el `sub` del token), `correo`, `nombre` y `roles` (solo los de SOTRA). Sin token o con un token inválido responde `401`. El resto de los endpoints todavía no exige token.
+`GET /api/v1/sesion` exige token y devuelve el usuario que inició sesión: `idKeycloak` (el `sub` del token), `correo`, `nombre` y `roles` (solo los de SOTRA). Sin token o con un token inválido responde `401`.
+
+### Autorización por rol
+
+Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las políticas y los roles que las cumplen están en un solo archivo, `Api/Seguridad/PoliticasDeAcceso.cs`; para cambiar quién puede hacer qué, se edita esa matriz. Cuando el permiso existe en `operativo.permiso`, la política usa el mismo nombre.
+
+| Política | Endpoints | Roles |
+|---|---|---|
+| `usuario.listar` | `GET /usuarios` | administrador, jefe_mantenimiento |
+| `usuario.consultar` | `GET /usuarios/{id}`, `GET /roles` | administrador |
+| `usuario.crear`, `usuario.editar` | `POST`, `PUT`, `PATCH /usuarios` | administrador |
+| `cliente.consultar` | `GET /clientes` | todos |
+| `cliente.gestionar` | `POST`, `PUT`, `PATCH /clientes` | administrador, jefe_mantenimiento |
+| `activo.consultar` | `GET /activos` | todos |
+| `activo.crear`, `activo.editar` | `POST`, `PUT`, `PATCH /activos` | administrador, jefe_mantenimiento |
+| `modelo.consultar`, `tipo_maquina.consultar` | `GET /modelos-maquina`, `GET /tipos-maquina` | administrador, jefe_mantenimiento, tecnico |
+| `modelo.crear`, `modelo.editar`, `tipo_maquina.gestionar` | `POST`, `PUT`, `PATCH` de modelos y tipos | administrador, jefe_mantenimiento |
+| `ot.consultar` | `GET /ordenes-trabajo`, `GET` de evidencias y su archivo | todos |
+| `ot.crear` | `POST /ordenes-trabajo`, `POST /ordenes-trabajo/sugerencia` | administrador, jefe_mantenimiento |
+| `ot.editar` | `PUT /ordenes-trabajo/{id}` | administrador, jefe_mantenimiento |
+| `ot.asignar_tecnico` | `PATCH /ordenes-trabajo/{id}/tecnico` | administrador, jefe_mantenimiento |
+| `ot.registrar_avance` | `PATCH /ordenes-trabajo/{id}/estado`, `POST` de evidencias | administrador, jefe_mantenimiento, tecnico |
+| `documento.consultar` | `GET /documentos-tecnicos` y su archivo | administrador, jefe_mantenimiento, tecnico |
+| `documento.gestionar` | `POST`, `DELETE /documentos-tecnicos` | administrador, jefe_mantenimiento |
+| `stock.consultar` | `GET /repuestos`, `GET /movimientos-stock` | administrador, panolero |
+| `repuesto.gestionar` | `POST`, `PUT`, `PATCH /repuestos` | administrador, panolero |
+| `stock.registrar_movimiento` | `POST /repuestos/{id}/ingresos` | administrador, panolero |
+| `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` | administrador, jefe_mantenimiento |
+
+`GET /version` y `/health` son públicos (`[AllowAnonymous]`). Cualquier otro endpoint sin política exige al menos una sesión iniciada (política *fallback*), así que un endpoint nuevo nunca queda abierto por olvido. Sin token la API responde `401`; con un token válido pero sin el rol necesario, `403`.
+
+`AUTH_OBLIGATORIA` controla la protección. Con `true` (el valor por defecto si falta) rige la matriz. Con `false` los endpoints con política no exigen token, para poder usar el frontend mientras todavía no integra el login; la API lo avisa en el log al arrancar. `GET /sesion` exige token en los dos casos. En producción debe quedar en `true`.
 
 ```bash
 curl -H "Authorization: Bearer TOKEN" http://localhost:8081/api/v1/sesion
