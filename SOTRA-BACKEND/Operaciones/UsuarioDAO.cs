@@ -33,6 +33,29 @@ public class UsuarioDAO
             .FirstOrDefault(u => u.IdUsuario == id);
     }
 
+    // Busca el usuario de SOTRA vinculado a un usuario de Keycloak. Si todavía no hay
+    // ninguno, vincula al usuario sin vincular que tenga el mismo correo.
+    public Usuario? SeleccionarOVincularPorKeycloak(Guid idKeycloak, string? correo)
+    {
+        var usuario = _contexto.Usuarios.FirstOrDefault(u => u.IdKeycloak == idKeycloak);
+        if (usuario is not null || string.IsNullOrWhiteSpace(correo))
+        {
+            return usuario;
+        }
+
+        var correoNormalizado = correo.Trim().ToLower();
+        usuario = _contexto.Usuarios
+            .FirstOrDefault(u => u.IdKeycloak == null && u.Mail.ToLower() == correoNormalizado);
+        if (usuario is null)
+        {
+            return null;
+        }
+
+        usuario.IdKeycloak = idKeycloak;
+        _contexto.SaveChanges();
+        return usuario;
+    }
+
     public Usuario InsertarUsuario(Usuario usuario, IEnumerable<long>? idsRol)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);

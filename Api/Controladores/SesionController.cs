@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Api.DTOs.Sesion;
+using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +16,13 @@ public class SesionController : ControllerBase
     {
         "administrador", "jefe_mantenimiento", "tecnico", "panolero"
     };
+
+    private readonly UsuarioActual _usuarioActual;
+
+    public SesionController(UsuarioActual usuarioActual)
+    {
+        _usuarioActual = usuarioActual;
+    }
 
     [HttpGet]
     [ProducesResponseType<SesionDto>(StatusCodes.Status200OK)]
@@ -39,6 +47,7 @@ public class SesionController : ControllerBase
         return Ok(new SesionDto
         {
             IdKeycloak = idKeycloak,
+            IdUsuario = _usuarioActual.ObtenerIdUsuario(),
             Correo = User.FindFirstValue("email"),
             Nombre = User.FindFirstValue("name"),
             Roles = roles

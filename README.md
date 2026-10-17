@@ -194,6 +194,16 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 curl -H "Authorization: Bearer TOKEN" http://localhost:8081/api/v1/sesion
 ```
 
+### Usuario actual
+
+Cada usuario de SOTRA (`operativo.usuario`) se vincula con su usuario de Keycloak por la columna `id_keycloak` (el `sub` del token, única). `Api/Seguridad/UsuarioActual.cs` traduce el token de cada pedido al `id_usuario`:
+
+1. Busca el usuario con ese `id_keycloak`.
+2. Si no hay ninguno, busca por correo (sin distinguir mayúsculas) entre los usuarios todavía no vinculados y le guarda el `id_keycloak`. Así cada usuario queda vinculado en su primer ingreso, sin cargar nada a mano; después la vinculación ya no depende del correo.
+3. Si tampoco hay coincidencia, el usuario de Keycloak no está registrado en SOTRA y no hay `id_usuario`.
+
+Se usa para el responsable de las órdenes que se crean, el usuario de las evidencias y el de los movimientos de stock. `GET /api/v1/sesion` también devuelve el `idUsuario`.
+
 ### Actualizar `realm-sotra.json`
 
 Si se cambia la configuración del realm desde la consola, hay que volver a exportarla para que quede versionada: **Realm settings** → **Action** → **Partial export**, con **Include groups and roles** e **Include clients** activados, y reemplazar `keycloak/realm-sotra.json` con el archivo descargado. La exportación trae el correo con los valores reales de quien exporta (su cuenta de Gmail); antes de subirla hay que volver a dejar el bloque `smtpServer` con las variables `${KC_SMTP_*}`. Un Keycloak que ya tiene el realm creado no recibe los cambios al reiniciar, porque la importación se saltea si el realm existe; hay que aplicarlos a mano en la consola o borrar el realm y reiniciar Keycloak.
@@ -229,7 +239,7 @@ La API implementa los módulos restantes que consume el frontend:
 - `/api/v1/documentos-tecnicos`: `GET`, `POST`, `GET /{id}/archivo` y `DELETE /{id}`.
 - `/api/v1/reportes/indicadores`: `GET`.
 
-Las órdenes usan las tablas existentes del esquema `operativo`. La fecha prevista se conserva en la observación del primer registro de `historial_estado_ot`, y las sugerencias se guardan en `historial_recomendaciones_ia`. El responsable (`id_usuario_responsable`) es el jefe de mantenimiento: hasta que exista el login, `OrdenTrabajoDAO.Crear` asigna el primer usuario activo con el rol activo "Jefe de mantenimiento" y responde `400` si no hay ninguno. `Actualizar` conserva el responsable de la orden.
+Las órdenes usan las tablas existentes del esquema `operativo`. La fecha prevista se conserva en la observación del primer registro de `historial_estado_ot`, y las sugerencias se guardan en `historial_recomendaciones_ia`. El responsable (`id_usuario_responsable`) es el usuario que crea la orden (ver "Usuario actual"). Si el pedido no trae token (con `AUTH_OBLIGATORIA=false`) o el usuario de Keycloak no está registrado en SOTRA, `OrdenTrabajoDAO.Crear` asigna el primer usuario activo con el rol activo "Jefe de mantenimiento" y responde `400` si no hay ninguno. `Actualizar` conserva el responsable de la orden.
 
 Los documentos se guardan en la tabla `vectorial.documento_tecnico`, creada por la API cuando hace falta. Todo el módulo de documentos y sugerencias accede a PostgreSQL con SQL directo (Npgsql) y no con Entity Framework, porque las tablas `vectorial.*` no forman parte del modelo de EF y usan el tipo `vector` de pgvector. Por eso también la validación del activo asociado se hace con SQL sobre `operativo.activo`; el resto de los módulos (usuarios, clientes, activos, repuestos y órdenes) usa Entity Framework. El archivo se valida por su firma `%PDF-`; si se marca para sugerencias, PdfPig extrae el texto. Al procesar un documento para IA, el texto se divide en fragmentos y cada uno se guarda con su embedding de `bge-m3` en `vectorial.fragmentos` (pgvector).
 
@@ -295,7 +305,7 @@ RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones 
 - Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
 - `OrdenTrabajoDto` incluye `estadosSiguientes` (los estados a los que puede pasar) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
 
-El historial todavía no registra el usuario responsable del cambio, porque no hay login.
+El historial todavía no registra el usuario responsable del cambio: `historial_estado_ot` no tiene una columna para eso.
 
 ### Evidencias (`/api/v1/ordenes-trabajo/{id}/evidencias`)
 
@@ -305,7 +315,7 @@ RF005-05. **Requiere la tabla `operativo.evidencia_ot`, que todavía no existe:*
 - `POST` (`multipart/form-data`): campos `tipo` (`foto`, `documento` u `observacion`), `observacion`, `fechaRegistro` y `archivo`. Responde `201`. Reglas: la orden no puede estar cerrada ni cancelada (`409` `ORDEN_NO_MODIFICABLE`); `foto` y `documento` exigen archivo (`ARCHIVO_OBLIGATORIO`) y `observacion` exige texto (`OBSERVACION_OBLIGATORIA`); la fecha no puede ser futura (`FECHA_REGISTRO_INVALIDA`); tipo desconocido: `TIPO_EVIDENCIA_INVALIDO`. El archivo se valida por su contenido real (firma de JPG, PNG o PDF), no por la extensión: las fotos solo JPG o PNG y los documentos PDF, JPG o PNG (`ARCHIVO_NO_PERMITIDO`); hasta 10 MB (`413` `ARCHIVO_DEMASIADO_GRANDE`).
 - `GET /{evidenciaId}/archivo`: descarga el archivo con su tipo de contenido.
 
-El usuario que registra la evidencia (`id_usuario`) queda vacío hasta que exista el login.
+El usuario que registra la evidencia (`id_usuario`) es el del token (ver "Usuario actual"); queda vacío si el pedido no trae token o el usuario no está registrado en SOTRA.
 
 ### Registro de sugerencias de IA (RF006-05)
 
@@ -419,6 +429,18 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 `numero` (1, 2, 3…) recorre las opciones: con una consulta ambigua, cada nueva solicitud devuelve la siguiente opción.
 
 Requisito: Ollama debe tener `qwen2.5:7b` además de `bge-m3` (`ollama pull qwen2.5:7b`, unos 4,7 GB). En CPU, cada sugerencia tarda entre 25 segundos y 1 minuto; la primera, algo más, porque carga el modelo en memoria (unos 5 GB de RAM).
+
+### Migraciones
+
+`database/init/` solo corre con el volumen vacío. Los cambios de esquema para bases que ya existen están en `database/migraciones/`, numerados en el orden en que hay que aplicarlos; también están incluidos en `01-init.sql`, así que una base nueva no los necesita. Se pueden ejecutar más de una vez sin error:
+
+```bash
+docker exec -i sotra-db psql -U TU_USUARIO -d sotra < database/migraciones/001-usuario-id-keycloak.sql
+```
+
+| Migración | Cambio |
+|---|---|
+| `001-usuario-id-keycloak.sql` | Columna `id_keycloak` (uuid, única) en `operativo.usuario`. |
 
 ## Detener el sistema
 

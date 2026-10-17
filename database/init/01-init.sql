@@ -567,7 +567,8 @@ CREATE TABLE operativo.usuario (
     telefono character varying(30) NOT NULL,
     contrasena character varying(255) NOT NULL,
     estado boolean NOT NULL,
-    fecha_ingreso date DEFAULT CURRENT_DATE NOT NULL
+    fecha_ingreso date DEFAULT CURRENT_DATE NOT NULL,
+    id_keycloak uuid
 );
 
 
@@ -1071,6 +1072,14 @@ ALTER TABLE ONLY operativo.cliente
 
 ALTER TABLE ONLY operativo.usuario
     ADD CONSTRAINT "UK_TELEFONO_USUARIO" UNIQUE (telefono);
+
+
+--
+-- Name: usuario UK_ID_KEYCLOAK_USUARIO; Type: CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.usuario
+    ADD CONSTRAINT "UK_ID_KEYCLOAK_USUARIO" UNIQUE (id_keycloak);
 
 
 --

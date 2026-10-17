@@ -21,6 +21,8 @@ public partial class Usuario
 
     public DateOnly FechaIngreso { get; set; }
 
+    public Guid? IdKeycloak { get; set; }
+
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 
     public virtual ICollection<OrdenTrabajo> OrdenTrabajoIdUsuarioResponsableNavigations { get; set; } = new List<OrdenTrabajo>();

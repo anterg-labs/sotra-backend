@@ -17,11 +17,14 @@ public class RepuestosController : ControllerBase
 {
     private readonly RepuestoDAO _repuestoDao;
     private readonly MovimientoStockDAO _movimientoStockDao;
+    private readonly UsuarioActual _usuarioActual;
 
-    public RepuestosController(RepuestoDAO repuestoDao, MovimientoStockDAO movimientoStockDao)
+    public RepuestosController(RepuestoDAO repuestoDao, MovimientoStockDAO movimientoStockDao,
+        UsuarioActual usuarioActual)
     {
         _repuestoDao = repuestoDao;
         _movimientoStockDao = movimientoStockDao;
+        _usuarioActual = usuarioActual;
     }
 
     [Authorize(Policy = Politicas.StockConsultar)]
@@ -155,7 +158,7 @@ public class RepuestosController : ControllerBase
         }
 
         var movimiento = _movimientoStockDao.RegistrarIngreso(repuesto, solicitud.Cantidad, fechaMovimiento,
-            motivo, ubicacion, observaciones);
+            motivo, ubicacion, observaciones, _usuarioActual.ObtenerIdUsuario());
         return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
     }
 

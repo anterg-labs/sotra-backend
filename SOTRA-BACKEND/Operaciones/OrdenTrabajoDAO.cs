@@ -41,11 +41,13 @@ public class OrdenTrabajoDAO
         return ConsultaCompleta().FirstOrDefault(orden => orden.IdOrden == id);
     }
 
+    // idResponsable es el usuario que crea la orden. Si es null (pedido sin token, con
+    // AUTH_OBLIGATORIA=false), se asigna el primer jefe de mantenimiento activo.
     public OrdenTrabajo Crear(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
-        List<string> sugerencias, Guid? sesion)
+        List<string> sugerencias, Guid? sesion, long? idResponsable)
     {
         ValidarRelaciones(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds);
-        orden.IdUsuarioResponsable = ObtenerResponsable();
+        orden.IdUsuarioResponsable = idResponsable ?? ObtenerResponsable();
         orden.FechaCreada = DateTime.UtcNow;
 
         using var transaccion = _contexto.Database.BeginTransaction();

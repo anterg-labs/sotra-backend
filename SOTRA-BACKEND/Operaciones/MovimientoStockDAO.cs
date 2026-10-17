@@ -34,7 +34,7 @@ public class MovimientoStockDAO
     }
 
     public MovimientoStock RegistrarIngreso(Repuesto repuesto, int cantidad, DateTime fecha, string motivo,
-        string ubicacion, string? observaciones)
+        string ubicacion, string? observaciones, long? idUsuario)
     {
         using var transaccion = _contexto.Database.BeginTransaction();
 
@@ -49,6 +49,7 @@ public class MovimientoStockDAO
             Fecha = fecha,
             Cantidad = cantidad,
             IdRepuesto = repuesto.IdRepuesto,
+            IdUsuario = idUsuario,
             Motivo = motivo,
             Ubicacion = ubicacion,
             Observaciones = observaciones,

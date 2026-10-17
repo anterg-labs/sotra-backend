@@ -16,12 +16,14 @@ public class OrdenesTrabajoController : ControllerBase
 {
     private readonly OrdenTrabajoDAO _ordenTrabajoDao;
     private readonly ServicioSugerencias _servicioSugerencias;
+    private readonly UsuarioActual _usuarioActual;
 
     public OrdenesTrabajoController(OrdenTrabajoDAO ordenTrabajoDao,
-        ServicioSugerencias servicioSugerencias)
+        ServicioSugerencias servicioSugerencias, UsuarioActual usuarioActual)
     {
         _ordenTrabajoDao = ordenTrabajoDao;
         _servicioSugerencias = servicioSugerencias;
+        _usuarioActual = usuarioActual;
     }
 
     [Authorize(Policy = Politicas.OtConsultar)]
@@ -103,7 +105,7 @@ public class OrdenesTrabajoController : ControllerBase
             };
 
             var ordenCreada = _ordenTrabajoDao.Crear(orden, solicitud.FechaPrevistaEjecucion,
-                solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion);
+                solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion, _usuarioActual.ObtenerIdUsuario());
             var respuesta = OrdenTrabajoMapeador.ADto(ordenCreada);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = ordenCreada.IdOrden }, respuesta);
         }

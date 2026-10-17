@@ -26,6 +26,8 @@ builder.Services.AddScoped<ServicioOllama>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<UsuarioActual>();
 
 var autenticacionObligatoria = PoliticasDeAcceso.AutenticacionObligatoria();
 builder.Services.AgregarAutenticacionKeycloak();

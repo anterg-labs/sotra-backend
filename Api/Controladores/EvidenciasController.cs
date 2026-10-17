@@ -17,11 +17,14 @@ public class EvidenciasController : ControllerBase
 
     private readonly OrdenTrabajoDAO _ordenTrabajoDao;
     private readonly EvidenciaOtDAO _evidenciaDao;
+    private readonly UsuarioActual _usuarioActual;
 
-    public EvidenciasController(OrdenTrabajoDAO ordenTrabajoDao, EvidenciaOtDAO evidenciaDao)
+    public EvidenciasController(OrdenTrabajoDAO ordenTrabajoDao, EvidenciaOtDAO evidenciaDao,
+        UsuarioActual usuarioActual)
     {
         _ordenTrabajoDao = ordenTrabajoDao;
         _evidenciaDao = evidenciaDao;
+        _usuarioActual = usuarioActual;
     }
 
     [Authorize(Policy = Politicas.OtConsultar)]
@@ -149,6 +152,7 @@ public class EvidenciasController : ControllerBase
             evidencia.Archivo = contenido;
         }
 
+        evidencia.IdUsuario = _usuarioActual.ObtenerIdUsuario();
         var evidenciaCreada = _evidenciaDao.Crear(evidencia);
         return CreatedAtAction(nameof(ObtenerTodas), new { ordenTrabajoId = ordenTrabajoId }, ADto(evidenciaCreada));
     }
