@@ -3,6 +3,7 @@ using Api.DTOs.Clientes;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -27,42 +28,15 @@ public class ClientesController : ControllerBase
             return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<ClienteListadoDto>();
-        foreach (var cliente in _clienteDao.ListarTodo())
-        {
-            var clienteDto = ClienteMapeador.AListadoDto(cliente);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<ClienteListadoDto>.Contiene(clienteDto.RazonSocial, textoBuscado)
-                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.NombreContacto, textoBuscado)
-                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.Correo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && clienteDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(clienteDto);
-        }
-
-        if (filtros.DireccionOrden == "desc")
-        {
-            respuesta.Reverse();
-        }
-
-        return Ok(PaginaDto<ClienteListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc");
+        var (entidades, total) = _clienteDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = entidades.Select(ClienteMapeador.AListadoDto).ToList();
+        return Ok(PaginaDto<ClienteListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -86,12 +60,9 @@ public class ClientesController : ControllerBase
             var respuesta = ClienteMapeador.AListadoDto(clienteCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion)
         {
-            return Conflict(new
-            {
-                mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado."
-            });
+            return Conflict(MensajeDeDuplicado(excepcion));
         }
     }
 
@@ -111,12 +82,9 @@ public class ClientesController : ControllerBase
 
             return Ok(ClienteMapeador.AListadoDto(cliente));
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion)
         {
-            return Conflict(new
-            {
-                mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado."
-            });
+            return Conflict(MensajeDeDuplicado(excepcion));
         }
     }
 
@@ -141,5 +109,18 @@ public class ClientesController : ControllerBase
 
         var cliente = _clienteDao.SeleccionarCliente(id)!;
         return Ok(ClienteMapeador.AListadoDto(cliente));
+    }
+
+    private static object MensajeDeDuplicado(DbUpdateException excepcion)
+    {
+        var restriccion = (excepcion.InnerException as PostgresException)?.ConstraintName;
+        return restriccion switch
+        {
+            "UK_RAZON_SOCIAL_CLIENTE" => new { codigo = "RAZON_SOCIAL_DUPLICADA", mensaje = "El nombre o razón social ya está registrado." },
+            "UK_NOMBRE_CLIENTE" => new { codigo = "NOMBRE_CONTACTO_DUPLICADO", mensaje = "El nombre de contacto ya está registrado." },
+            "UK_CORREO_CLIENTE" => new { codigo = "CORREO_DUPLICADO", mensaje = "El correo electrónico ya está registrado." },
+            "UK_TELEFONO_CLIENTE" => new { codigo = "TELEFONO_DUPLICADO", mensaje = "El número telefónico ya está registrado." },
+            _ => new { codigo = "CLIENTE_DUPLICADO", mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado." },
+        };
     }
 }

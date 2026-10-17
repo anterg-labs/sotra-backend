@@ -28,48 +28,15 @@ public class ActivosController : ControllerBase
             return BadRequest(PaginaDto<ActivoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<ActivoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<ActivoDto>();
-        foreach (var activo in _activoDao.ListarTodo())
-        {
-            var activoDto = ActivoMapeador.ADto(activo);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<ActivoDto>.Contiene(activoDto.Nombre, textoBuscado)
-                               || PaginaDto<ActivoDto>.Contiene(activoDto.NumSerie, textoBuscado)
-                               || PaginaDto<ActivoDto>.Contiene(activoDto.Ubicacion, textoBuscado)
-                               || PaginaDto<ActivoDto>.Contiene(activoDto.Descripcion, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.ClienteId is not null && activoDto.ClienteId != filtros.ClienteId)
-            {
-                continue;
-            }
-
-            if (filtros.ModeloMaquinaId is not null && activoDto.ModeloMaquinaId != filtros.ModeloMaquinaId)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && activoDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(activoDto);
-        }
-
-        return Ok(PaginaDto<ActivoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroActivos(filtros.Buscar, filtros.ClienteId, filtros.ModeloMaquinaId, estado);
+        var (entidades, total) = _activoDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = entidades.Select(ActivoMapeador.ADto).ToList();
+        return Ok(PaginaDto<ActivoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -101,7 +68,7 @@ public class ActivosController : ControllerBase
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un activo con ese número de serie." });
+            return Conflict(new { codigo = "NUMERO_SERIE_DUPLICADO", mensaje = "Ya existe un activo con ese número de serie." });
         }
     }
 
@@ -129,7 +96,7 @@ public class ActivosController : ControllerBase
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un activo con ese número de serie." });
+            return Conflict(new { codigo = "NUMERO_SERIE_DUPLICADO", mensaje = "Ya existe un activo con ese número de serie." });
         }
     }
 

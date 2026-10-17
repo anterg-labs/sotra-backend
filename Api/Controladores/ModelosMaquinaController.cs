@@ -28,41 +28,15 @@ public class ModelosMaquinaController : ControllerBase
             return BadRequest(PaginaDto<ModeloMaquinaDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<ModeloMaquinaDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<ModeloMaquinaDto>();
-        foreach (var modelo in _modeloMaquinaDao.ListarTodo())
-        {
-            var modeloDto = ModeloMaquinaMapeador.ADto(modelo);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<ModeloMaquinaDto>.Contiene(modeloDto.Nombre, textoBuscado)
-                               || PaginaDto<ModeloMaquinaDto>.Contiene(modeloDto.Descripcion, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.TipoMaquinaId is not null && modeloDto.TipoMaquinaId != filtros.TipoMaquinaId)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && modeloDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(modeloDto);
-        }
-
-        return Ok(PaginaDto<ModeloMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroModelosMaquina(filtros.Buscar, filtros.TipoMaquinaId, estado);
+        var (entidades, total) = _modeloMaquinaDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = entidades.Select(ModeloMaquinaMapeador.ADto).ToList();
+        return Ok(PaginaDto<ModeloMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -91,11 +65,19 @@ public class ModelosMaquinaController : ControllerBase
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
+        catch (ConflictoDeDatosException excepcion)
+        {
+            return Conflict(new { codigo = excepcion.Codigo, mensaje = excepcion.Message });
+        }
         catch (DbUpdateException excepcion)
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un modelo de máquina con ese nombre." });
+            return Conflict(new
+            {
+                codigo = "MODELO_DUPLICADO",
+                mensaje = "Ya existe un modelo de máquina con ese nombre para el tipo seleccionado."
+            });
         }
     }
 
@@ -119,11 +101,19 @@ public class ModelosMaquinaController : ControllerBase
         {
             return BadRequest(new { mensaje = excepcion.Message });
         }
+        catch (ConflictoDeDatosException excepcion)
+        {
+            return Conflict(new { codigo = excepcion.Codigo, mensaje = excepcion.Message });
+        }
         catch (DbUpdateException excepcion)
             when (excepcion.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Conflict(new { mensaje = "Ya existe un modelo de máquina con ese nombre." });
+            return Conflict(new
+            {
+                codigo = "MODELO_DUPLICADO",
+                mensaje = "Ya existe un modelo de máquina con ese nombre para el tipo seleccionado."
+            });
         }
     }
 

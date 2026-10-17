@@ -25,6 +25,30 @@ public class ModeloMaquinaDAO
             .ToList();
     }
 
+    public (List<ModeloMaquina> Elementos, int Total) ListarPagina(FiltroModelosMaquina filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.ModeloMaquinas.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(m => EF.Functions.ILike(m.Nombre, patron)
+                                           || (m.Descripcion != null && EF.Functions.ILike(m.Descripcion, patron)));
+        }
+
+        if (filtro.TipoMaquinaId is { } tipoMaquinaId)
+        {
+            consulta = consulta.Where(m => m.IdTipoMaquina == tipoMaquinaId);
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(m => m.Activo == estado);
+        }
+
+        return ConsultasDeTexto.Paginar(consulta.OrderBy(m => m.IdModeloMaquina), pagina, tamanoPagina);
+    }
+
     public ModeloMaquina? SeleccionarModeloMaquina(long id)
     {
         return _contexto.ModeloMaquinas
@@ -34,6 +58,7 @@ public class ModeloMaquinaDAO
     public ModeloMaquina InsertarModeloMaquina(ModeloMaquina modeloMaquina)
     {
         ValidarTipoMaquinaActivo(modeloMaquina.IdTipoMaquina);
+        ValidarNombreDisponible(modeloMaquina.Nombre, modeloMaquina.IdTipoMaquina, null);
         _contexto.ModeloMaquinas.Add(modeloMaquina);
         _contexto.SaveChanges();
         return modeloMaquina;
@@ -46,6 +71,7 @@ public class ModeloMaquinaDAO
         if (modeloExistente is null) return false;
 
         ValidarTipoMaquinaActivo(modeloMaquina.IdTipoMaquina);
+        ValidarNombreDisponible(modeloMaquina.Nombre, modeloMaquina.IdTipoMaquina, modeloExistente.IdModeloMaquina);
         modeloExistente.Nombre = modeloMaquina.Nombre;
         modeloExistente.IdTipoMaquina = modeloMaquina.IdTipoMaquina;
         modeloExistente.Descripcion = modeloMaquina.Descripcion;
@@ -77,6 +103,18 @@ public class ModeloMaquinaDAO
         _contexto.ModeloMaquinas.Remove(modeloExistente);
         _contexto.SaveChanges();
         return true;
+    }
+
+    private void ValidarNombreDisponible(string nombre, long idTipoMaquina, long? idModeloActual)
+    {
+        var nombreNormalizado = nombre.Trim().ToLower();
+        var existe = _contexto.ModeloMaquinas.AsNoTracking().Any(modelo =>
+            modelo.IdTipoMaquina == idTipoMaquina
+            && modelo.IdModeloMaquina != idModeloActual
+            && modelo.Nombre.ToLower() == nombreNormalizado);
+        if (existe)
+            throw new ConflictoDeDatosException("MODELO_DUPLICADO",
+                "Ya existe un modelo de máquina con ese nombre para el tipo seleccionado.");
     }
 
     private void ValidarTipoMaquinaActivo(long idTipoMaquina)

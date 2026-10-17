@@ -45,27 +45,20 @@ public class OrdenesTrabajoController : ControllerBase
             });
         }
 
-        var ordenes = new List<OrdenTrabajoDto>();
-        foreach (var orden in _ordenTrabajoDao.ListarTodo())
+        var filtro = new FiltroOrdenesTrabajo(
+            filtros.Buscar, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId, filtros.Estado,
+            filtros.Prioridad, filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo",
+            filtros.FechaDesde, filtros.FechaHasta, filtros.ConSugerencias,
+            filtros.OrdenarPor == "creadoEn", filtros.DireccionOrden == "desc");
+
+        if (filtros.Tipo is not (null or "" or "preventivo" or "correctivo"))
         {
-            var ordenDto = OrdenTrabajoMapeador.ADto(orden);
-            if (CumpleFiltros(ordenDto, filtros))
-            {
-                ordenes.Add(ordenDto);
-            }
+            return Ok(PaginaDto<OrdenTrabajoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        if (filtros.OrdenarPor == "creadoEn")
-        {
-            ordenes = ordenes.OrderBy(orden => orden.CreadoEn).ToList();
-        }
-
-        if (filtros.DireccionOrden == "desc")
-        {
-            ordenes.Reverse();
-        }
-
-        return Ok(PaginaDto<OrdenTrabajoDto>.Crear(ordenes, filtros.Pagina, filtros.TamanoPagina));
+        var (ordenes, total) = _ordenTrabajoDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = ordenes.Select(OrdenTrabajoMapeador.ADto).ToList();
+        return Ok(PaginaDto<OrdenTrabajoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
@@ -281,77 +274,6 @@ public class OrdenesTrabajoController : ControllerBase
                 mensaje = "No se pudo obtener la sugerencia técnica."
             });
         }
-    }
-
-    private static bool CumpleFiltros(OrdenTrabajoDto orden, FiltrosOrdenesTrabajoDto filtros)
-    {
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
-        {
-            var textoBuscado = filtros.Buscar.Trim().ToLower();
-            var nombreTecnico = "";
-            if (orden.NombreTecnico is not null)
-            {
-                nombreTecnico = orden.NombreTecnico;
-            }
-
-            var coincide = orden.Id.ToString() == textoBuscado
-                           || orden.Descripcion.ToLower().Contains(textoBuscado)
-                           || orden.NombreCliente.ToLower().Contains(textoBuscado)
-                           || orden.NombreActivo.ToLower().Contains(textoBuscado)
-                           || nombreTecnico.ToLower().Contains(textoBuscado);
-            if (!coincide)
-            {
-                return false;
-            }
-        }
-
-        if (filtros.ClienteId is not null && orden.ClienteId != filtros.ClienteId)
-        {
-            return false;
-        }
-
-        if (filtros.ActivoId is not null && orden.ActivoId != filtros.ActivoId)
-        {
-            return false;
-        }
-
-        if (filtros.TecnicoId is not null && orden.TecnicoId != filtros.TecnicoId)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(filtros.Estado) && orden.Estado != filtros.Estado)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(filtros.Prioridad) && orden.Prioridad != filtros.Prioridad)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(filtros.Tipo) && orden.Tipo != filtros.Tipo)
-        {
-            return false;
-        }
-
-        if (filtros.ConSugerencias == true && orden.Sugerencias.Count == 0)
-        {
-            return false;
-        }
-
-        var fechaCreacion = DateOnly.FromDateTime(orden.CreadoEn);
-        if (filtros.FechaDesde is not null && fechaCreacion < filtros.FechaDesde)
-        {
-            return false;
-        }
-
-        if (filtros.FechaHasta is not null && fechaCreacion > filtros.FechaHasta)
-        {
-            return false;
-        }
-
-        return true;
     }
 
     private static void ValidarFecha(DateOnly fecha)

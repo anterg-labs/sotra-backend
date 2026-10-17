@@ -30,54 +30,15 @@ public class RepuestosController : ControllerBase
             return BadRequest(PaginaDto<RepuestoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<RepuestoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var ubicacionBuscada = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Ubicacion))
-        {
-            ubicacionBuscada = filtros.Ubicacion.Trim().ToLower();
-        }
-
-        var respuesta = new List<RepuestoDto>();
-        foreach (var repuesto in _repuestoDao.ListarTodo())
-        {
-            var repuestoDto = RepuestoMapeador.ADto(repuesto);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<RepuestoDto>.Contiene(repuestoDto.Codigo, textoBuscado)
-                               || PaginaDto<RepuestoDto>.Contiene(repuestoDto.Nombre, textoBuscado)
-                               || PaginaDto<RepuestoDto>.Contiene(repuestoDto.Marca, textoBuscado)
-                               || PaginaDto<RepuestoDto>.Contiene(repuestoDto.Descripcion, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && repuestoDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            if (ubicacionBuscada != "" && !PaginaDto<RepuestoDto>.Contiene(repuestoDto.Ubicacion, ubicacionBuscada))
-            {
-                continue;
-            }
-
-            if (filtros.BajoStock == true && repuestoDto.Cantidad > repuestoDto.CantidadMinima)
-            {
-                continue;
-            }
-
-            respuesta.Add(repuestoDto);
-        }
-
-        return Ok(PaginaDto<RepuestoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroRepuestos(filtros.Buscar, estado, filtros.Ubicacion, filtros.BajoStock);
+        var (entidades, total) = _repuestoDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var elementos = entidades.Select(RepuestoMapeador.ADto).ToList();
+        return Ok(PaginaDto<RepuestoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpPost("{id:long}/ingresos")]

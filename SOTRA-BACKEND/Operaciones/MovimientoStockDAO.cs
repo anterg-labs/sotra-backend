@@ -24,6 +24,61 @@ public class MovimientoStockDAO
             .ToList();
     }
 
+    public (List<MovimientoStock> Elementos, int Total) ListarPagina(
+        FiltroMovimientosStock filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.MovimientoStocks.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(m => EF.Functions.ILike(m.IdRepuestoNavigation.Codigo, patron)
+                                           || EF.Functions.ILike(m.IdRepuestoNavigation.Nombre, patron)
+                                           || (m.Motivo != null && EF.Functions.ILike(m.Motivo, patron)));
+        }
+
+        if (filtro.RepuestoId is { } repuestoId)
+        {
+            consulta = consulta.Where(m => m.IdRepuesto == repuestoId);
+        }
+
+        if (!string.IsNullOrEmpty(filtro.Tipo))
+        {
+            consulta = consulta.Where(m => m.Tipo == filtro.Tipo);
+        }
+
+        if (filtro.FechaDesde is { } desde)
+        {
+            var inicio = desde.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            consulta = consulta.Where(m => m.Fecha >= inicio);
+        }
+
+        if (filtro.FechaHasta is { } hasta)
+        {
+            var finExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            consulta = consulta.Where(m => m.Fecha < finExclusivo);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Ubicacion))
+        {
+            var patronUbicacion = ConsultasDeTexto.PatronContiene(filtro.Ubicacion);
+            consulta = consulta.Where(m => m.Ubicacion != null && EF.Functions.ILike(m.Ubicacion, patronUbicacion));
+        }
+
+        if (filtro.UsuarioId is { } usuarioId)
+        {
+            consulta = consulta.Where(m => m.IdUsuario == usuarioId);
+        }
+
+        var ordenada = consulta
+            .Include(m => m.IdRepuestoNavigation)
+            .Include(m => m.IdUsuarioNavigation)
+            .OrderByDescending(m => m.Fecha)
+            .ThenByDescending(m => m.IdMovimiento);
+
+        return ConsultasDeTexto.Paginar(ordenada, pagina, tamanoPagina);
+    }
+
     public MovimientoStock? Seleccionar(long id)
     {
         return _contexto.MovimientoStocks

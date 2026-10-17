@@ -26,6 +26,34 @@ public class UsuarioDAO
             .ToList();
     }
 
+    public (List<Usuario> Elementos, int Total) ListarPagina(FiltroUsuarios filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.Usuarios.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(u => EF.Functions.ILike(u.Nombre + " " + u.Apellido, patron)
+                                           || EF.Functions.ILike(u.Mail, patron));
+        }
+
+        if (filtro.RolId is { } rolId)
+        {
+            consulta = consulta.Where(u => u.IdRols.Any(rol => rol.IdRol == rolId));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(u => u.Estado == estado);
+        }
+
+        var ordenada = filtro.Descendente
+            ? consulta.OrderByDescending(u => u.IdUsuario)
+            : consulta.OrderBy(u => u.IdUsuario);
+
+        return ConsultasDeTexto.Paginar(ordenada.Include(u => u.IdRols), pagina, tamanoPagina);
+    }
+
     public Usuario? SeleccionarUsuario(long id)
     {
         return _contexto.Usuarios

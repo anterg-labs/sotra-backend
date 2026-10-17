@@ -36,6 +36,93 @@ public class OrdenTrabajoDAO
         return ConsultaCompleta().AsNoTracking().OrderBy(orden => orden.IdOrden).ToList();
     }
 
+    public (List<OrdenTrabajo> Elementos, int Total) ListarPagina(
+        FiltroOrdenesTrabajo filtro, int pagina, int tamanoPagina)
+    {
+        var consulta = _contexto.OrdenTrabajos.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var texto = filtro.Buscar.Trim();
+            var patron = ConsultasDeTexto.PatronContiene(texto);
+            var esNumero = long.TryParse(texto, out var idBuscado);
+            consulta = consulta.Where(o => (esNumero && o.IdOrden == idBuscado)
+                || EF.Functions.ILike(o.Descripcion, patron)
+                || EF.Functions.ILike(o.IdClienteNavigation.RazonSocial, patron)
+                || EF.Functions.ILike(o.IdActivoNavigation.Nombre ?? "", patron)
+                || EF.Functions.ILike(o.IdActivoNavigation.NumSerie, patron)
+                || (o.IdUsuarioTecnicoNavigation != null
+                    && EF.Functions.ILike(o.IdUsuarioTecnicoNavigation.Nombre + " " + o.IdUsuarioTecnicoNavigation.Apellido, patron)));
+        }
+
+        if (filtro.ClienteId is { } clienteId) consulta = consulta.Where(o => o.IdCliente == clienteId);
+        if (filtro.ActivoId is { } activoId) consulta = consulta.Where(o => o.IdActivo == activoId);
+        if (filtro.TecnicoId is { } tecnicoId) consulta = consulta.Where(o => o.IdUsuarioTecnico == tecnicoId);
+
+        if (!string.IsNullOrEmpty(filtro.Estado))
+        {
+            var estado = filtro.Estado;
+            consulta = consulta.Where(o => (o.HistorialEstadoOts
+                .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada") == estado);
+        }
+
+        consulta = AplicarPrioridad(consulta, filtro.Prioridad);
+
+        if (filtro.EsPreventivo is { } esPreventivo) consulta = consulta.Where(o => o.Tipo == esPreventivo);
+
+        if (filtro.ConSugerencias == true)
+        {
+            consulta = consulta.Where(o => o.HistorialRecomendacionesIa.Any(r => r.Estado));
+        }
+
+        if (filtro.FechaDesde is { } desde)
+        {
+            var inicio = desde.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            consulta = consulta.Where(o => o.FechaCreada >= inicio);
+        }
+
+        if (filtro.FechaHasta is { } hasta)
+        {
+            var finExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            consulta = consulta.Where(o => o.FechaCreada < finExclusivo);
+        }
+
+        IOrderedQueryable<OrdenTrabajo> ordenada;
+        if (filtro.OrdenarPorCreacion)
+        {
+            ordenada = filtro.Descendente
+                ? consulta.OrderByDescending(o => o.FechaCreada).ThenByDescending(o => o.IdOrden)
+                : consulta.OrderBy(o => o.FechaCreada).ThenBy(o => o.IdOrden);
+        }
+        else
+        {
+            ordenada = filtro.Descendente ? consulta.OrderByDescending(o => o.IdOrden) : consulta.OrderBy(o => o.IdOrden);
+        }
+
+        var total = ordenada.Count();
+        var idsDeLaPagina = ordenada.Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina)
+            .Select(o => o.IdOrden).ToList();
+
+        var porId = ConsultaCompleta().AsNoTracking().AsSplitQuery()
+            .Where(o => idsDeLaPagina.Contains(o.IdOrden))
+            .ToDictionary(o => o.IdOrden);
+        var elementos = idsDeLaPagina.Select(id => porId[id]).ToList();
+        return (elementos, total);
+    }
+
+    private static IQueryable<OrdenTrabajo> AplicarPrioridad(IQueryable<OrdenTrabajo> consulta, string? prioridad)
+    {
+        return prioridad switch
+        {
+            "baja" => consulta.Where(o => o.Prioridad < 3),
+            "media" => consulta.Where(o => o.Prioridad >= 3 && o.Prioridad < 5),
+            "alta" => consulta.Where(o => o.Prioridad >= 5),
+            null or "" => consulta,
+            _ => consulta.Where(o => false),
+        };
+    }
+
     public OrdenTrabajo? Seleccionar(long id)
     {
         return ConsultaCompleta().FirstOrDefault(orden => orden.IdOrden == id);
