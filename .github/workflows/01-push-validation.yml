@@ -2,9 +2,14 @@ name: Validar backend
 
 on:
   push:
-    branches-ignore:
-      - main
-      - qa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-push-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -30,3 +35,32 @@ jobs:
 
       - name: Ejecutar pruebas
         run: dotnet test --no-build --configuration Release
+
+  trivy:
+    name: Analizar dependencias y archivos
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      # Trivy identifica las dependencias NuGet mediante packages.lock.json.
+      # Los archivos se generan temporalmente en el runner, sin commitearlos.
+      - name: Generar archivos de dependencias NuGet
+        run: dotnet restore --use-lock-file
+
+      - name: Ejecutar Trivy filesystem
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
