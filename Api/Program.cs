@@ -45,6 +45,7 @@ builder.Services.AddScoped<ClienteDAO>();
 builder.Services.AddScoped<TipoMaquinaDAO>();
 builder.Services.AddScoped<ModeloMaquinaDAO>();
 builder.Services.AddScoped<RolDAO>();
+builder.Services.AddScoped<TerminosDAO>();
 builder.Services.AddScoped<ActivoDAO>();
 builder.Services.AddScoped<RepuestoDAO>();
 builder.Services.AddScoped<MovimientoStockDAO>();
