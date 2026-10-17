@@ -38,6 +38,9 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       RERANKER_MODELO_RUTA: /modelos/model_quantized.onnx
       RERANKER_TOKENIZADOR_RUTA: /modelos/tokenizer.json
+      KEYCLOAK_EMISOR: http://localhost:${KC_PORT}/realms/sotra
+      KEYCLOAK_METADATA: http://keycloak:8080/realms/sotra/.well-known/openid-configuration
+      KEYCLOAK_AUDIENCIA: sotra-api
     ports:
       - "${API_PORT}:8080"
     volumes:

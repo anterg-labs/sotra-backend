@@ -1,6 +1,7 @@
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Operaciones;
 using Api.Servicios;
+using Api.Seguridad;
 
 DotNetEnv.Env.TraversePath().Load();
 
@@ -25,6 +26,9 @@ builder.Services.AddScoped<ServicioOllama>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
+
+builder.Services.AgregarAutenticacionKeycloak();
+builder.Services.AddAuthorization();
 
 builder.Services.AddHealthChecks();
 
@@ -61,6 +65,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseRouting();
 app.UseCors("FrontendPolicy");
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

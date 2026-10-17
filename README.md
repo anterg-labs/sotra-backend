@@ -138,6 +138,31 @@ Pedir un token de prueba con `sotra-postman`:
 curl -d client_id=sotra-postman -d grant_type=password -d username=CORREO_DEL_USUARIO -d password=PASSWORD_DEL_USUARIO http://localhost:9080/realms/sotra/protocol/openid-connect/token
 ```
 
+### Validación de tokens en la API
+
+La API acepta los tokens de acceso que emite Keycloak para el realm `sotra` (`Microsoft.AspNetCore.Authentication.JwtBearer`, configurado en `Api/Seguridad/AutenticacionKeycloak.cs`). Un token es válido si:
+
+- está firmado con una clave del realm (la API descarga las claves públicas de Keycloak y verifica la firma sin consultarlo en cada pedido);
+- su emisor (`iss`) es `KEYCLOAK_EMISOR`;
+- su audiencia (`aud`) incluye `KEYCLOAK_AUDIENCIA` (`sotra-api`);
+- no venció (el token de acceso dura 5 minutos).
+
+| Variable | Valor en Docker | Para qué |
+|---|---|---|
+| `KEYCLOAK_EMISOR` | `http://localhost:9080/realms/sotra` | Emisor que deben tener los tokens. Es la URL pública de Keycloak, la que ve el navegador. |
+| `KEYCLOAK_METADATA` | `http://keycloak:8080/realms/sotra/.well-known/openid-configuration` | De dónde descarga la API los metadatos y las claves. Dentro de Docker usa la red interna; Keycloak responde con direcciones internas gracias a `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`. |
+| `KEYCLOAK_AUDIENCIA` | `sotra-api` | Audiencia exigida. |
+
+`compose.yml` define las tres. Para correr la API fuera de Docker (`dotnet run`) se toman del `.env`, con `KEYCLOAK_METADATA` apuntando a `localhost:9080`.
+
+Keycloak manda los roles del realm dentro de `realm_access.roles`; la API los convierte en roles de .NET, así que se pueden usar con `[Authorize(Roles = "tecnico")]`. El nombre de usuario (`User.Identity.Name`) es `preferred_username`, que en este realm es el correo.
+
+`GET /api/v1/sesion` exige token y devuelve el usuario que inició sesión: `idKeycloak` (el `sub` del token), `correo`, `nombre` y `roles` (solo los de SOTRA). Sin token o con un token inválido responde `401`. El resto de los endpoints todavía no exige token.
+
+```bash
+curl -H "Authorization: Bearer TOKEN" http://localhost:8081/api/v1/sesion
+```
+
 ### Actualizar `realm-sotra.json`
 
 Si se cambia la configuración del realm desde la consola, hay que volver a exportarla para que quede versionada: **Realm settings** → **Action** → **Partial export**, con **Include groups and roles** e **Include clients** activados, y reemplazar `keycloak/realm-sotra.json` con el archivo descargado. La exportación trae el correo con los valores reales de quien exporta (su cuenta de Gmail); antes de subirla hay que volver a dejar el bloque `smtpServer` con las variables `${KC_SMTP_*}`. Un Keycloak que ya tiene el realm creado no recibe los cambios al reiniciar, porque la importación se saltea si el realm existe; hay que aplicarlos a mano en la consola o borrar el realm y reiniciar Keycloak.
