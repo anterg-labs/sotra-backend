@@ -16,8 +16,5 @@ public class UsuarioCrearDto
     [Required, MaxLength(30)]
     public required string Telefono { get; init; }
 
-    [Required]
-    public required string Contrasena { get; init; }
-
     public List<long> IdsRol { get; init; } = [];
 }

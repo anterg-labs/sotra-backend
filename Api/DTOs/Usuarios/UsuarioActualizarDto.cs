@@ -23,7 +23,4 @@ public class UsuarioActualizarDto
     public required string Estado { get; init; }
 
     public required DateOnly FechaIngreso { get; init; }
-
-    [MaxLength(255)]
-    public string? Contrasena { get; init; }
 }

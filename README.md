@@ -194,6 +194,34 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 curl -H "Authorization: Bearer TOKEN" http://localhost:8081/api/v1/sesion
 ```
 
+### Gestión de usuarios con Keycloak
+
+Los datos de cada usuario (nombre, apellido, correo, teléfono, fecha de ingreso, estado y roles) se guardan en `operativo.usuario`, que es la fuente principal. Lo referido al login (contraseña, cambio obligatorio de contraseña, bloqueo por intentos y sesiones) vive solo en Keycloak. `id_keycloak` vincula los dos. La API copia a Keycloak lo que necesita para el login: correo (que es el nombre de usuario), nombre, apellido, roles y si está habilitado. No hace falta tocar los usuarios desde la consola de Keycloak.
+
+`Api/Servicios/ServicioKeycloakUsuarios.cs` usa la API de administración de Keycloak con la cuenta de servicio de `sotra-backend-admin`, que solo tiene `manage-users` y `view-users`.
+
+| Endpoint | En la base | En Keycloak |
+|---|---|---|
+| `POST /usuarios` | Crea el usuario. Ya no recibe contraseña. | Crea el usuario sin contraseña, con la acción "cambiar contraseña" pendiente, y le envía un correo con el enlace para elegirla (válido 3 días). Si ya existía un usuario con ese correo, lo vincula y no envía el correo. |
+| `PUT /usuarios/{id}` | Actualiza los datos y los roles. | Copia roles, nombre, correo y estado. Si queda inactivo, se cierran sus sesiones. |
+| `PATCH /usuarios/{id}` (`inactivo`) | Baja lógica. | Lo deshabilita (no puede iniciar sesión) y cierra sus sesiones. |
+| `POST /usuarios/{id}/restablecer-contrasena` | — | Le envía el correo para elegir una contraseña nueva. Responde `204`; `409` (`USUARIO_SIN_ACCESO`) si no está en Keycloak y `409` (`USUARIO_INACTIVO`) si está dado de baja. |
+
+Cada operación corre en una transacción de la base que solo se confirma si Keycloak también aceptó el cambio. Si en un alta falla la base después de crear el usuario en Keycloak, se borra de Keycloak. Si Keycloak no responde, la API devuelve `502` (`KEYCLOAK_NO_DISPONIBLE`). Si falla solo el envío del correo del alta, el usuario queda creado y el administrador puede reenviarlo con `restablecer-contrasena`.
+
+Los roles de `operativo.rol` se traducen a los de Keycloak (Administrador → `administrador`, Jefe de mantenimiento → `jefe_mantenimiento`, Técnico → `tecnico`, Pañolero → `panolero`); los roles inactivos no se copian. Los usuarios cargados antes de esta integración no tienen `id_keycloak`: se modifican solo en la base y no pueden iniciar sesión.
+
+Variables (en Docker las define `compose.yml`, salvo el secreto):
+
+| Variable | Valor |
+|---|---|
+| `KEYCLOAK_ADMIN_SECRETO` | Secreto de `sotra-backend-admin` (realm `sotra` → **Clients** → `sotra-backend-admin` → **Credentials**). Va en el `.env`. |
+| `KEYCLOAK_ADMIN_URL` | `http://keycloak:8080` en Docker. |
+| `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENTE` | `sotra`, `sotra-backend-admin`. |
+| `KEYCLOAK_CLIENTE_FRONTEND` | `sotra-frontend`: después de elegir la contraseña, el usuario vuelve a `FRONTEND_ORIGIN`. |
+
+Si falta alguna, la API arranca igual y solo fallan las operaciones de usuarios, con `502`.
+
 ### Usuario actual
 
 Cada usuario de SOTRA (`operativo.usuario`) se vincula con su usuario de Keycloak por la columna `id_keycloak` (el `sub` del token, única). `Api/Seguridad/UsuarioActual.cs` traduce el token de cada pedido al `id_usuario`:

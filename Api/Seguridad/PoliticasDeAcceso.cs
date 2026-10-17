@@ -48,6 +48,29 @@ public static class Roles
     public const string JefeMantenimiento = "jefe_mantenimiento";
     public const string Tecnico = "tecnico";
     public const string Panolero = "panolero";
+
+    // Rol de Keycloak que corresponde a cada rol de operativo.rol.
+    private static readonly Dictionary<string, string> RolPorRolDeSotra = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Administrador"] = Administrador,
+        ["Jefe de mantenimiento"] = JefeMantenimiento,
+        ["Técnico"] = Tecnico,
+        ["Pañolero"] = Panolero
+    };
+
+    public static List<string> DesdeRolesDeSotra(IEnumerable<string> nombresDeRoles)
+    {
+        var roles = new List<string>();
+        foreach (var nombre in nombresDeRoles)
+        {
+            if (RolPorRolDeSotra.TryGetValue(nombre, out var rol))
+            {
+                roles.Add(rol);
+            }
+        }
+
+        return roles;
+    }
 }
 
 public static class PoliticasDeAcceso

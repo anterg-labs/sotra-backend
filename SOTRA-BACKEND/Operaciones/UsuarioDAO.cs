@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using SOTRA_BACKEND.Seguridad;
+using Microsoft.EntityFrameworkCore.Storage;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
 
@@ -33,6 +33,20 @@ public class UsuarioDAO
             .FirstOrDefault(u => u.IdUsuario == id);
     }
 
+    // Permite que el alta, la modificación y la baja confirmen la base solo si Keycloak
+    // también aceptó el cambio.
+    public IDbContextTransaction IniciarTransaccion()
+    {
+        return _contexto.Database.BeginTransaction();
+    }
+
+    public void GuardarIdKeycloak(long idUsuario, Guid idKeycloak)
+    {
+        var usuario = _contexto.Usuarios.First(u => u.IdUsuario == idUsuario);
+        usuario.IdKeycloak = idKeycloak;
+        _contexto.SaveChanges();
+    }
+
     // Busca el usuario de SOTRA vinculado a un usuario de Keycloak. Si todavía no hay
     // ninguno, vincula al usuario sin vincular que tenga el mismo correo.
     public Usuario? SeleccionarOVincularPorKeycloak(Guid idKeycloak, string? correo)
@@ -61,15 +75,13 @@ public class UsuarioDAO
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
 
         var rolesValidos = ObtenerRolesValidos(idsRolNormalizados);
-        var hash = Contrasenas.CrearHash(usuario.Contrasena);
         usuario.IdRols = rolesValidos;
-        usuario.Contrasena = hash;
         _contexto.Usuarios.Add(usuario);
         _contexto.SaveChanges();
         return usuario;
     }
 
-    public bool ActualizarUsuario(Usuario usuario, IEnumerable<long>? idsRol, string? nuevaContrasena = null)
+    public bool ActualizarUsuario(Usuario usuario, IEnumerable<long>? idsRol)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
         var usuarioExistente = _contexto.Usuarios.Include(u => u.IdRols)
@@ -78,12 +90,10 @@ public class UsuarioDAO
 
         var rolesAAgregar = ObtenerRolesValidos(idsRolNormalizados
             .Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList());
-        var hash = nuevaContrasena is null ? null : Contrasenas.CrearHash(nuevaContrasena);
         usuarioExistente.Nombre = usuario.Nombre;
         usuarioExistente.Apellido = usuario.Apellido;
         usuarioExistente.Mail = usuario.Mail;
         usuarioExistente.Telefono = usuario.Telefono;
-        if (hash is not null) usuarioExistente.Contrasena = hash;
         usuarioExistente.Estado = usuario.Estado;
         usuarioExistente.FechaIngreso = usuario.FechaIngreso;
 

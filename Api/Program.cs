@@ -28,6 +28,7 @@ builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<UsuarioActual>();
+builder.Services.AddSingleton<ServicioKeycloakUsuarios>();
 
 var autenticacionObligatoria = PoliticasDeAcceso.AutenticacionObligatoria();
 builder.Services.AgregarAutenticacionKeycloak();
