@@ -6,6 +6,7 @@ namespace Api.PruebasUnitarias;
 /// <summary>El corpus de <c>herramientas-plan/ia/corpus</c> debe poder leerse con el extractor real de PDF.</summary>
 public class CorpusDeEvaluacionIaPruebas
 {
+    // El corpus vive fuera del repositorio del backend: sin él (por ejemplo en CI) las pruebas se omiten.
     private static string RutaDelCorpus
     {
         get
@@ -16,9 +17,12 @@ public class CorpusDeEvaluacionIaPruebas
                 carpeta = carpeta.Parent;
             }
 
-            return carpeta is null
-                ? throw new InvalidOperationException("No se encontró herramientas-plan.")
-                : Path.Combine(carpeta.FullName, "herramientas-plan", "ia", "corpus");
+            if (carpeta is null)
+            {
+                Assert.Ignore("No se encontró herramientas-plan: el corpus de evaluación no está disponible.");
+            }
+
+            return Path.Combine(carpeta!.FullName, "herramientas-plan", "ia", "corpus");
         }
     }
 
