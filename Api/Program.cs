@@ -72,9 +72,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy.WithOrigins(frontendOrigin)
-              .WithHeaders("Content-Type", "Authorization", CorrelacionMiddleware.Cabecera)
+              .WithHeaders("Content-Type", "Authorization", "If-Match", CorrelacionMiddleware.Cabecera)
               .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
-              .WithExposedHeaders(CorrelacionMiddleware.Cabecera, "Content-Disposition", "Retry-After");
+              .WithExposedHeaders(CorrelacionMiddleware.Cabecera, "Content-Disposition", "Retry-After", "ETag");
     });
 });
 

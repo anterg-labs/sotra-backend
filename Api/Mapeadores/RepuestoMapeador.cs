@@ -1,5 +1,6 @@
 using Api.DTOs.Repuestos;
 using SOTRA_BACKEND.Modelos;
+using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Mapeadores;
 
@@ -27,7 +28,6 @@ public static class RepuestoMapeador
         repuesto.Descripcion = solicitud.Descripcion;
         repuesto.Marca = solicitud.Marca;
         repuesto.Ubicacion = solicitud.Ubicacion;
-        repuesto.Cantidad = solicitud.Cantidad;
         repuesto.CantMin = solicitud.CantidadMinima;
     }
 
@@ -43,7 +43,8 @@ public static class RepuestoMapeador
             Ubicacion = repuesto.Ubicacion ?? "",
             Cantidad = repuesto.Cantidad,
             CantidadMinima = repuesto.CantMin ?? 0,
-            Estado = repuesto.Estado ? "activo" : "inactivo"
+            Estado = repuesto.Estado ? "activo" : "inactivo",
+            EstadoStock = EstadosStock.Calcular(repuesto.Cantidad, repuesto.CantMin)
         };
     }
 }

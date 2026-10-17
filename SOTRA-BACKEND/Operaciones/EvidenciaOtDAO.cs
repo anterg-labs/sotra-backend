@@ -13,9 +13,9 @@ public class EvidenciaOtDAO
         _contexto = contexto;
     }
 
-    public List<EvidenciaOt> ListarDeOrden(long idOrden)
+    public async Task<List<EvidenciaOt>> ListarDeOrdenAsync(long idOrden, CancellationToken cancelacion)
     {
-        return _contexto.EvidenciasOt
+        return await _contexto.EvidenciasOt
             .AsNoTracking()
             .Where(evidencia => evidencia.IdOrden == idOrden)
             .OrderBy(evidencia => evidencia.IdEvidencia)
@@ -31,21 +31,21 @@ public class EvidenciaOtDAO
                 NombreArchivo = evidencia.NombreArchivo,
                 TipoContenido = evidencia.TipoContenido
             })
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 
-    public EvidenciaOt? Seleccionar(long idOrden, long idEvidencia)
+    public async Task<EvidenciaOt?> SeleccionarAsync(long idOrden, long idEvidencia, CancellationToken cancelacion)
     {
-        return _contexto.EvidenciasOt
+        return await _contexto.EvidenciasOt
             .AsNoTracking()
-            .FirstOrDefault(evidencia => evidencia.IdOrden == idOrden && evidencia.IdEvidencia == idEvidencia);
+            .FirstOrDefaultAsync(evidencia => evidencia.IdOrden == idOrden && evidencia.IdEvidencia == idEvidencia, cancelacion);
     }
 
-    public EvidenciaOt Crear(EvidenciaOt evidencia)
+    public async Task<EvidenciaOt> CrearAsync(EvidenciaOt evidencia, CancellationToken cancelacion)
     {
         evidencia.CreadoEn = DateTime.UtcNow;
         _contexto.EvidenciasOt.Add(evidencia);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return evidencia;
     }
 }

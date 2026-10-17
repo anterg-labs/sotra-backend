@@ -20,7 +20,7 @@ public class MovimientosStockController : ControllerBase
 
     [HttpGet]
     [Permiso("stock.consultar")]
-    public ActionResult<PaginaDto<MovimientoStockDto>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros)
+    public async Task<ActionResult<PaginaDto<MovimientoStockDto>>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<MovimientoStockDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
@@ -38,16 +38,16 @@ public class MovimientosStockController : ControllerBase
         }
 
         var filtro = new FiltroMovimientosStock(filtros.Buscar, filtros.RepuestoId, filtros.Tipo, filtros.FechaDesde, filtros.FechaHasta, filtros.Ubicacion, filtros.UsuarioId);
-        var (entidades, total) = _movimientoStockDao.ListarPagina(filtro, filtros.Pagina, filtros.TamanoPagina);
+        var (entidades, total) = await _movimientoStockDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(MovimientoStockMapeador.ADto).ToList();
         return Ok(PaginaDto<MovimientoStockDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
     [Permiso("stock.consultar")]
-    public ActionResult<MovimientoStockDto> ObtenerPorId(long id)
+    public async Task<ActionResult<MovimientoStockDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
-        var movimiento = _movimientoStockDao.Seleccionar(id);
+        var movimiento = await _movimientoStockDao.SeleccionarAsync(id, cancelacion);
         if (movimiento is null)
         {
             return NotFound();

@@ -446,7 +446,9 @@ CREATE TABLE operativo.repuesto (
     ubicacion character varying(120),
     marca character varying(100),
     id_repuesto bigint NOT NULL,
-    cant_min integer
+    cant_min integer,
+    CONSTRAINT "CK_REPUESTO_CANTIDAD_NO_NEGATIVA" CHECK ((cantidad >= 0)),
+    CONSTRAINT "CK_REPUESTO_CANT_MIN_NO_NEGATIVA" CHECK (((cant_min IS NULL) OR (cant_min >= 0)))
 );
 
 

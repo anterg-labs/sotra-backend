@@ -25,13 +25,6 @@ public static class ConsultasDeTexto
         return true;
     }
 
-    public static (List<T> Elementos, int Total) Paginar<T>(IQueryable<T> consulta, int pagina, int tamanoPagina)
-    {
-        var total = consulta.Count();
-        var elementos = consulta.Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina).ToList();
-        return (elementos, total);
-    }
-
     public static async Task<(List<T> Elementos, int Total)> PaginarAsync<T>(
         IQueryable<T> consulta, int pagina, int tamanoPagina, CancellationToken cancelacion)
     {
