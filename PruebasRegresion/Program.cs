@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Api.Mapeadores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -33,46 +33,46 @@ void Verificar(bool condicion, string descripcion)
     if (!condicion) throw new Exception(descripcion);
     Console.WriteLine("OK: " + descripcion);
 }
-void Rechazar(Action accion, string descripcion)
+async Task Rechazar(Func<Task> accion, string descripcion)
 {
-    try { accion(); } catch (ArgumentException) { Console.WriteLine("OK: " + descripcion); return; }
+    try { await accion(); } catch (ArgumentException) { Console.WriteLine("OK: " + descripcion); return; }
     throw new Exception("No se rechazo: " + descripcion);
 }
 foreach (var ids in new long[][] { [0], [-1], [99], [2] })
-    Rechazar(() => dao.InsertarUsuario(Nuevo(99), ids), "Alta rechaza roles invalidos/inexistentes/inactivos");
+    await Rechazar(async () => await dao.InsertarUsuarioAsync(Nuevo(99), ids, CancellationToken.None), "Alta rechaza roles invalidos/inexistentes/inactivos");
 Verificar(!contexto.Usuarios.Any(), "Altas rechazadas no guardan usuarios");
 var antes = contador.Cantidad;
-var usuario = dao.InsertarUsuario(Nuevo(1), [1, 1]);
+var usuario = await dao.InsertarUsuarioAsync(Nuevo(1), [1, 1], CancellationToken.None);
 Verificar(contador.Cantidad == antes + 1, "Alta ejecuta un solo SaveChanges");
 var id = usuario.IdUsuario;
 contexto.ChangeTracker.Clear();
-usuario = dao.SeleccionarUsuario(id)!;
+usuario = (await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!;
 Verificar(usuario.IdRols.Count == 1, "Rol duplicado se normaliza y relacion se persiste");
 Verificar(usuario.FechaIngreso == fecha, "Fecha bisiesta persiste sin hora");
 var hash = usuario.Contrasena;
 Verificar(hash != "Prueba!123" && Contrasenas.Verificar(hash, "Prueba!123") && !Contrasenas.Verificar(hash, "incorrecta"), "Hash acepta clave correcta y rechaza incorrecta");
 Verificar(hash != Contrasenas.CrearHash("Prueba!123"), "Hashes usan sal aleatoria");
 Verificar(!Contrasenas.Verificar("texto antiguo", "texto antiguo"), "No autentica contrasenas antiguas como hashes");
-Rechazar(() => dao.ActualizarUsuario(usuario, [99]), "Actualizacion rechaza rol inexistente");
-Rechazar(() => dao.ActualizarUsuario(usuario, [2]), "Actualizacion rechaza rol inactivo");
-Rechazar(() => dao.ActualizarUsuario(usuario, [0]), "Actualizacion rechaza rol cero");
-Rechazar(() => dao.ActualizarUsuario(usuario, [1], " "), "Cambio rechaza contrasena vacia");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [99], null, CancellationToken.None), "Actualizacion rechaza rol inexistente");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [2], null, CancellationToken.None), "Actualizacion rechaza rol inactivo");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [0], null, CancellationToken.None), "Actualizacion rechaza rol cero");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [1], " ", CancellationToken.None), "Cambio rechaza contrasena vacia");
 usuario.Nombre = "Editado";
-Verificar(dao.ActualizarUsuario(usuario, [1]), "Actualiza usuario rastreado");
+Verificar(await dao.ActualizarUsuarioAsync(usuario, [1], null, CancellationToken.None), "Actualiza usuario rastreado");
 contexto.ChangeTracker.Clear();
-usuario = dao.SeleccionarUsuario(id)!;
+usuario = (await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!;
 Verificar(usuario.Contrasena == hash && usuario.Nombre == "Editado", "Edicion conserva hash sin duplicarlo");
 var desconectado = Nuevo(1); desconectado.IdUsuario = id;
-Verificar(dao.ActualizarUsuario(desconectado, [3], "Nueva!456"), "Actualiza entidad desconectada y cambia roles y clave");
+Verificar(await dao.ActualizarUsuarioAsync(desconectado, [3], "Nueva!456", CancellationToken.None), "Actualiza entidad desconectada y cambia roles y clave");
 contexto.ChangeTracker.Clear();
-usuario = dao.SeleccionarUsuario(id)!;
+usuario = (await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!;
 Verificar(usuario.IdRols.Single().IdRol == 3 && Contrasenas.Verificar(usuario.Contrasena, "Nueva!456"), "Cambio de roles y hash persistido");
 hash = usuario.Contrasena;
-dao.ActualizarUsuario(desconectado, [3]);
+await dao.ActualizarUsuarioAsync(desconectado, [3], null, CancellationToken.None);
 contexto.ChangeTracker.Clear();
-Verificar(dao.SeleccionarUsuario(id)!.Contrasena == hash, "Entidad desconectada no sobrescribe clave sin parametro explicito");
-for (var n = 2; n <= 23; n++) dao.InsertarUsuario(Nuevo(n), []);
-var listado = dao.ListarTodo().Select(UsuarioMapeador.AListadoDto).ToList();
+Verificar((await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!.Contrasena == hash, "Entidad desconectada no sobrescribe clave sin parametro explicito");
+for (var n = 2; n <= 23; n++) await dao.InsertarUsuarioAsync(Nuevo(n), [], CancellationToken.None);
+var listado = (await dao.ListarTodoAsync(CancellationToken.None)).Select(UsuarioMapeador.AListadoDto).ToList();
 Verificar(listado.Count == 23, "Listado devuelve todos los usuarios sin limite de 20");
 Verificar(listado.Select(x => x.Id).SequenceEqual(listado.Select(x => x.Id).Order()), "Listado ordenado por identificador");
 var json = JsonSerializer.Serialize(listado[0], new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -81,9 +81,9 @@ Verificar(documento.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet(
     new[] { "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "roles" }), "JSON conserva contrato de salida");
 Verificar(documento.RootElement.GetProperty("fechaIngreso").GetString() == "2024-02-29", "JSON fecha ISO sin hora");
 Verificar(documento.RootElement.GetProperty("roles")[0].GetProperty("id").GetInt64() == 3, "JSON conserva roles");
-Verificar(dao.DarBajaLogicaUsuario(id), "Baja logica funciona");
-Verificar(UsuarioMapeador.AListadoDto(dao.ListarTodo()[0]).Estado == "inactivo", "DTO refleja estado inactivo");
-Verificar(dao.EliminarUsuario(id) && dao.SeleccionarUsuario(id) is null, "Eliminacion limpia relaciones");
+Verificar(await dao.DarBajaLogicaUsuarioAsync(id, CancellationToken.None), "Baja logica funciona");
+Verificar(UsuarioMapeador.AListadoDto((await dao.ListarTodoAsync(CancellationToken.None))[0]).Estado == "inactivo", "DTO refleja estado inactivo");
+Verificar(await dao.EliminarUsuarioAsync(id, CancellationToken.None) && await dao.SeleccionarUsuarioAsync(id, CancellationToken.None) is null, "Eliminacion limpia relaciones");
 Console.WriteLine("Todas las comprobaciones pasaron en SQLite en memoria. Sin modificar la base configurada.");
 
 sealed class ContextoPrueba(DbContextOptions<SotraContext> opciones) : SotraContext(opciones)

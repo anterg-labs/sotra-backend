@@ -1,7 +1,6 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Infraestructura;
 
@@ -18,7 +17,7 @@ public sealed class ManejadorGlobalDeErrores(
     public async ValueTask<bool> TryHandleAsync(
         HttpContext contexto, Exception excepcion, CancellationToken cancelacion)
     {
-        if (excepcion is OperationCanceledException && contexto.RequestAborted.IsCancellationRequested)
+        if (contexto.RequestAborted.IsCancellationRequested && EsCancelacion(excepcion))
         {
             return true;
         }
@@ -48,16 +47,23 @@ public sealed class ManejadorGlobalDeErrores(
         });
     }
 
+    // Si la persona cierra la conexión, PostgreSQL puede responder 57014 (query_canceled) en vez de dejar pasar el OperationCanceledException.
+    private static bool EsCancelacion(Exception excepcion) =>
+        excepcion is OperationCanceledException
+        || excepcion is DbException { InnerException: PostgresException { SqlState: PostgresErrorCodes.QueryCanceled } }
+        || excepcion is PostgresException { SqlState: PostgresErrorCodes.QueryCanceled };
+
     private static (int Estado, string Codigo, string Mensaje) Clasificar(Exception excepcion)
     {
+        if (TraduccionDeErroresDeNegocio.Traducir(excepcion) is { } traducida)
+        {
+            return (traducida.Estado, traducida.Codigo, traducida.Mensaje);
+        }
+
         return excepcion switch
         {
-            ConflictoDeDatosException conflicto =>
-                (StatusCodes.Status409Conflict, conflicto.Codigo, conflicto.Message),
             ArgumentException argumento =>
                 (StatusCodes.Status400BadRequest, "SOLICITUD_INVALIDA", argumento.Message),
-            DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } } =>
-                (StatusCodes.Status409Conflict, "DATO_DUPLICADO", "Ya existe un registro con esos datos."),
             BadHttpRequestException =>
                 (StatusCodes.Status400BadRequest, "SOLICITUD_INVALIDA", "La solicitud no es válida."),
             _ => (StatusCodes.Status500InternalServerError, "ERROR_INTERNO", MensajeErrorInterno),

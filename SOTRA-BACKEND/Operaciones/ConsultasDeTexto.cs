@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace SOTRA_BACKEND.Operaciones;
 
 public static class ConsultasDeTexto
@@ -27,6 +29,14 @@ public static class ConsultasDeTexto
     {
         var total = consulta.Count();
         var elementos = consulta.Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina).ToList();
+        return (elementos, total);
+    }
+
+    public static async Task<(List<T> Elementos, int Total)> PaginarAsync<T>(
+        IQueryable<T> consulta, int pagina, int tamanoPagina, CancellationToken cancelacion)
+    {
+        var total = await consulta.CountAsync(cancelacion);
+        var elementos = await consulta.Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina).ToListAsync(cancelacion);
         return (elementos, total);
     }
 }

@@ -18,9 +18,11 @@ public class ActivosPruebas : PruebaBase
         var propiedades = pagina.GetProperty("elementos")[0].EnumerateObject().Select(p => p.Name).ToList();
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
-            "id", "clienteId", "numSerie", "descripcion", "modeloMaquinaId",
+            "id", "clienteId", "nombreCliente", "numSerie", "descripcion", "modeloMaquinaId", "nombreModeloMaquina",
             "anioFabricacion", "nombre", "ubicacion", "estado",
         }));
+        Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreCliente").GetString(), Is.Not.Empty);
+        Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreModeloMaquina").GetString(), Is.Not.Empty);
     }
 
     [Test]
