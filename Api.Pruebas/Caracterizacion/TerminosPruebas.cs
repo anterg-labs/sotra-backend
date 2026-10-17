@@ -23,8 +23,10 @@ public class TerminosPruebas : PruebaBase
     private Task<HttpResponseMessage> AceptarAsync(long usuarioId, JsonElement documento, bool acepta = true) =>
         Cliente.PostAsJsonAsync("/api/v1/terminos/aceptaciones", new
         {
-            usuarioId, terminosId = documento.GetProperty("id").GetInt64(),
-            version = documento.GetProperty("version").GetInt32(), acepta
+            usuarioId,
+            terminosId = documento.GetProperty("id").GetInt64(),
+            version = documento.GetProperty("version").GetInt32(),
+            acepta
         });
 
     private async Task<JsonElement> EstadoAsync(long usuarioId) =>
@@ -126,7 +128,9 @@ public class TerminosPruebas : PruebaBase
         Assert.That((await AceptarAsync(999999, documento)).StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/terminos/aceptaciones", new
         {
-            usuarioId = await CrearUsuarioAsync(), terminosId = documento.GetProperty("id").GetInt64(), acepta = true
+            usuarioId = await CrearUsuarioAsync(),
+            terminosId = documento.GetProperty("id").GetInt64(),
+            acepta = true
         });
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
