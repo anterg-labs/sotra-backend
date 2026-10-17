@@ -1,3 +1,5 @@
+name: sotra-backend-dev
+
 services:
   backend-dev:
     build:

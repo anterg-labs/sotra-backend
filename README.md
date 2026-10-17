@@ -55,6 +55,8 @@ docker start sotra-postgres-local
 docker compose -f compose.dev.yml up -d --build
 ```
 
+`compose.dev.yml` usa su propio nombre de proyecto (`sotra-backend-dev`) y, por lo tanto, su propia red. Así no choca con los contenedores de `compose.yml` (proyecto `sotra-backend`) si los dos están levantados en la misma máquina.
+
 La API queda disponible en `http://localhost:8081`. El código fuente está montado dentro del contenedor y `dotnet watch --no-hot-reload` reinicia la aplicación al guardar cambios. Así se evita que la recarga en caliente intente leer archivos temporales de recursos estáticos que no existen en este montaje de Windows. Esta configuración no modifica ni reemplaza el `Dockerfile` ni el `compose.yml` de producción.
 
 Servicios expuestos al equipo:
