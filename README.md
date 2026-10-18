@@ -81,6 +81,8 @@ Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `
 
 Las contraseñas de usuario que no eran un hash de ASP.NET Identity se reemplazaron por `REEMPLAZAR_POR_HASH_ASPNET_IDENTITY`: esos usuarios no pueden iniciar sesión hasta que se les asigne una contraseña.
 
+**Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 10 personas usuarias con los 4 roles, 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Las contraseñas son un marcador: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
+
 Para actualizar los datos, editar `01-init.sql` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
 
 ### Desarrollo local
