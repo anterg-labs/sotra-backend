@@ -31,6 +31,7 @@
   <ItemGroup>
     <Content Remove="..\version.json" />
     <Content Include="..\version.json" Link="version.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Watch Include="..\version.json" />
   </ItemGroup>
 
 </Project>

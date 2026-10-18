@@ -118,7 +118,7 @@ En activos, `estado` es opcional y acepta `activo` o `inactivo`. Si se omite, el
 
 En tipos de máquina, `nombre` es obligatorio. En modelos de máquina son obligatorios `nombre` y `tipoMaquinaId`; `descripcion` acepta texto o `null`. En los dos, `estado` es opcional y acepta `activo` o `inactivo`: si se omite, el estado no cambia, y cualquier otro valor responde `400`. Así se puede reactivar un tipo o un modelo dado de baja.
 
-`PATCH /api/v1/clientes/{id}` acepta `{ "estado": "inactivo" }` para la baja lógica y `{ "estado": "activo" }` para reactivar (`ClienteDAO.ReactivarCliente`). Los `PATCH` de tipos, modelos, activos y repuestos siguen aceptando solamente `inactivo`.
+`PATCH /api/v1/clientes/{id}` y `PATCH /api/v1/repuestos/{id}` aceptan `{ "estado": "inactivo" }` para la baja lógica y `{ "estado": "activo" }` para reactivar (`ClienteDAO.ReactivarCliente` y `RepuestoDAO.Reactivar`). Los `PATCH` de tipos, modelos, activos y usuarios siguen aceptando solamente `inactivo`. `PUT /api/v1/repuestos/{id}` ignora `cantidad`: el stock solo cambia con ingresos, egresos y ajustes.
 
 ### Campos opcionales de clientes
 
@@ -134,8 +134,9 @@ Un manejador global (`Api/Infraestructura/ManejadorGlobalDeErrores.cs`) cubre lo
 
 ## Seguridad de la API sin sesión
 
-- **Cabeceras de seguridad** en todas las respuestas (`CabecerasDeSeguridadMiddleware`): `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Permissions-Policy`, `Cross-Origin-Resource-Policy` y `Cache-Control: no-store` en `/api`. HSTS y la redirección a HTTPS se activan fuera de desarrollo.
+- **Cabeceras de seguridad** en todas las respuestas (`CabecerasDeSeguridadMiddleware`): `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Permissions-Policy`, `Cross-Origin-Resource-Policy` y `Cache-Control: no-store` en `/api`. HSTS y la redirección a HTTPS se activan fuera de desarrollo.
 - **Límite de solicitudes** por dirección IP (`Api/Infraestructura/LimiteDeSolicitudes.cs`), con ventana deslizante de un minuto: 1200 en toda la API, 300 para altas y modificaciones, 30 para subidas de archivos y 20 para las sugerencias de IA. Superarlo devuelve `429` con `codigo` `DEMASIADAS_SOLICITUDES` y `Retry-After`. Se ajusta con la sección `LimiteSolicitudes` o con variables como `LimiteSolicitudes__PorMinutoGeneral`, y se apaga con `LimiteSolicitudes__Habilitado=false`.
+- **Caracteres nulos:** `EntradaSinCaracteresNulosMiddleware` y `TextoSinCaracteresNulosConverter` rechazan `\0`/`%00` en la ruta, la consulta, el JSON y los formularios con `400` `ENTRADA_INVALIDA` (antes llegaban a PostgreSQL y daban `500`). La cabecera `Server` está desactivada (`AddServerHeader = false`).
 - **Detrás de un proxy** (Nginx o Cloudflare) hay que definir `PROXIES_CONFIANZA` con la dirección o red del proxy; si no, todas las personas comparten el límite del proxy.
 - **CORS** acepta solo el origen de `FRONTEND_ORIGIN`, con los métodos y headers que usa el frontend.
 
@@ -149,6 +150,28 @@ La integración con Keycloak (login, tokens, usuarios) la implementa otra person
 - **Persona actual:** `IUsuarioActual` expone si hay una persona autenticada y su correo (claim `Seguridad__ClaimCorreo`, por defecto `email`). Con la seguridad apagada siempre devuelve "sin autenticar".
 - **Sin cubrir todavía:** la base solo define 14 permisos, que alcanzan para usuarios, activos, consulta y alta de modelos, órdenes, evidencias y stock. Clientes, tipos de máquina, modificación y baja de modelos, alta y modificación de repuestos, documentos técnicos y reportes no tienen permiso definido y, con la seguridad encendida, solo exigen estar autenticado.
 
+## Errores de negocio centralizados
+
+Los controladores ya no repiten bloques `catch`. Las reglas de negocio lanzan excepciones tipadas (`ValidacionDeNegocioException` con su `Codigo`, `ConflictoDeDatosException`, `ErrorDeOrdenException`) y las violaciones de restricciones únicas de PostgreSQL llegan como `DbUpdateException`; `Api/Infraestructura/TraduccionDeErroresDeNegocio.cs` decide estado HTTP, `codigo` y texto en un único lugar (tabla por restricción y, si falta, por tabla) y `ManejadorGlobalDeErrores` lo responde como `ProblemDetails` con `codigo` y `mensaje`. Para agregar un duplicado nuevo basta una fila en esa tabla. Pruebas: `Api.PruebasUnitarias/TraduccionDeErroresPruebas.cs`. Los `catch` que quedan (documentos técnicos y sugerencias de IA) distinguen cancelación, servicio de IA caído y error inesperado, y dejan pasar las excepciones de negocio.
+
+## Términos y condiciones
+
+Un único documento editable, sin historial. `GET /api/v1/terminos/vigente` devuelve el texto y su marcador interno de cambios. `POST /api/v1/terminos` recibe únicamente `{ texto }` y responde `200`, modificando el mismo registro; valida de 20 a 20 000 caracteres. Si cambia el texto se incrementa el marcador y se reinician sus aceptaciones. Guardar sin cambios las conserva. No hay endpoint de historial, ni campos de título, datos o autor en el contrato.
+
+La aceptación por persona exige `{ usuarioId, terminosId, version, acepta: true }`; es idempotente y rechaza contenido desactualizado con `409 TERMINOS_DESACTUALIZADOS`. Guardado y aceptación se serializan con bloqueo transaccional de PostgreSQL. La auditoría existente obtiene al autor de `IUsuarioActual`, sin permitir que el formulario lo elija; hasta Keycloak registra «sin autenticar». El frontend usa un único editor visual y comparte el mismo modal para la vista previa y el footer; temporalmente recuerda la aceptación por navegador.
+
+No se agregan tablas. Las bases nuevas exigen un único registro mediante `CHECK (vigente)` y el índice único parcial. Para bases existentes se entrega `database/cambios/2026-10-17-terminos-documento-unico.sql`, que elimina el historial antiguo y conserva el texto vigente. **No aplicado a la base local ni al VPS: requiere ejecución manual autorizada.** No se reutilizan las columnas heredadas de título, datos separados o autor en el contrato. Detalles en `Documentacion/Flujo de datos SOTRA.md`, sección 15 bis.
+
+## Observabilidad (OpenTelemetry)
+
+Trazas y métricas con OpenTelemetry, **apagadas por defecto**: no cambian nada hasta definir un destino. Se activan con `OTEL_EXPORTER_OTLP_ENDPOINT` (por ejemplo el receptor OTLP de Grafana Alloy del VPS, `http://127.0.0.1:4318` con `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`) o con `Observabilidad__Habilitada=true`; se apagan con `Observabilidad__Habilitada=false`. El destino, los encabezados de autenticación, el muestreo y el nombre del servicio (`OTEL_SERVICE_NAME`, por defecto `sotra-api`) usan las variables estándar `OTEL_*`. Código en `Api/Infraestructura/Observabilidad.cs`.
+
+- **Trazas:** cada solicitud HTTP entrante (sin `/health`), las llamadas salientes (`HttpClient`, Ollama) y cada comando a PostgreSQL (fuente `Npgsql`).
+- **Métricas estándar:** ASP.NET Core (solicitudes, duración, errores), `HttpClient`, tiempo de ejecución .NET (GC, hilos, memoria), Npgsql (conexiones, comandos) y EF Core.
+- **Métricas de SOTRA** (medidor `Sotra.Api`): `sotra.acciones` (altas, modificaciones, bajas, movimientos y cambios de estado, por recurso, acción y clase de resultado), `sotra.sugerencias_ia.duracion` (histograma en segundos, por resultado `ok`, `sin_contexto`, `no_disponible` o `error`), `sotra.reportes_generados` (por tipo y formato) y `sotra.entradas_rechazadas`.
+- **Logs:** cada línea lleva `IdCorrelacion` y `TraceId`, para pasar de un log a su traza.
+- Se comprobó contra un colector OTLP local: llegan trazas con spans HTTP y de base de datos, y métricas con `sotra.acciones`. Las pruebas unitarias están en `Api.PruebasUnitarias/ObservabilidadPruebas.cs`.
+
 ## Logs
 
 El backend usa Serilog. En desarrollo escribe texto legible en la consola; en los demás ambientes escribe JSON compacto (una línea por evento), que Docker recoge. Los niveles se ajustan en la sección `Serilog` de `appsettings.json`. Cada solicitud se registra con método, ruta (sin parámetros de consulta), estado, duración y dirección IP, y lleva un `IdCorrelacion` que también se devuelve en la cabecera `X-Correlation-Id`. No se registran contraseñas, tokens ni el contenido de los archivos.
@@ -157,7 +180,7 @@ El backend usa Serilog. En desarrollo escribe texto legible en la consola; en lo
 
 La API implementa los módulos restantes que consume el frontend:
 
-- `/api/v1/repuestos`: `GET`, `GET /{id}`, `POST`, `PUT /{id}` y `PATCH /{id}`.
+- `/api/v1/repuestos`: `GET`, `GET /alertas-stock`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}`, `PATCH /{id}/stock-minimo` y `POST /{id}/ingresos`, `/egresos` y `/ajustes`.
 - `/api/v1/ordenes-trabajo`: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}/estado`, `PATCH /{id}/tecnico` y `POST /sugerencia`. El `GET` es paginado y acepta búsqueda y filtros (ver "Listados paginados").
 - `/api/v1/documentos-tecnicos`: `GET`, `POST`, `GET /{id}/archivo` y `DELETE /{id}`.
 - `/api/v1/reportes/indicadores`: `GET`.
@@ -169,6 +192,8 @@ Los documentos se guardan en la tabla `vectorial.documento_tecnico`, creada por 
 ### Versión del backend (`GET /api/v1/version`)
 
 La versión está en `version.json`, en la raíz del repositorio, con formato `x.y.z`. `VersionController` la lee y responde `{ "version": "x.y.z" }`; el frontend la muestra en el pie de página.
+
+Durante el plan, cada entrega local incrementa el parche manualmente si no interviene el hook, evitando dos incrementos por la misma entrega (`AGENTS.md`). `Api.csproj` incluye el archivo en `Watch`: `dotnet watch` detecta sus modificaciones y copia la versión actual al directorio de ejecución. Verificar tanto el archivo como `GET /api/v1/version`, porque el controlador lee la copia de salida de la API.
 
 - **`z` (parche):** sube sola en cada commit. La sube el hook `.githooks/pre-commit`, que modifica `version.json` y lo agrega al commit.
 - **`x` e `y`:** solo se cambian a mano, cuando lo decide el responsable. Si en un commit `x` o `y` son distintas de las del último commit, el hook respeta la versión escrita y no sube la `z` (por ejemplo, para pasar a `1.1.0`).
@@ -191,12 +216,14 @@ Listados paginados hasta ahora:
 
 - `GET /api/v1/activos` (`FiltrosActivosDto`): `buscar` (nombre, número de serie, ubicación o descripción), `clienteId`, `modeloMaquinaId` y `estado`.
 - `GET /api/v1/modelos-maquina` (`FiltrosModelosMaquinaDto`): `buscar` (nombre o descripción), `tipoMaquinaId` y `estado`.
+Los listados y detalles paginados de activos incluyen `nombreCliente` y `nombreModeloMaquina`; los de modelos incluyen `nombreTipoMaquina`. Se obtienen con relaciones en la misma consulta, para que el frontend no recorra todas las páginas de los catálogos al mostrar las tablas. Tras un alta o una modificación estos nombres pueden ser `null` hasta volver a consultar el recurso.
 - `GET /api/v1/tipos-maquina` (`FiltrosTiposMaquinaDto`): `buscar` (nombre) y `estado`.
 - `GET /api/v1/documentos-tecnicos` (`FiltrosDocumentosTecnicosDto`): `buscar` (nombre del archivo o del activo) y `activoId`. Además existe `GET /api/v1/documentos-tecnicos/{id}`, que devuelve un documento sin el archivo (`404` si no existe).
 
 - `GET /api/v1/usuarios` (`FiltrosUsuariosDto`): `buscar` (nombre, apellido o correo), `rolId`, `estado` y `direccionOrden` (`desc` invierte el orden, para ver primero los más nuevos).
 - `GET /api/v1/clientes` (`FiltrosClientesDto`): `buscar` (razón social, contacto o correo), `estado` y `direccionOrden`.
-- `GET /api/v1/repuestos` (`FiltrosRepuestosDto`): `buscar` (código, nombre, marca o descripción), `estado`, `ubicacion` (contiene) y `bajoStock=true` (cantidad menor o igual a la mínima).
+- `GET /api/v1/repuestos` (`FiltrosRepuestosDto`): `buscar` (código, nombre, marca o descripción), `estado`, `ubicacion` (contiene) `bajoStock=true` (stock bajo o sin stock), `estadoStock` (`normal`, `bajo` o `sin_stock`) y `orden=criticidad`. Cada repuesto trae `estadoStock`, calculado por `EstadosStock.Calcular` (sin stock con cantidad 0; bajo si el mínimo es mayor que 0 y la cantidad lo alcanza).
+- `POST` y `PUT /api/v1/repuestos`: si el código ya existe, responden `409` con `codigo: "CODIGO_REPUESTO_DUPLICADO"` y un mensaje legible. El frontend sitúa el error junto al campo Código.
 - `GET /api/v1/movimientos-stock` (`FiltrosMovimientosStockDto`): `buscar` (código o nombre del repuesto, o motivo), `repuestoId`, `tipo`, `fechaDesde`, `fechaHasta`, `ubicacion` y `usuarioId`. Ordenados del más nuevo al más viejo.
 
 `PaginaDto` también tiene `ErrorDePaginacion()` (el cuerpo del `400`) y `Contiene(texto, buscado)` (comparación sin distinguir mayúsculas), que usan todos los controladores paginados.
@@ -205,7 +232,10 @@ Listados paginados hasta ahora:
 
 RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:** el SQL sugerido está en `SUGERENCIAS-SQL.md` (agrega `tipo`, `motivo`, `ubicacion`, `observaciones`, `stock_anterior` y `stock_posterior`, pasa `cantidad` a entero y deja `id_usuario` opcional). Hasta aplicarlo, estos endpoints responden `500`; el resto de repuestos funciona. Modelo `MovimientoStock` (actualizado), `MovimientoStockDAO`, `MovimientoStockMapeador` y `MovimientosStockController`.
 
-- `POST /api/v1/repuestos/{id}/ingresos`: recibe `{ "cantidad", "fecha" (AAAA-MM-DD), "motivo", "ubicacion", "observaciones" }`. En una transacción suma la cantidad al repuesto y registra un movimiento `ingreso` con el stock anterior y posterior. Responde `201` con el movimiento. Errores: `404` si el repuesto no existe; `409` `REPUESTO_INACTIVO`; `400` `CANTIDAD_INVALIDA` (debe ser mayor a cero), `FECHA_INVALIDA` (vacía o futura) y `DATOS_OBLIGATORIOS` (motivo y ubicación). Si la fecha es hoy se guarda la hora actual; si es otro día, ese día a las 12:00 UTC.
+- `POST /api/v1/repuestos/{id}/ingresos`: recibe `{ "cantidad", "fecha" (AAAA-MM-DD), "motivo", "ubicacion", "observaciones" }`. Mediante `MovimientoStockDAO.Registrar`, en una transacción que bloquea la fila del repuesto (`SELECT ... FOR UPDATE`), suma la cantidad y registra un movimiento `ingreso` con el stock anterior y posterior. Responde `201` con el movimiento. Errores: `404` si el repuesto no existe; `409` `REPUESTO_INACTIVO`; `400` `CANTIDAD_INVALIDA` (debe ser mayor a cero), `FECHA_INVALIDA` (vacía o futura) y `DATOS_OBLIGATORIOS` (motivo y ubicación). Si la fecha es hoy se guarda la hora actual; si es otro día, ese día a las 12:00 UTC.
+- `POST /api/v1/repuestos/{id}/egresos` (`cantidad`, `motivo`, `ubicacion?`, `observaciones?`) y `POST /api/v1/repuestos/{id}/ajustes` (`cantidadReal`, `motivo`, `observaciones?`) usan el mismo método y bloqueo. `409` `STOCK_INSUFICIENTE` si el egreso supera el stock, `409` `REPUESTO_INACTIVO`, `400` `CANTIDAD_INVALIDA` y `DATOS_OBLIGATORIOS`. En un ajuste la `cantidad` del movimiento es la diferencia con signo.
+- `PATCH /api/v1/repuestos/{id}/stock-minimo` cambia solo `cantidadMinima` (entero mayor o igual a 0). `GET /api/v1/repuestos/alertas-stock` devuelve `{ bajo, sinStock, total }` de repuestos activos, contados en la base.
+- Restricción de base: `database/cambios/2026-10-16-repuesto-stock-no-negativo.sql` (aplicar a mano) impide `cantidad` y `cant_min` negativos; `01-init.sql` ya la incluye para bases nuevas.
 - `GET /api/v1/movimientos-stock` (paginado, ver arriba) y `GET /api/v1/movimientos-stock/{id}`: cada movimiento tiene `id`, `repuestoId`, `codigoRepuesto`, `nombreRepuesto`, `tipo`, `cantidad`, `fecha`, `ubicacion`, `usuarioId`, `nombreUsuario`, `motivo`, `observaciones`, `stockAnterior` y `stockPosterior`.
 
 La especificación también pide filtrar repuestos por "categoría", pero el repuesto no tiene ese dato en la base; queda pendiente de definir.
@@ -226,6 +256,7 @@ RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones 
 - `PATCH /{id}/estado` recibe `{ "estado": "...", "motivo": "..." }`. El motivo es obligatorio al pausar, cancelar, cerrar o reasignar una orden finalizada, y se guarda en `historial_estado_ot.observacion` (no hace falta cambiar la base). `asignada` y `en_ejecucion` exigen técnico asignado. `PUT` acepta el mismo motivo en `motivoEstado`.
 - `PATCH /{id}/tecnico` recibe `{ "tecnicoId": 0 }`. Valida que sea un usuario activo con rol Técnico, pasa la orden de `creada` a `asignada` y registra en el historial "Técnico asignado: Nombre Apellido".
 - Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
+- Ediciones simultáneas: `OrdenTrabajoDto.Version` (hash SHA-256 truncado del DTO, calculado en `OrdenTrabajoMapeador`) se devuelve también como `ETag` en `GET /ordenes-trabajo/{id}` y `PUT`. El `PUT` acepta `If-Match` y lo compara dentro del bloqueo de fila de `OrdenTrabajoDAO.Actualizar`; si no coincide responde `412` `ORDEN_MODIFICADA` sin cambiar nada. Sin el encabezado (o con `*`) no se verifica. CORS permite `If-Match` y expone `ETag`.
 - `OrdenTrabajoDto` incluye `estadosSiguientes` (los estados a los que puede pasar) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
 
 El historial todavía no registra el usuario responsable del cambio, porque no hay login.
@@ -272,9 +303,9 @@ Filtros opcionales por query string (`FiltrosIndicadoresDto`), que se pueden com
 
 Los filtros se aplican a todos los indicadores de órdenes. `repuestosBajoStock` no depende de los filtros, porque no está relacionado con las órdenes. Un parámetro vacío o ausente no filtra. Si `fechaDesde` es posterior a `fechaHasta`, responde `400` con `{ "codigo": "RANGO_FECHAS_INVALIDO", "mensaje": "..." }`. Ejemplo en `Api/Api.http`.
 
-### Descarga de reportes en PDF (`GET /api/v1/reportes/{tipoReporte}/pdf`)
+### Descarga de reportes en PDF y CSV (`GET /api/v1/reportes/{tipoReporte}/pdf` y `/csv`)
 
-RF007-02. Devuelve un archivo `application/pdf` llamado `reporte-{tipoReporte}.pdf`, generado con la librería QuestPDF (licencia Community, configurada al inicio de `Program.cs`). El diseño del documento está en `Api/Servicios/GeneradorReportesPdf.cs`: título, fecha de generación (hora de Uruguay), criterios aplicados, tablas y número de página.
+RF007-02. Devuelve un archivo `application/pdf` llamado `reporte-{tipoReporte}.pdf`, generado con la librería QuestPDF (licencia Community, configurada al inicio de `Program.cs`). El diseño del documento está en `Api/Servicios/GeneradorReportesPdf.cs`: título, fecha de generación (hora de Uruguay), criterios aplicados, tablas y número de página. `GET /api/v1/reportes/{tipoReporte}/csv` devuelve las mismas tablas (se arman una sola vez en `ReportesController.ArmarReporte`) como `text/csv` UTF-8 con BOM y separador `;`; `Api/Servicios/GeneradorReportesCsv.cs` aplica las comillas de RFC 4180 y antepone `'` a las celdas que empiezan con `=`, `+`, `-`, `@`, tabulación o retorno de carro (inyección de fórmulas).
 
 Tipos de reporte (`tipoReporte`):
 
@@ -353,6 +384,16 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 
 Requisito: Ollama debe tener `qwen2.5:7b` además de `bge-m3` (`ollama pull qwen2.5:7b`, unos 4,7 GB). En CPU, cada sugerencia tarda entre 25 segundos y 1 minuto; la primera, algo más, porque carga el modelo en memoria (unos 5 GB de RAM).
 
+## Acceso a datos asíncrono y cancelación
+
+Toda la cadena (controlador, DAO y EF Core) es `async/await` de punta a punta, sin `.Result` ni `.Wait()`.
+
+- Los métodos de los DAO terminan en `Async` y reciben `CancellationToken cancelacion` como último parámetro (por ejemplo `ListarPaginaAsync`, `RegistrarAsync`). Usan `ToListAsync`, `FirstOrDefaultAsync`, `CountAsync`, `AnyAsync`, `SaveChangesAsync`, `ExecuteUpdateAsync` y `ExecuteSqlInterpolatedAsync`.
+- Las acciones de los controladores reciben un `CancellationToken` como parámetro: ASP.NET lo enlaza con `HttpContext.RequestAborted` y se pasa a cada DAO. Los nombres de las acciones no llevan sufijo `Async` (MVC lo quita de las rutas y de `CreatedAtAction`).
+- Las transacciones (`BeginTransactionAsync`, bloqueos `FOR UPDATE`, `pg_advisory_xact_lock`) se abren con `await using`: si el cliente cierra la conexión, la excepción `OperationCanceledException` sale de la transacción, que se deshace entera al liberarse, así que nunca queda un dato a medias.
+- Esa excepción no se captura en el código de negocio. `ManejadorGlobalDeErrores` la ignora (también el error `57014` de PostgreSQL) cuando el cliente cerró la solicitud, y la auditoría la registra como `499` en vez de `500`.
+- La prueba `CancelacionPruebas` cancela solicitudes de ingreso de stock a mitad de camino y comprueba que el stock coincide siempre con los movimientos registrados.
+
 ## Detener el backend
 
 Detener temporalmente la configuración de producción:
@@ -380,3 +421,41 @@ docker compose -f compose.dev.yml down
 ```
 
 Este último comando no elimina `sotra-postgres-local` ni sus datos, porque la base utilizada en desarrollo se administra por separado.
+
+## Diagnóstico de las sugerencias de IA
+
+Si `POST /api/v1/ordenes-trabajo/sugerencia` responde `502`, mirar el campo `codigo`:
+
+- `SERVICIO_IA_NO_DISPONIBLE`: Ollama no responde. Comprobar que corre y que `OLLAMA_BASE_URL` es alcanzable **desde el contenedor** del backend: en `compose.dev.yml`, `localhost` apunta al anfitrión mediante `extra_hosts`, así que Ollama debe escuchar en el equipo anfitrión (por defecto el puerto 11434, con los modelos `bge-m3` y `qwen2.5:7b`). `curl http://localhost:11434/api/tags` debe responder. El detalle queda en el log como advertencia.
+- `SUGERENCIA_FALLIDA`: otro error en la búsqueda, el reranker o la generación; el log del backend trae la excepción (`LogError`) con el identificador de correlación.
+- `422 SIN_CONTEXTO_TECNICO`: el servicio funciona, pero ningún documento técnico procesado cubre la tarea.
+
+Las pruebas de integración apuntan `OLLAMA_BASE_URL` a un puerto cerrado para comprobar el `502` sin depender de Ollama.
+
+## Pruebas unitarias (`Api.PruebasUnitarias`)
+
+Proyecto NUnit aparte de `Api.Pruebas` (las de integración levantan Testcontainers para todo su espacio de nombres). No usa base de datos, Docker ni red, y tarda alrededor de un segundo:
+
+```bash
+dotnet test Api.PruebasUnitarias
+```
+
+Hoy son 271 pruebas, por módulo: validaciones (contraseña, nombre de persona, teléfono), mapeadores (incluida la `Version` de la orden: determinista y sensible al contenido), `EstadosStock`, transiciones y reglas de motivo/técnico de las órdenes, `GeneradorReportesCsv` (RFC 4180 e inyección de fórmulas), `GeneradorReportesPdf` (bytes `%PDF`), `HoraUruguay`, servicios de manuales (`DocumentoPdf`, `TextoDelManual`, `AdvertenciasDelManual`, `SeccionesCandidatas`, `RedaccionDeSugerencia`), `EntradaSinCaracteresNulos` (convertidor JSON y middleware), `CabecerasDeSeguridadMiddleware`, opciones de límite de solicitudes y de alertas, y `PaginaDto`.
+
+## Pruebas de seguridad, de casos y de carga locales
+
+Scripts en `../herramientas-plan/` que usan una base descartable (`sotra-casos-pg`, puerto 55432; nunca la base local con datos): `iniciar_base_casos.sh` la crea, `correr_casos_api.sh` levanta una copia de la API y ejecuta los casos de API exportados de Bugasura (solo lectura, no escribe en Bugasura), `fuzz_seguridad_api.py` prueba inyecciones, XSS, tipos, campos extra, cuerpos malformados, subidas hostiles, cabeceras y CORS en todos los endpoints, y `carga_api.py` simula 20 usuarios con `datos_volumen.sql` (30 000 órdenes). Resultados en `../RESULTADOS-PRUEBAS-LOCALES.md`.
+
+Rendimiento: `OrdenTrabajoDAO.Filtrar` es la base compartida del listado y de los reportes; `ListarResumenes` proyecta solo los campos necesarios y `ListarRepuestosUsados` agrupa en la base. Los índices están en `database/cambios/2026-10-16-indices-rendimiento.sql` (aplicar a mano).
+
+## Concurrencia en las órdenes de trabajo
+
+`PATCH /ordenes-trabajo/{id}/estado` y `PATCH /ordenes-trabajo/{id}/tecnico` (`OrdenTrabajoDAO.CambiarEstado` y `AsignarTecnico`) abren una transacción, bloquean la fila de la orden con `SELECT ... FOR UPDATE` y vuelven a leerla antes de validar la transición. Así dos cambios simultáneos se ejecutan en serie. La prueba `CincoCambiosDeEstadoSimultaneosAlMismoDestinoSoloSeAplicanUnaVez` falla sin el bloqueo (cinco aplicaciones en lugar de una). `PUT /ordenes-trabajo/{id}` (`OrdenTrabajoDAO.Actualizar`, que ahora recibe los cambios como `CambiosDeOrden` y devuelve `null` si la orden no existe) usa el mismo bloqueo: el controlador ya no modifica la entidad antes de entrar a la transacción.
+
+## Dashboard analítico
+
+`AnaliticaController` expone `GET /api/v1/reportes/tendencias`, `/tiempos` (con duración, tiempo por etapa y cumplimiento de fechas previstas), `/reincidencias`, `/repuestos-usados` y `/alertas-maquinaria` (contratos en `Documentacion/Flujo de datos SOTRA.md`, sección 16). Todo se calcula en la base con `GROUP BY`, `percentile_cont` y funciones de ventana (`LAG` y `LEAD`) en `AnaliticaDAO`, con consultas SQL constantes y parámetros tipados (`@desde`, `@clienteId`, etc.): no se arma SQL con texto de la persona. Los umbrales de las alertas y los días de reincidencia se configuran con la sección `AlertasMaquinaria` (variables `AlertasMaquinaria__SinAsignarHoras`, `__AsignadaSinIniciarHoras`, `__PausadaHoras`, `__MaquinaDetenidaAltaHoras`, `__MaquinaDetenidaMediaHoras`, `__MaquinaDetenidaBajaHoras` y `__ReincidenciaDias`), validada al iniciar (`OpcionesDeAlertasDeMaquinaria`). Los valores por defecto son provisionales hasta acordarlos con el área de postventa.
+
+## Auditoría de acciones
+
+`AuditoriaDeAcciones` (`Api/Infraestructura/AuditoriaDeAcciones.cs`) es un filtro global que registra, con `ILogger` (Serilog), cada acción que cambia datos (`POST`, `PUT`, `PATCH` y `DELETE`): la acción, el controlador, el id del recurso de la ruta, el código HTTP del resultado y el correo de quien la pidió (`sin autenticar` mientras la seguridad esté apagada). Se registran también las acciones rechazadas (`4xx`) y las que fallan (`500`). No guarda el cuerpo de la solicitud ni datos personales. Cada línea lleva el `IdCorrelacion`, así que se puede seguir una acción de punta a punta. Ejemplo: `Auditoria PATCH CambiarEstado OrdenesTrabajo recurso 45 resultado 200 usuario sin autenticar`. Cubierto por `AuditoriaPruebas` y `SeguridadPruebas`.

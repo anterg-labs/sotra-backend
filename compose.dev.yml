@@ -7,9 +7,18 @@ services:
     container_name: sotra-backend-dev
     env_file:
       - .env
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
     ports:
       - "8081:8080"
     restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+      modelo-embeddings:
+        condition: service_completed_successfully
+      reranker-modelo:
+        condition: service_completed_successfully
     extra_hosts:
       - "localhost:172.28.0.1"
     volumes:
@@ -21,8 +30,51 @@ services:
       - /src/SOTRA-BACKEND/bin
       - /src/SOTRA-BACKEND/obj
 
+  ollama:
+    image: ollama/ollama:0.6.2
+    container_name: sotra-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - modelos_ollama:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  modelo-embeddings:
+    image: ollama/ollama:0.6.2
+    container_name: sotra-modelo-embeddings
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama show bge-m3 >/dev/null 2>&1 || ollama pull bge-m3"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  reranker-modelo:
+    image: curlimages/curl:8.21.0
+    container_name: sotra-reranker-modelo
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        cd /modelos
+        [ -s model_quantized.onnx ] || curl -fL --retry 3 -o model_quantized.onnx https://huggingface.co/woxpas-ai/bge-reranker-v2-m3-onnx/resolve/main/onnx/model_quantized.onnx
+        [ -s tokenizer.json ] || curl -fL --retry 3 -o tokenizer.json https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/main/tokenizer.json
+    volumes:
+      - ../sotra-asistencia-documental/modelos:/modelos
+    restart: "no"
+
 volumes:
   paquetes_nuget:
+  modelos_ollama:
+    name: sotra_modelos_ollama
 
 networks:
   default:
