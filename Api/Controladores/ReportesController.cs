@@ -1,6 +1,6 @@
 using Api.DTOs.OrdenesTrabajo;
+using Api.Infraestructura;
 using Api.DTOs.Reportes;
-using Api.DTOs.Repuestos;
 using Api.Mapeadores;
 using Api.Servicios;
 using Microsoft.AspNetCore.Mvc;
@@ -25,197 +25,151 @@ public class ReportesController : ControllerBase
     }
 
     [HttpGet("indicadores")]
-    public ActionResult<IndicadoresDto> ObtenerIndicadores([FromQuery] FiltrosIndicadoresDto filtros)
+    public async Task<ActionResult<IndicadoresDto>> ObtenerIndicadores([FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
-        if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
-            && filtros.FechaDesde > filtros.FechaHasta)
+        if (RangoInvertido(filtros))
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return RangoDeFechasInvalido();
         }
 
-        var ordenes = ListarOrdenesFiltradas(filtros);
+        var filtro = AFiltroDeOrdenes(filtros);
+        var ordenes = TipoValido(filtros) ? await _ordenTrabajoDao.ListarResumenesAsync(filtro, cancelacion) : [];
 
-        var ordenesPorEstado = new List<CantidadPorGrupoDto>();
-        var ordenesPorPrioridad = new List<CantidadPorGrupoDto>();
-        var ordenesPorTipo = new List<CantidadPorGrupoDto>();
-        var ordenesPorTecnico = new List<CantidadPorGrupoDto>();
-        var intervencionesPorActivo = new List<CantidadPorGrupoDto>();
-        var ordenesAltaPrioridadPendientes = 0;
-        var ordenesPendientesDeValidacion = 0;
-        var horasHastaInicio = new List<double>();
-        var horasHastaCierre = new List<double>();
+        var horasHastaInicio = ordenes.Where(o => o.FechaInicio is not null)
+            .Select(o => (o.FechaInicio!.Value - o.CreadoEn).TotalHours).ToList();
+        var horasHastaCierre = ordenes.Where(o => o.FechaCierre is not null)
+            .Select(o => (o.FechaCierre!.Value - o.CreadoEn).TotalHours).ToList();
 
-        foreach (var orden in ordenes)
-        {
-            SumarUno(ordenesPorEstado, orden.Estado);
-            SumarUno(ordenesPorPrioridad, orden.Prioridad);
-            SumarUno(ordenesPorTipo, orden.Tipo);
-            SumarUno(intervencionesPorActivo, orden.NombreActivo);
-
-            if (orden.NombreTecnico is not null)
-            {
-                SumarUno(ordenesPorTecnico, orden.NombreTecnico);
-            }
-
-            var estaTerminada = orden.Estado == "finalizada" || orden.Estado == "cerrada" || orden.Estado == "cancelada";
-            if (orden.Prioridad == "alta" && !estaTerminada)
-            {
-                ordenesAltaPrioridadPendientes = ordenesAltaPrioridadPendientes + 1;
-            }
-
-            if (orden.Estado == "finalizada")
-            {
-                ordenesPendientesDeValidacion = ordenesPendientesDeValidacion + 1;
-            }
-
-            if (orden.FechaInicio is not null)
-            {
-                horasHastaInicio.Add((orden.FechaInicio.Value - orden.CreadoEn).TotalHours);
-            }
-
-            if (orden.FechaCierre is not null)
-            {
-                horasHastaCierre.Add((orden.FechaCierre.Value - orden.CreadoEn).TotalHours);
-            }
-        }
-
-        var activosConMasIntervenciones = intervencionesPorActivo
-            .OrderByDescending(grupo => grupo.Cantidad)
-            .Take(CantidadDeActivosEnRanking)
-            .ToList();
-
-        var ordenesRecientes = ordenes
-            .OrderByDescending(orden => orden.CreadoEn)
-            .Take(CantidadDeOrdenesRecientes)
-            .ToList();
-
-        var repuestosBajoStock = new List<RepuestoDto>();
-        foreach (var repuesto in _repuestoDao.ListarTodo())
-        {
-            var repuestoDto = RepuestoMapeador.ADto(repuesto);
-            if (repuestoDto.Estado == "activo" && repuestoDto.Cantidad <= repuestoDto.CantidadMinima)
-            {
-                repuestosBajoStock.Add(repuestoDto);
-            }
-        }
+        var ordenesRecientes = ordenes.Count == 0
+            ? []
+            : (await _ordenTrabajoDao.ListarPaginaAsync(filtro with { OrdenarPorCreacion = true, Descendente = true }, 1,
+                CantidadDeOrdenesRecientes, cancelacion)).Elementos.Select(OrdenTrabajoMapeador.ADto).ToList();
 
         return Ok(new IndicadoresDto
         {
             TotalOrdenes = ordenes.Count,
-            OrdenesPorEstado = ordenesPorEstado,
-            OrdenesPorPrioridad = ordenesPorPrioridad,
-            OrdenesPorTipo = ordenesPorTipo,
-            OrdenesPorTecnico = ordenesPorTecnico,
-            ActivosConMasIntervenciones = activosConMasIntervenciones,
-            RepuestosBajoStock = repuestosBajoStock,
+            OrdenesPorEstado = Agrupar(ordenes, o => o.Estado),
+            OrdenesPorPrioridad = Agrupar(ordenes, o => OrdenTrabajoMapeador.APrioridadTexto(o.Prioridad)),
+            OrdenesPorTipo = Agrupar(ordenes, TextoDelTipo),
+            OrdenesPorTecnico = Agrupar(ordenes.Where(o => o.Tecnico is not null), o => o.Tecnico!),
+            ActivosConMasIntervenciones = Agrupar(ordenes, o => o.Activo)
+                .OrderByDescending(grupo => grupo.Cantidad).Take(CantidadDeActivosEnRanking).ToList(),
+            RepuestosBajoStock = (await _repuestoDao.ListarConStockInsuficienteAsync(cancelacion)).Select(RepuestoMapeador.ADto).ToList(),
             PromedioHorasHastaInicio = CalcularPromedio(horasHastaInicio),
             PromedioHorasHastaCierre = CalcularPromedio(horasHastaCierre),
-            OrdenesAltaPrioridadPendientes = ordenesAltaPrioridadPendientes,
-            OrdenesPendientesDeValidacion = ordenesPendientesDeValidacion,
+            OrdenesAltaPrioridadPendientes = ordenes.Count(o => o.Prioridad >= 5 && !EstaTerminada(o.Estado)),
+            OrdenesPendientesDeValidacion = ordenes.Count(o => o.Estado == "finalizada"),
             OrdenesRecientes = ordenesRecientes
         });
     }
 
     [HttpGet("{tipoReporte}/pdf")]
-    public IActionResult DescargarReportePdf(string tipoReporte, [FromQuery] FiltrosIndicadoresDto filtros)
+    public async Task<IActionResult> DescargarReportePdf(
+        string tipoReporte, [FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
-        if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
-            && filtros.FechaDesde > filtros.FechaHasta)
+        var resultado = await ArmarReporte(tipoReporte, filtros, cancelacion);
+        if (resultado.Error is not null)
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return resultado.Error;
         }
 
-        var todasLasOrdenes = ListarTodasLasOrdenes();
-        var ordenes = new List<OrdenTrabajoDto>();
-        foreach (var orden in todasLasOrdenes)
-        {
-            if (CumpleFiltros(orden, filtros))
-            {
-                ordenes.Add(orden);
-            }
-        }
-
-        var criterios = ArmarCriterios(filtros, todasLasOrdenes);
-        var tablas = new List<TablaReporte>();
-        string titulo;
-
-        if (tipoReporte == "ordenes-trabajo")
-        {
-            titulo = "Reporte de órdenes de trabajo";
-            tablas.Add(ArmarTablaOrdenes(ordenes));
-        }
-        else if (tipoReporte == "activos-intervenidos")
-        {
-            titulo = "Reporte de activos intervenidos";
-            tablas.Add(ArmarTablaActivos(ordenes));
-        }
-        else if (tipoReporte == "repuestos-utilizados")
-        {
-            titulo = "Reporte de repuestos utilizados";
-            tablas.Add(ArmarTablaRepuestos(ordenes));
-        }
-        else if (tipoReporte == "actividad-tecnicos")
-        {
-            titulo = "Reporte de actividad por técnico";
-            tablas.Add(ArmarTablaTecnicos(ordenes));
-        }
-        else if (tipoReporte == "indicadores")
-        {
-            titulo = "Reporte de indicadores operativos";
-            tablas.Add(ArmarTablaResumen(ordenes));
-            tablas.Add(ArmarTablaGrupos("Órdenes por estado", "Estado", ordenes, "estado"));
-            tablas.Add(ArmarTablaGrupos("Órdenes por prioridad", "Prioridad", ordenes, "prioridad"));
-            tablas.Add(ArmarTablaGrupos("Órdenes por tipo de mantenimiento", "Tipo", ordenes, "tipo"));
-            tablas.Add(ArmarTablaTecnicos(ordenes));
-            tablas.Add(ArmarTablaActivos(ordenes));
-        }
-        else
-        {
-            return BadRequest(new
-            {
-                codigo = "TIPO_REPORTE_INVALIDO",
-                mensaje = "El tipo de reporte no es válido."
-            });
-        }
-
-        var archivo = GeneradorReportesPdf.Generar(titulo, criterios, tablas);
+        var reporte = resultado.Reporte!;
+        var archivo = GeneradorReportesPdf.Generar(reporte.Titulo, reporte.Criterios, reporte.Tablas);
+        MetricasDeNegocio.ReportesGenerados.Add(1, new KeyValuePair<string, object?>("tipo", tipoReporte),
+            new KeyValuePair<string, object?>("formato", "pdf"));
         return File(archivo, "application/pdf", "reporte-" + tipoReporte + ".pdf");
     }
 
-    private List<OrdenTrabajoDto> ListarTodasLasOrdenes()
+    [HttpGet("{tipoReporte}/csv")]
+    public async Task<IActionResult> DescargarReporteCsv(
+        string tipoReporte, [FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
-        var ordenes = new List<OrdenTrabajoDto>();
-        foreach (var ordenTrabajo in _ordenTrabajoDao.ListarTodo())
+        var resultado = await ArmarReporte(tipoReporte, filtros, cancelacion);
+        if (resultado.Error is not null)
         {
-            ordenes.Add(OrdenTrabajoMapeador.ADto(ordenTrabajo));
+            return resultado.Error;
         }
 
-        return ordenes;
+        var archivo = GeneradorReportesCsv.Generar(resultado.Reporte!.Tablas);
+        MetricasDeNegocio.ReportesGenerados.Add(1, new KeyValuePair<string, object?>("tipo", tipoReporte),
+            new KeyValuePair<string, object?>("formato", "csv"));
+        return File(archivo, "text/csv; charset=utf-8", "reporte-" + tipoReporte + ".csv");
     }
 
-    private List<OrdenTrabajoDto> ListarOrdenesFiltradas(FiltrosIndicadoresDto filtros)
+    private async Task<(ReporteArmado? Reporte, IActionResult? Error)> ArmarReporte(string tipoReporte, FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
-        var ordenes = new List<OrdenTrabajoDto>();
-        foreach (var orden in ListarTodasLasOrdenes())
+        if (RangoInvertido(filtros))
         {
-            if (CumpleFiltros(orden, filtros))
+            return (null, RangoDeFechasInvalido());
+        }
+
+        if (tipoReporte is not ("ordenes-trabajo" or "activos-intervenidos" or "repuestos-utilizados"
+            or "actividad-tecnicos" or "indicadores"))
+        {
+            return (null, BadRequest(new
             {
-                ordenes.Add(orden);
-            }
+                codigo = "TIPO_REPORTE_INVALIDO",
+                mensaje = "El tipo de reporte no es válido."
+            }));
         }
 
-        return ordenes;
+        var filtro = AFiltroDeOrdenes(filtros);
+        var tipoValido = TipoValido(filtros);
+        var ordenes = tipoValido ? await _ordenTrabajoDao.ListarResumenesAsync(filtro, cancelacion) : [];
+        var criterios = await ArmarCriterios(filtros, cancelacion);
+
+        return tipoReporte switch
+        {
+            "ordenes-trabajo" => (new ReporteArmado("Reporte de órdenes de trabajo", criterios,
+                [ArmarTablaOrdenes(ordenes)]), null),
+            "activos-intervenidos" => (new ReporteArmado("Reporte de activos intervenidos", criterios,
+                [ArmarTablaActivos(ordenes)]), null),
+            "repuestos-utilizados" => (new ReporteArmado("Reporte de repuestos utilizados", criterios,
+                [ArmarTablaRepuestos(tipoValido ? await _ordenTrabajoDao.ListarRepuestosUsadosAsync(filtro, cancelacion) : [])]), null),
+            "actividad-tecnicos" => (new ReporteArmado("Reporte de actividad por técnico", criterios,
+                [ArmarTablaTecnicos(ordenes)]), null),
+            _ => (new ReporteArmado("Reporte de indicadores operativos", criterios,
+            [
+                ArmarTablaResumen(ordenes),
+                ArmarTablaGrupos("Órdenes por estado", "Estado", Agrupar(ordenes, o => o.Estado)),
+                ArmarTablaGrupos("Órdenes por prioridad", "Prioridad",
+                    Agrupar(ordenes, o => OrdenTrabajoMapeador.APrioridadTexto(o.Prioridad))),
+                ArmarTablaGrupos("Órdenes por tipo de mantenimiento", "Tipo", Agrupar(ordenes, TextoDelTipo)),
+                ArmarTablaTecnicos(ordenes),
+                ArmarTablaActivos(ordenes)
+            ]), null),
+        };
     }
 
-    private static List<string> ArmarCriterios(FiltrosIndicadoresDto filtros, List<OrdenTrabajoDto> todasLasOrdenes)
+    private sealed record ReporteArmado(string Titulo, List<string> Criterios, List<TablaReporte> Tablas);
+
+    private static bool RangoInvertido(FiltrosIndicadoresDto filtros) =>
+        filtros.FechaDesde is not null && filtros.FechaHasta is not null && filtros.FechaDesde > filtros.FechaHasta;
+
+    private BadRequestObjectResult RangoDeFechasInvalido() => BadRequest(new
+    {
+        codigo = "RANGO_FECHAS_INVALIDO",
+        mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
+    });
+
+    private static bool TipoValido(FiltrosIndicadoresDto filtros) =>
+        filtros.Tipo is null or "" or "preventivo" or "correctivo";
+
+    private static FiltroOrdenesTrabajo AFiltroDeOrdenes(FiltrosIndicadoresDto filtros) => new(
+        Buscar: null, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId, filtros.Estado, filtros.Prioridad,
+        EsPreventivo: filtros.Tipo switch { "preventivo" => true, "correctivo" => false, _ => null },
+        filtros.FechaDesde, filtros.FechaHasta, ConSugerencias: null, OrdenarPorCreacion: false, Descendente: false);
+
+    private static string TextoDelTipo(OrdenResumen orden) => orden.EsPreventivo ? "preventivo" : "correctivo";
+
+    private static bool EstaTerminada(string estado) => estado is "finalizada" or "cerrada" or "cancelada";
+
+    private static List<CantidadPorGrupoDto> Agrupar(IEnumerable<OrdenResumen> ordenes, Func<OrdenResumen, string> clave) =>
+        ordenes.GroupBy(clave)
+            .Select(grupo => new CantidadPorGrupoDto { Nombre = grupo.Key, Cantidad = grupo.Count() })
+            .ToList();
+
+    private async Task<List<string>> ArmarCriterios(FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
         var criterios = new List<string>();
 
@@ -229,46 +183,19 @@ public class ReportesController : ControllerBase
             criterios.Add("Hasta: " + filtros.FechaHasta.Value.ToString("dd/MM/yyyy"));
         }
 
-        if (filtros.ClienteId is not null)
+        if (filtros.ClienteId is { } clienteId)
         {
-            var nombreCliente = "N° " + filtros.ClienteId;
-            foreach (var orden in todasLasOrdenes)
-            {
-                if (orden.ClienteId == filtros.ClienteId)
-                {
-                    nombreCliente = orden.NombreCliente;
-                }
-            }
-
-            criterios.Add("Cliente: " + nombreCliente);
+            criterios.Add("Cliente: " + (await _ordenTrabajoDao.ObtenerNombreDeClienteAsync(clienteId, cancelacion) ?? "N° " + clienteId));
         }
 
-        if (filtros.ActivoId is not null)
+        if (filtros.ActivoId is { } activoId)
         {
-            var nombreActivo = "N° " + filtros.ActivoId;
-            foreach (var orden in todasLasOrdenes)
-            {
-                if (orden.ActivoId == filtros.ActivoId)
-                {
-                    nombreActivo = orden.NombreActivo;
-                }
-            }
-
-            criterios.Add("Activo: " + nombreActivo);
+            criterios.Add("Activo: " + (await _ordenTrabajoDao.ObtenerNombreDeActivoAsync(activoId, cancelacion) ?? "N° " + activoId));
         }
 
-        if (filtros.TecnicoId is not null)
+        if (filtros.TecnicoId is { } tecnicoId)
         {
-            var nombreTecnico = "N° " + filtros.TecnicoId;
-            foreach (var orden in todasLasOrdenes)
-            {
-                if (orden.TecnicoId == filtros.TecnicoId && orden.NombreTecnico is not null)
-                {
-                    nombreTecnico = orden.NombreTecnico;
-                }
-            }
-
-            criterios.Add("Técnico: " + nombreTecnico);
+            criterios.Add("Técnico: " + (await _ordenTrabajoDao.ObtenerNombreDeTecnicoAsync(tecnicoId, cancelacion) ?? "N° " + tecnicoId));
         }
 
         if (!string.IsNullOrEmpty(filtros.Estado))
@@ -294,7 +221,7 @@ public class ReportesController : ControllerBase
         return criterios;
     }
 
-    private static TablaReporte ArmarTablaOrdenes(List<OrdenTrabajoDto> ordenes)
+    private static TablaReporte ArmarTablaOrdenes(List<OrdenResumen> ordenes)
     {
         var tabla = new TablaReporte
         {
@@ -304,21 +231,15 @@ public class ReportesController : ControllerBase
 
         foreach (var orden in ordenes)
         {
-            var nombreTecnico = "Sin asignar";
-            if (orden.NombreTecnico is not null)
-            {
-                nombreTecnico = orden.NombreTecnico;
-            }
-
             tabla.Filas.Add(new List<string>
             {
                 orden.Id.ToString(),
                 HoraUruguay.Convertir(orden.CreadoEn).ToString("dd/MM/yyyy"),
-                orden.NombreCliente,
-                orden.NombreActivo,
-                nombreTecnico,
-                orden.Tipo,
-                orden.Prioridad,
+                orden.Cliente,
+                orden.Activo,
+                orden.Tecnico ?? "Sin asignar",
+                TextoDelTipo(orden),
+                OrdenTrabajoMapeador.APrioridadTexto(orden.Prioridad),
                 orden.Estado
             });
         }
@@ -326,124 +247,65 @@ public class ReportesController : ControllerBase
         return tabla;
     }
 
-    private static TablaReporte ArmarTablaActivos(List<OrdenTrabajoDto> ordenes)
+    private static TablaReporte ArmarTablaActivos(List<OrdenResumen> ordenes)
     {
-        var activos = new List<CantidadPorGrupoDto>();
-        var clientesDeCadaActivo = new Dictionary<string, string>();
-        foreach (var orden in ordenes)
-        {
-            SumarUno(activos, orden.NombreActivo);
-            clientesDeCadaActivo[orden.NombreActivo] = orden.NombreCliente;
-        }
-
         var tabla = new TablaReporte
         {
             Titulo = "Activos intervenidos",
             Columnas = new List<string> { "Activo", "Cliente", "Órdenes de trabajo" }
         };
 
-        foreach (var activo in activos.OrderByDescending(grupo => grupo.Cantidad))
+        foreach (var activo in ordenes.GroupBy(o => o.Activo).OrderByDescending(grupo => grupo.Count()))
         {
-            tabla.Filas.Add(new List<string>
-            {
-                activo.Nombre,
-                clientesDeCadaActivo[activo.Nombre],
-                activo.Cantidad.ToString()
-            });
+            tabla.Filas.Add(new List<string> { activo.Key, activo.Last().Cliente, activo.Count().ToString() });
         }
 
         return tabla;
     }
 
-    private static TablaReporte ArmarTablaRepuestos(List<OrdenTrabajoDto> ordenes)
+    private static TablaReporte ArmarTablaRepuestos(List<RepuestoUsadoEnOrdenes> repuestos)
     {
-        var repuestos = new List<CantidadPorGrupoDto>();
-        foreach (var orden in ordenes)
-        {
-            foreach (var repuesto in orden.Repuestos)
-            {
-                SumarUno(repuestos, repuesto.Codigo + " - " + repuesto.Nombre);
-            }
-        }
-
         var tabla = new TablaReporte
         {
             Titulo = "Repuestos utilizados",
             Columnas = new List<string> { "Repuesto", "Órdenes de trabajo en las que se usó" }
         };
 
-        foreach (var repuesto in repuestos.OrderByDescending(grupo => grupo.Cantidad))
+        foreach (var repuesto in repuestos)
         {
-            tabla.Filas.Add(new List<string> { repuesto.Nombre, repuesto.Cantidad.ToString() });
+            tabla.Filas.Add(new List<string> { repuesto.Codigo + " - " + repuesto.Nombre, repuesto.Cantidad.ToString() });
         }
 
         return tabla;
     }
 
-    private static TablaReporte ArmarTablaTecnicos(List<OrdenTrabajoDto> ordenes)
+    private static TablaReporte ArmarTablaTecnicos(List<OrdenResumen> ordenes)
     {
-        var asignadas = new List<CantidadPorGrupoDto>();
-        var terminadas = new List<CantidadPorGrupoDto>();
-        foreach (var orden in ordenes)
-        {
-            if (orden.NombreTecnico is null)
-            {
-                continue;
-            }
-
-            SumarUno(asignadas, orden.NombreTecnico);
-            if (orden.Estado == "finalizada" || orden.Estado == "cerrada")
-            {
-                SumarUno(terminadas, orden.NombreTecnico);
-            }
-        }
-
         var tabla = new TablaReporte
         {
             Titulo = "Actividad por técnico",
             Columnas = new List<string> { "Técnico", "Órdenes asignadas", "Finalizadas o cerradas", "Pendientes" }
         };
 
-        foreach (var tecnico in asignadas)
+        foreach (var tecnico in ordenes.Where(o => o.Tecnico is not null).GroupBy(o => o.Tecnico!))
         {
-            var cantidadTerminadas = 0;
-            foreach (var grupo in terminadas)
-            {
-                if (grupo.Nombre == tecnico.Nombre)
-                {
-                    cantidadTerminadas = grupo.Cantidad;
-                }
-            }
-
-            var cantidadPendientes = tecnico.Cantidad - cantidadTerminadas;
+            var asignadas = tecnico.Count();
+            var terminadas = tecnico.Count(o => o.Estado is "finalizada" or "cerrada");
             tabla.Filas.Add(new List<string>
             {
-                tecnico.Nombre,
-                tecnico.Cantidad.ToString(),
-                cantidadTerminadas.ToString(),
-                cantidadPendientes.ToString()
+                tecnico.Key, asignadas.ToString(), terminadas.ToString(), (asignadas - terminadas).ToString()
             });
         }
 
         return tabla;
     }
 
-    private static TablaReporte ArmarTablaResumen(List<OrdenTrabajoDto> ordenes)
+    private static TablaReporte ArmarTablaResumen(List<OrdenResumen> ordenes)
     {
-        var horasHastaInicio = new List<double>();
-        var horasHastaCierre = new List<double>();
-        foreach (var orden in ordenes)
-        {
-            if (orden.FechaInicio is not null)
-            {
-                horasHastaInicio.Add((orden.FechaInicio.Value - orden.CreadoEn).TotalHours);
-            }
-
-            if (orden.FechaCierre is not null)
-            {
-                horasHastaCierre.Add((orden.FechaCierre.Value - orden.CreadoEn).TotalHours);
-            }
-        }
+        var horasHastaInicio = ordenes.Where(o => o.FechaInicio is not null)
+            .Select(o => (o.FechaInicio!.Value - o.CreadoEn).TotalHours).ToList();
+        var horasHastaCierre = ordenes.Where(o => o.FechaCierre is not null)
+            .Select(o => (o.FechaCierre!.Value - o.CreadoEn).TotalHours).ToList();
 
         var tabla = new TablaReporte
         {
@@ -456,26 +318,8 @@ public class ReportesController : ControllerBase
         return tabla;
     }
 
-    private static TablaReporte ArmarTablaGrupos(string titulo, string columna, List<OrdenTrabajoDto> ordenes,
-        string campo)
+    private static TablaReporte ArmarTablaGrupos(string titulo, string columna, List<CantidadPorGrupoDto> grupos)
     {
-        var grupos = new List<CantidadPorGrupoDto>();
-        foreach (var orden in ordenes)
-        {
-            if (campo == "estado")
-            {
-                SumarUno(grupos, orden.Estado);
-            }
-            else if (campo == "prioridad")
-            {
-                SumarUno(grupos, orden.Prioridad);
-            }
-            else
-            {
-                SumarUno(grupos, orden.Tipo);
-            }
-        }
-
         var tabla = new TablaReporte
         {
             Titulo = titulo,
@@ -490,84 +334,8 @@ public class ReportesController : ControllerBase
         return tabla;
     }
 
-    private static string FormatearHoras(double? horas)
-    {
-        if (horas is null)
-        {
-            return "Sin datos";
-        }
+    private static string FormatearHoras(double? horas) => horas is null ? "Sin datos" : horas + " h";
 
-        return horas + " h";
-    }
-
-    private static double? CalcularPromedio(List<double> valores)
-    {
-        if (valores.Count == 0)
-        {
-            return null;
-        }
-
-        return Math.Round(valores.Average(), 1);
-    }
-
-    private static bool CumpleFiltros(OrdenTrabajoDto orden, FiltrosIndicadoresDto filtros)
-    {
-        var fechaCreacion = DateOnly.FromDateTime(orden.CreadoEn);
-
-        if (filtros.FechaDesde is not null && fechaCreacion < filtros.FechaDesde)
-        {
-            return false;
-        }
-
-        if (filtros.FechaHasta is not null && fechaCreacion > filtros.FechaHasta)
-        {
-            return false;
-        }
-
-        if (filtros.TecnicoId is not null && orden.TecnicoId != filtros.TecnicoId)
-        {
-            return false;
-        }
-
-        if (filtros.ClienteId is not null && orden.ClienteId != filtros.ClienteId)
-        {
-            return false;
-        }
-
-        if (filtros.ActivoId is not null && orden.ActivoId != filtros.ActivoId)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(filtros.Estado) && orden.Estado != filtros.Estado)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(filtros.Tipo) && orden.Tipo != filtros.Tipo)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(filtros.Prioridad) && orden.Prioridad != filtros.Prioridad)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static void SumarUno(List<CantidadPorGrupoDto> grupos, string nombre)
-    {
-        foreach (var grupo in grupos)
-        {
-            if (grupo.Nombre == nombre)
-            {
-                grupo.Cantidad = grupo.Cantidad + 1;
-                return;
-            }
-        }
-
-        grupos.Add(new CantidadPorGrupoDto { Nombre = nombre, Cantidad = 1 });
-    }
+    private static double? CalcularPromedio(List<double> valores) =>
+        valores.Count == 0 ? null : Math.Round(valores.Average(), 1);
 }

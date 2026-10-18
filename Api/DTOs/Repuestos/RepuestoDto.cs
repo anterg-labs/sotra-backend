@@ -11,4 +11,5 @@ public class RepuestoDto
     public int Cantidad { get; init; }
     public int CantidadMinima { get; init; }
     public required string Estado { get; init; }
+    public required string EstadoStock { get; init; }
 }

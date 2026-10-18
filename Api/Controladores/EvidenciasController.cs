@@ -27,16 +27,16 @@ public class EvidenciasController : ControllerBase
 
     [HttpGet]
     [Permiso("ot.consultar")]
-    public ActionResult<List<EvidenciaDto>> ObtenerTodas(long ordenTrabajoId)
+    public async Task<ActionResult<List<EvidenciaDto>>> ObtenerTodas(long ordenTrabajoId, CancellationToken cancelacion)
     {
-        var orden = _ordenTrabajoDao.Seleccionar(ordenTrabajoId);
+        var orden = await _ordenTrabajoDao.SeleccionarAsync(ordenTrabajoId, cancelacion);
         if (orden is null)
         {
             return NotFound();
         }
 
         var respuesta = new List<EvidenciaDto>();
-        foreach (var evidencia in _evidenciaDao.ListarDeOrden(ordenTrabajoId))
+        foreach (var evidencia in await _evidenciaDao.ListarDeOrdenAsync(ordenTrabajoId, cancelacion))
         {
             respuesta.Add(ADto(evidencia));
         }
@@ -52,7 +52,7 @@ public class EvidenciasController : ControllerBase
         [FromForm] string? observacion, [FromForm] DateOnly fechaRegistro, IFormFile? archivo,
         CancellationToken cancellationToken)
     {
-        var orden = _ordenTrabajoDao.Seleccionar(ordenTrabajoId);
+        var orden = await _ordenTrabajoDao.SeleccionarAsync(ordenTrabajoId, cancellationToken);
         if (orden is null)
         {
             return NotFound();
@@ -151,15 +151,15 @@ public class EvidenciasController : ControllerBase
             evidencia.Archivo = contenido;
         }
 
-        var evidenciaCreada = _evidenciaDao.Crear(evidencia);
+        var evidenciaCreada = await _evidenciaDao.CrearAsync(evidencia, cancellationToken);
         return CreatedAtAction(nameof(ObtenerTodas), new { ordenTrabajoId = ordenTrabajoId }, ADto(evidenciaCreada));
     }
 
     [HttpGet("{evidenciaId:long}/archivo")]
     [Permiso("ot.consultar")]
-    public IActionResult Descargar(long ordenTrabajoId, long evidenciaId)
+    public async Task<IActionResult> Descargar(long ordenTrabajoId, long evidenciaId, CancellationToken cancelacion)
     {
-        var evidencia = _evidenciaDao.Seleccionar(ordenTrabajoId, evidenciaId);
+        var evidencia = await _evidenciaDao.SeleccionarAsync(ordenTrabajoId, evidenciaId, cancelacion);
         if (evidencia is null || evidencia.Archivo is null)
         {
             return NotFound();
