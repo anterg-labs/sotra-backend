@@ -132,6 +132,23 @@ Los controladores responden los errores esperados (`400`, `409`, `422`) con un o
 
 Un manejador global (`Api/Infraestructura/ManejadorGlobalDeErrores.cs`) cubre lo que no captura un controlador: `ArgumentException` a `400`, `ConflictoDeDatosException` a `409`, violación de unicidad a `409` y cualquier otra excepción a `500` con un mensaje genérico, sin trazas ni SQL. Para un conflicto con código propio, el DAO lanza `ConflictoDeDatosException(codigo, mensaje)`.
 
+## Seguridad de la API sin sesión
+
+- **Cabeceras de seguridad** en todas las respuestas (`CabecerasDeSeguridadMiddleware`): `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Permissions-Policy`, `Cross-Origin-Resource-Policy` y `Cache-Control: no-store` en `/api`. HSTS y la redirección a HTTPS se activan fuera de desarrollo.
+- **Límite de solicitudes** por dirección IP (`Api/Infraestructura/LimiteDeSolicitudes.cs`), con ventana deslizante de un minuto: 1200 en toda la API, 300 para altas y modificaciones, 30 para subidas de archivos y 20 para las sugerencias de IA. Superarlo devuelve `429` con `codigo` `DEMASIADAS_SOLICITUDES` y `Retry-After`. Se ajusta con la sección `LimiteSolicitudes` o con variables como `LimiteSolicitudes__PorMinutoGeneral`, y se apaga con `LimiteSolicitudes__Habilitado=false`.
+- **Detrás de un proxy** (Nginx o Cloudflare) hay que definir `PROXIES_CONFIANZA` con la dirección o red del proxy; si no, todas las personas comparten el límite del proxy.
+- **CORS** acepta solo el origen de `FRONTEND_ORIGIN`, con los métodos y headers que usa el frontend.
+
+## Autenticación preparada y apagada
+
+La integración con Keycloak (login, tokens, usuarios) la implementa otra persona del equipo. Aquí solo queda la API lista para recibir el token.
+
+- **Interruptor:** `Seguridad__Habilitada` (por defecto `false`). Apagada, la API responde igual que antes y no exige nada.
+- **Encendida:** valida un token JWT `Bearer` contra el emisor `URL_KEYCLOAK` (debe ser `https`, salvo bucle local) y la audiencia `ID_CLIENTE_KEYCLOAK`, y exige una persona autenticada en todos los endpoints salvo `/health`, `/health/ready` y `/api/v1/version`. Sin token responde `401` y sin permiso `403`, ambos como `ProblemDetails` con `codigo` (`NO_AUTENTICADO` o `SIN_PERMISO`).
+- **Permisos:** los endpoints llevan `[Permiso("...")]` con los nombres de la tabla `permiso` (por ejemplo `usuario.crear`, `ot.asignar_tecnico`, `stock.registrar_movimiento`). Se leen de la claim `Seguridad__ClaimPermisos` (por defecto `permisos`, valores separados por espacio). El contrato real del token se define con quien integra Keycloak.
+- **Persona actual:** `IUsuarioActual` expone si hay una persona autenticada y su correo (claim `Seguridad__ClaimCorreo`, por defecto `email`). Con la seguridad apagada siempre devuelve "sin autenticar".
+- **Sin cubrir todavía:** la base solo define 14 permisos, que alcanzan para usuarios, activos, consulta y alta de modelos, órdenes, evidencias y stock. Clientes, tipos de máquina, modificación y baja de modelos, alta y modificación de repuestos, documentos técnicos y reportes no tienen permiso definido y, con la seguridad encendida, solo exigen estar autenticado.
+
 ## Logs
 
 El backend usa Serilog. En desarrollo escribe texto legible en la consola; en los demás ambientes escribe JSON compacto (una línea por evento), que Docker recoge. Los niveles se ajustan en la sección `Serilog` de `appsettings.json`. Cada solicitud se registra con método, ruta (sin parámetros de consulta), estado, duración y dirección IP, y lleva un `IdCorrelacion` que también se devuelve en la cabecera `X-Correlation-Id`. No se registran contraseñas, tokens ni el contenido de los archivos.

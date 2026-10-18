@@ -1,4 +1,6 @@
 using Api.Infraestructura;
+using Api.Infraestructura.Seguridad;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Formatting.Compact;
 using SOTRA_BACKEND.Contexto;
@@ -28,6 +30,9 @@ builder.Host.UseSerilog((contexto, configuracion) =>
 });
 
 builder.Services.AgregarManejoDeErrores();
+builder.Services.AgregarLimiteDeSolicitudes(builder.Configuration);
+builder.Services.AgregarSeguridad(builder.Configuration);
+builder.Services.AgregarProxiesDeConfianza(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddDbContext<SotraContext>();
@@ -47,7 +52,8 @@ builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<SaludDeLaBaseDeDatos>("base-de-datos", tags: [SaludDeLaBaseDeDatos.EtiquetaDisponibilidad]);
 
 builder.Services.AddOpenApi();
 
@@ -63,8 +69,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy.WithOrigins(frontendOrigin)
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+              .WithHeaders("Content-Type", "Authorization", CorrelacionMiddleware.Cabecera)
+              .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+              .WithExposedHeaders(CorrelacionMiddleware.Cabecera, "Content-Disposition", "Retry-After");
     });
 });
 
@@ -75,10 +82,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
+    app.UseHsts();
     app.UseHttpsRedirection();
 }
+
+app.UseMiddleware<CabecerasDeSeguridadMiddleware>();
 
 app.UseMiddleware<CorrelacionMiddleware>();
 app.UseSerilogRequestLogging(opciones =>
@@ -90,10 +102,16 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseRouting();
 app.UseCors("FrontendPolicy");
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = comprobacion => comprobacion.Tags.Contains(SaludDeLaBaseDeDatos.EtiquetaDisponibilidad),
+}).AllowAnonymous();
 
 app.Run();

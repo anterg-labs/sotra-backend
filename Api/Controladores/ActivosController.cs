@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.Activos;
 using Api.Mapeadores;
@@ -20,6 +21,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("activo.consultar")]
     [ProducesResponseType<PaginaDto<ActivoDto>>(StatusCodes.Status200OK)]
     public ActionResult<PaginaDto<ActivoDto>> ObtenerTodos([FromQuery] FiltrosActivosDto filtros)
     {
@@ -40,6 +42,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("activo.consultar")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<ActivoDto> ObtenerPorId(long id)
@@ -49,6 +52,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpPost]
+    [Permiso("activo.crear")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -73,6 +77,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Permiso("activo.editar")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -101,6 +106,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
+    [Permiso("activo.editar")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.Mapeadores;
@@ -18,6 +19,7 @@ public class MovimientosStockController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("stock.consultar")]
     public ActionResult<PaginaDto<MovimientoStockDto>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros)
     {
         if (!PaginaDto<MovimientoStockDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
@@ -42,6 +44,7 @@ public class MovimientosStockController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("stock.consultar")]
     public ActionResult<MovimientoStockDto> ObtenerPorId(long id)
     {
         var movimiento = _movimientoStockDao.Seleccionar(id);
