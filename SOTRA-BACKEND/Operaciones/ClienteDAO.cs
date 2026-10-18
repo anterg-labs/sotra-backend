@@ -18,32 +18,58 @@ public class ClienteDAO
     }
 
 
-    public List<Cliente> ListarTodo()
+    public async Task<List<Cliente>> ListarTodoAsync(CancellationToken cancelacion)
     {
-        return _contexto.Clientes
+        return await _contexto.Clientes
             .Include(cliente => cliente.Activos)
             .OrderBy(cliente => cliente.IdCliente)
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 
-    public Cliente? SeleccionarCliente(long id)
+    public async Task<(List<Cliente> Elementos, int Total)> ListarPaginaAsync(
+        FiltroClientes filtro, int pagina, int tamanoPagina, CancellationToken cancelacion)
     {
-        return _contexto.Clientes
-            .Include(cliente => cliente.Activos)
-            .FirstOrDefault(cliente => cliente.IdCliente == id);
+        var consulta = _contexto.Clientes.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(c => EF.Functions.ILike(c.RazonSocial, patron)
+                                           || EF.Functions.ILike(c.Nombre, patron)
+                                           || (c.Correo != null && EF.Functions.ILike(c.Correo, patron)));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(c => c.Estado == estado);
+        }
+
+        var ordenada = filtro.Descendente
+            ? consulta.OrderByDescending(c => c.IdCliente)
+            : consulta.OrderBy(c => c.IdCliente);
+
+        return await ConsultasDeTexto.PaginarAsync(
+            ordenada.Include(c => c.Activos), pagina, tamanoPagina, cancelacion);
     }
 
-    public Cliente InsertarCliente(Cliente cliente)
+    public async Task<Cliente?> SeleccionarClienteAsync(long id, CancellationToken cancelacion)
+    {
+        return await _contexto.Clientes
+            .Include(cliente => cliente.Activos)
+            .FirstOrDefaultAsync(cliente => cliente.IdCliente == id, cancelacion);
+    }
+
+    public async Task<Cliente> InsertarClienteAsync(Cliente cliente, CancellationToken cancelacion)
     {
         _contexto.Clientes.Add(cliente);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return cliente;
     }
 
-    public bool ActualizarCliente(Cliente cliente)
+    public async Task<bool> ActualizarClienteAsync(Cliente cliente, CancellationToken cancelacion)
     {
-        var clienteExistente = _contexto.Clientes
-            .FirstOrDefault(c => c.IdCliente == cliente.IdCliente);
+        var clienteExistente = await _contexto.Clientes
+            .FirstOrDefaultAsync(c => c.IdCliente == cliente.IdCliente, cancelacion);
         if (clienteExistente is null) return false;
 
         clienteExistente.RazonSocial = cliente.RazonSocial;
@@ -53,42 +79,42 @@ public class ClienteDAO
         clienteExistente.Direccion = cliente.Direccion;
         clienteExistente.Observaciones = cliente.Observaciones;
 
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool DarBajaLogicaCliente(long id)
+    public async Task<bool> DarBajaLogicaClienteAsync(long id, CancellationToken cancelacion)
     {
-        var clienteExistente = _contexto.Clientes
-            .FirstOrDefault(cliente => cliente.IdCliente == id);
+        var clienteExistente = await _contexto.Clientes
+            .FirstOrDefaultAsync(cliente => cliente.IdCliente == id, cancelacion);
         if (clienteExistente is null) return false;
 
         if (!clienteExistente.Estado) return true;
 
         clienteExistente.Estado = false;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool ReactivarCliente(long id)
+    public async Task<bool> ReactivarClienteAsync(long id, CancellationToken cancelacion)
     {
-        var clienteExistente = _contexto.Clientes
-            .FirstOrDefault(cliente => cliente.IdCliente == id);
+        var clienteExistente = await _contexto.Clientes
+            .FirstOrDefaultAsync(cliente => cliente.IdCliente == id, cancelacion);
         if (clienteExistente is null) return false;
 
         clienteExistente.Estado = true;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool EliminarCliente(long id)
+    public async Task<bool> EliminarClienteAsync(long id, CancellationToken cancelacion)
     {
-        var clienteExistente = _contexto.Clientes
-            .FirstOrDefault(cliente => cliente.IdCliente == id);
+        var clienteExistente = await _contexto.Clientes
+            .FirstOrDefaultAsync(cliente => cliente.IdCliente == id, cancelacion);
         if (clienteExistente is null) return false;
 
         _contexto.Clientes.Remove(clienteExistente);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 }

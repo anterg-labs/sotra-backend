@@ -1,3 +1,4 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.Mapeadores;
@@ -18,7 +19,8 @@ public class MovimientosStockController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<PaginaDto<MovimientoStockDto>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros)
+    [Permiso("stock.consultar")]
+    public async Task<ActionResult<PaginaDto<MovimientoStockDto>>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<MovimientoStockDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
@@ -35,75 +37,17 @@ public class MovimientosStockController : ControllerBase
             });
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
-        {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
-        }
-
-        var ubicacionBuscada = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Ubicacion))
-        {
-            ubicacionBuscada = filtros.Ubicacion.Trim().ToLower();
-        }
-
-        var respuesta = new List<MovimientoStockDto>();
-        foreach (var movimiento in _movimientoStockDao.ListarTodo())
-        {
-            var movimientoDto = MovimientoStockMapeador.ADto(movimiento);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<MovimientoStockDto>.Contiene(movimientoDto.CodigoRepuesto, textoBuscado)
-                               || PaginaDto<MovimientoStockDto>.Contiene(movimientoDto.NombreRepuesto, textoBuscado)
-                               || PaginaDto<MovimientoStockDto>.Contiene(movimientoDto.Motivo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.RepuestoId is not null && movimientoDto.RepuestoId != filtros.RepuestoId)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Tipo) && movimientoDto.Tipo != filtros.Tipo)
-            {
-                continue;
-            }
-
-            var fechaMovimiento = DateOnly.FromDateTime(movimientoDto.Fecha);
-            if (filtros.FechaDesde is not null && fechaMovimiento < filtros.FechaDesde)
-            {
-                continue;
-            }
-
-            if (filtros.FechaHasta is not null && fechaMovimiento > filtros.FechaHasta)
-            {
-                continue;
-            }
-
-            if (ubicacionBuscada != "" && !PaginaDto<MovimientoStockDto>.Contiene(movimientoDto.Ubicacion, ubicacionBuscada))
-            {
-                continue;
-            }
-
-            if (filtros.UsuarioId is not null && movimientoDto.UsuarioId != filtros.UsuarioId)
-            {
-                continue;
-            }
-
-            respuesta.Add(movimientoDto);
-        }
-
-        return Ok(PaginaDto<MovimientoStockDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroMovimientosStock(filtros.Buscar, filtros.RepuestoId, filtros.Tipo, filtros.FechaDesde, filtros.FechaHasta, filtros.Ubicacion, filtros.UsuarioId);
+        var (entidades, total) = await _movimientoStockDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
+        var elementos = entidades.Select(MovimientoStockMapeador.ADto).ToList();
+        return Ok(PaginaDto<MovimientoStockDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
-    public ActionResult<MovimientoStockDto> ObtenerPorId(long id)
+    [Permiso("stock.consultar")]
+    public async Task<ActionResult<MovimientoStockDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
-        var movimiento = _movimientoStockDao.Seleccionar(id);
+        var movimiento = await _movimientoStockDao.SeleccionarAsync(id, cancelacion);
         if (movimiento is null)
         {
             return NotFound();

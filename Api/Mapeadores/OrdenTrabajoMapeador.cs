@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using Api.DTOs.OrdenesTrabajo;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -101,7 +103,7 @@ public static class OrdenTrabajoMapeador
             });
         }
 
-        return new OrdenTrabajoDto
+        var dto = new OrdenTrabajoDto
         {
             Id = orden.IdOrden,
             ClienteId = orden.IdCliente,
@@ -124,6 +126,14 @@ public static class OrdenTrabajoMapeador
             EstadosSiguientes = OrdenTrabajoDAO.ObtenerEstadosSiguientes(estado),
             HistorialEstados = historialEstados
         };
+        dto.Version = CalcularVersion(dto);
+        return dto;
+    }
+
+    private static string CalcularVersion(OrdenTrabajoDto dto)
+    {
+        var huella = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(dto));
+        return Convert.ToHexStringLower(huella.AsSpan(0, 8));
     }
 
     public static bool ATipoBooleano(string tipo)
@@ -161,7 +171,7 @@ public static class OrdenTrabajoMapeador
         throw new ArgumentException("La prioridad debe ser 'baja', 'media' o 'alta'.");
     }
 
-    private static string APrioridadTexto(short prioridad)
+    public static string APrioridadTexto(short prioridad)
     {
         if (prioridad < PrioridadMediaEnBase)
         {

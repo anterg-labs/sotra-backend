@@ -9,6 +9,7 @@ public class ServicioOllama
     private const string ModeloDeGeneracion = "qwen2.5:7b";
     private const int DimensionesDelEmbedding = 1024;
     private const int MinutosMaximosDeEspera = 10;
+    private const int SegundosMaximosParaConectar = 5;
     private const string TiempoQueElModeloQuedaCargado = "1h";
     private const int TamanoDeContextoDeQwen = 4096;
     private const int TokensMaximosDeRespuesta = 250;
@@ -23,7 +24,8 @@ public class ServicioOllama
             throw new InvalidOperationException("Falta la variable OLLAMA_BASE_URL.");
         }
 
-        _cliente = new HttpClient
+        var manejador = new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(SegundosMaximosParaConectar) };
+        _cliente = new HttpClient(manejador)
         {
             BaseAddress = new Uri(url),
             Timeout = TimeSpan.FromMinutes(MinutosMaximosDeEspera)

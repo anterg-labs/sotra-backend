@@ -18,77 +18,122 @@ public class ModeloMaquinaDAO
     }
 
 
-    public List<ModeloMaquina> ListarTodo()
+    public async Task<List<ModeloMaquina>> ListarTodoAsync(CancellationToken cancelacion)
     {
-        return _contexto.ModeloMaquinas
+        return await _contexto.ModeloMaquinas
             .OrderBy(modelo => modelo.IdModeloMaquina)
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 
-    public ModeloMaquina? SeleccionarModeloMaquina(long id)
+    public async Task<(List<ModeloMaquina> Elementos, int Total)> ListarPaginaAsync(
+        FiltroModelosMaquina filtro, int pagina, int tamanoPagina, CancellationToken cancelacion)
     {
-        return _contexto.ModeloMaquinas
-            .FirstOrDefault(modelo => modelo.IdModeloMaquina == id);
+        var consulta = _contexto.ModeloMaquinas.AsNoTracking()
+            .Include(modelo => modelo.IdTipoMaquinaNavigation)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(m => EF.Functions.ILike(m.Nombre, patron)
+                                           || (m.Descripcion != null && EF.Functions.ILike(m.Descripcion, patron)));
+        }
+
+        if (filtro.TipoMaquinaId is { } tipoMaquinaId)
+        {
+            consulta = consulta.Where(m => m.IdTipoMaquina == tipoMaquinaId);
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(m => m.Activo == estado);
+        }
+
+        return await ConsultasDeTexto.PaginarAsync(
+            consulta.OrderBy(m => m.IdModeloMaquina), pagina, tamanoPagina, cancelacion);
     }
 
-    public ModeloMaquina InsertarModeloMaquina(ModeloMaquina modeloMaquina)
+    public async Task<ModeloMaquina?> SeleccionarModeloMaquinaAsync(long id, CancellationToken cancelacion)
     {
-        ValidarTipoMaquinaActivo(modeloMaquina.IdTipoMaquina);
+        return await _contexto.ModeloMaquinas
+            .Include(modelo => modelo.IdTipoMaquinaNavigation)
+            .FirstOrDefaultAsync(modelo => modelo.IdModeloMaquina == id, cancelacion);
+    }
+
+    public async Task<ModeloMaquina> InsertarModeloMaquinaAsync(ModeloMaquina modeloMaquina, CancellationToken cancelacion)
+    {
+        await ValidarTipoMaquinaActivoAsync(modeloMaquina.IdTipoMaquina, cancelacion);
+        await ValidarNombreDisponibleAsync(modeloMaquina.Nombre, modeloMaquina.IdTipoMaquina, null, cancelacion);
         _contexto.ModeloMaquinas.Add(modeloMaquina);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return modeloMaquina;
     }
 
-    public bool ActualizarModeloMaquina(ModeloMaquina modeloMaquina)
+    public async Task<bool> ActualizarModeloMaquinaAsync(ModeloMaquina modeloMaquina, CancellationToken cancelacion)
     {
-        var modeloExistente = _contexto.ModeloMaquinas
-            .FirstOrDefault(modelo => modelo.IdModeloMaquina == modeloMaquina.IdModeloMaquina);
+        var modeloExistente = await _contexto.ModeloMaquinas
+            .FirstOrDefaultAsync(modelo => modelo.IdModeloMaquina == modeloMaquina.IdModeloMaquina, cancelacion);
         if (modeloExistente is null) return false;
 
-        ValidarTipoMaquinaActivo(modeloMaquina.IdTipoMaquina);
+        await ValidarTipoMaquinaActivoAsync(modeloMaquina.IdTipoMaquina, cancelacion);
+        await ValidarNombreDisponibleAsync(
+            modeloMaquina.Nombre, modeloMaquina.IdTipoMaquina, modeloExistente.IdModeloMaquina, cancelacion);
         modeloExistente.Nombre = modeloMaquina.Nombre;
         modeloExistente.IdTipoMaquina = modeloMaquina.IdTipoMaquina;
         modeloExistente.Descripcion = modeloMaquina.Descripcion;
         modeloExistente.Activo = modeloMaquina.Activo;
 
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool DarBajaLogicaModeloMaquina(long id)
+    public async Task<bool> DarBajaLogicaModeloMaquinaAsync(long id, CancellationToken cancelacion)
     {
-        var modeloExistente = _contexto.ModeloMaquinas
-            .FirstOrDefault(modelo => modelo.IdModeloMaquina == id);
+        var modeloExistente = await _contexto.ModeloMaquinas
+            .FirstOrDefaultAsync(modelo => modelo.IdModeloMaquina == id, cancelacion);
         if (modeloExistente is null) return false;
 
         if (!modeloExistente.Activo) return true;
 
         modeloExistente.Activo = false;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool EliminarModeloMaquina(long id)
+    public async Task<bool> EliminarModeloMaquinaAsync(long id, CancellationToken cancelacion)
     {
-        var modeloExistente = _contexto.ModeloMaquinas
-            .FirstOrDefault(modelo => modelo.IdModeloMaquina == id);
+        var modeloExistente = await _contexto.ModeloMaquinas
+            .FirstOrDefaultAsync(modelo => modelo.IdModeloMaquina == id, cancelacion);
         if (modeloExistente is null) return false;
 
         _contexto.ModeloMaquinas.Remove(modeloExistente);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    private void ValidarTipoMaquinaActivo(long idTipoMaquina)
+    private async Task ValidarNombreDisponibleAsync(
+        string nombre, long idTipoMaquina, long? idModeloActual, CancellationToken cancelacion)
+    {
+        var nombreNormalizado = nombre.Trim().ToLower();
+        var existe = await _contexto.ModeloMaquinas.AsNoTracking().AnyAsync(modelo =>
+            modelo.IdTipoMaquina == idTipoMaquina
+            && modelo.IdModeloMaquina != idModeloActual
+            && modelo.Nombre.ToLower() == nombreNormalizado, cancelacion);
+        if (existe)
+            throw new ConflictoDeDatosException("MODELO_DUPLICADO",
+                "Ya existe un modelo de máquina con ese nombre para el tipo seleccionado.");
+    }
+
+    private async Task ValidarTipoMaquinaActivoAsync(long idTipoMaquina, CancellationToken cancelacion)
     {
         if (idTipoMaquina <= 0)
-            throw new ArgumentException("El identificador del tipo de máquina debe ser positivo.");
+            throw new ValidacionDeNegocioException("El identificador del tipo de máquina debe ser positivo.");
 
-        var tipo = _contexto.TipoMaquinas.AsNoTracking()
-            .FirstOrDefault(tipo => tipo.IdTipoMaquina == idTipoMaquina);
+        var tipo = await _contexto.TipoMaquinas.AsNoTracking()
+            .FirstOrDefaultAsync(tipo => tipo.IdTipoMaquina == idTipoMaquina, cancelacion);
         if (tipo is null)
-            throw new ArgumentException("El tipo de máquina indicado no existe.");
+            throw new ValidacionDeNegocioException("El tipo de máquina indicado no existe.");
         if (!tipo.Estado)
-            throw new ArgumentException("El tipo de máquina indicado está inactivo.");
+            throw new ValidacionDeNegocioException("El tipo de máquina indicado está inactivo.");
     }
 }

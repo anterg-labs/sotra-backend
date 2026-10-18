@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Api.DTOs.DocumentosTecnicos;
 using Npgsql;
+using SOTRA_BACKEND.Operaciones;
 using Pgvector;
 
 namespace Api.Servicios;
@@ -9,6 +10,13 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
 {
     private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v3:1400:200";
     private const int FragmentosPorPedidoDeEmbeddings = 8;
+
+    private const string ColumnasDeDocumento = """
+        SELECT documento.id, documento.nombre_archivo, documento.activo_id,
+               activo.nombre, activo.num_serie, documento.usa_sugerencias_ia,
+               documento.cantidad_fragmentos, documento.creado_en
+
+        """;
 
     private readonly ServicioOllama _ollama;
     private readonly NpgsqlDataSource _baseDatos;
@@ -19,26 +27,58 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         _baseDatos = BaseVectorial.CrearConexion();
     }
 
-    public async Task<List<DocumentoTecnicoDto>> ListarAsync(CancellationToken cancellationToken)
+    private const string ConsultaBaseDeDocumentos = """
+        FROM vectorial.documento_tecnico AS documento
+        LEFT JOIN operativo.activo AS activo ON activo.id_activo = documento.activo_id
+
+        """;
+
+    /// <summary>Lista una página de documentos filtrando y contando en la base, sin traer el archivo.</summary>
+    public async Task<(List<DocumentoTecnicoDto> Elementos, int Total)> ListarPaginaAsync(
+        string? buscar, long? activoId, int pagina, int tamanoPagina, CancellationToken cancellationToken)
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
-        var documentos = new List<DocumentoTecnicoDto>();
-        await using var comando = _baseDatos.CreateCommand("""
-            SELECT documento.id, documento.nombre_archivo, documento.activo_id,
-                   activo.nombre, activo.num_serie, documento.usa_sugerencias_ia,
-                   documento.cantidad_fragmentos, documento.creado_en
-            FROM vectorial.documento_tecnico AS documento
-            LEFT JOIN operativo.activo AS activo ON activo.id_activo = documento.activo_id
-            ORDER BY documento.id
-            """);
 
+        string? patron = string.IsNullOrWhiteSpace(buscar) ? null : ConsultasDeTexto.PatronContiene(buscar);
+        const string filtros = """
+            WHERE ($1::text IS NULL OR documento.nombre_archivo ILIKE $1
+                   OR COALESCE(activo.nombre, activo.num_serie) ILIKE $1)
+              AND ($2::bigint IS NULL OR documento.activo_id = $2)
+            """;
+
+        await using var contar = _baseDatos.CreateCommand("SELECT count(*) " + ConsultaBaseDeDocumentos + filtros);
+        contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)patron ?? DBNull.Value);
+        contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)activoId ?? DBNull.Value);
+        var total = Convert.ToInt32(await contar.ExecuteScalarAsync(cancellationToken));
+
+        await using var comando = _baseDatos.CreateCommand(ColumnasDeDocumento + ConsultaBaseDeDocumentos + filtros + """
+
+            ORDER BY documento.id
+            LIMIT $3 OFFSET $4
+            """);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)patron ?? DBNull.Value);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)activoId ?? DBNull.Value);
+        comando.Parameters.AddWithValue(tamanoPagina);
+        comando.Parameters.AddWithValue((pagina - 1) * tamanoPagina);
+
+        var documentos = new List<DocumentoTecnicoDto>();
         await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
         while (await lector.ReadAsync(cancellationToken))
         {
             documentos.Add(LeerDocumento(lector));
         }
 
-        return documentos;
+        return (documentos, total);
+    }
+
+    public async Task<DocumentoTecnicoDto?> ObtenerAsync(long id, CancellationToken cancellationToken)
+    {
+        await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+        await using var comando = _baseDatos.CreateCommand(
+            ColumnasDeDocumento + ConsultaBaseDeDocumentos + "WHERE documento.id = $1");
+        comando.Parameters.AddWithValue(id);
+        await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
+        return await lector.ReadAsync(cancellationToken) ? LeerDocumento(lector) : null;
     }
 
     public async Task<DocumentoTecnicoDto> GuardarAsync(string nombreArchivo, long? activoId,
@@ -249,7 +289,7 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         var cantidad = Convert.ToInt64(await comando.ExecuteScalarAsync(cancellationToken));
         if (cantidad == 0)
         {
-            throw new ArgumentException("El activo indicado no existe.");
+            throw new ValidacionDeNegocioException("El activo indicado no existe.", "ACTIVO_NO_EXISTE");
         }
     }
 

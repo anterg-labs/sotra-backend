@@ -1,9 +1,8 @@
+using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.Activos;
 using Api.Mapeadores;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -20,131 +19,77 @@ public class ActivosController : ControllerBase
     }
 
     [HttpGet]
+    [Permiso("activo.consultar")]
     [ProducesResponseType<PaginaDto<ActivoDto>>(StatusCodes.Status200OK)]
-    public ActionResult<PaginaDto<ActivoDto>> ObtenerTodos([FromQuery] FiltrosActivosDto filtros)
+    public async Task<ActionResult<PaginaDto<ActivoDto>>> ObtenerTodos([FromQuery] FiltrosActivosDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<ActivoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
             return BadRequest(PaginaDto<ActivoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<ActivoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<ActivoDto>();
-        foreach (var activo in _activoDao.ListarTodo())
-        {
-            var activoDto = ActivoMapeador.ADto(activo);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<ActivoDto>.Contiene(activoDto.Nombre, textoBuscado)
-                               || PaginaDto<ActivoDto>.Contiene(activoDto.NumSerie, textoBuscado)
-                               || PaginaDto<ActivoDto>.Contiene(activoDto.Ubicacion, textoBuscado)
-                               || PaginaDto<ActivoDto>.Contiene(activoDto.Descripcion, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.ClienteId is not null && activoDto.ClienteId != filtros.ClienteId)
-            {
-                continue;
-            }
-
-            if (filtros.ModeloMaquinaId is not null && activoDto.ModeloMaquinaId != filtros.ModeloMaquinaId)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && activoDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(activoDto);
-        }
-
-        return Ok(PaginaDto<ActivoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroActivos(filtros.Buscar, filtros.ClienteId, filtros.ModeloMaquinaId, estado);
+        var (entidades, total) = await _activoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
+        var elementos = entidades.Select(ActivoMapeador.ADto).ToList();
+        return Ok(PaginaDto<ActivoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
     [HttpGet("{id:long}")]
+    [Permiso("activo.consultar")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<ActivoDto> ObtenerPorId(long id)
+    public async Task<ActionResult<ActivoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
-        var activo = _activoDao.SeleccionarActivo(id);
+        var activo = await _activoDao.SeleccionarActivoAsync(id, cancelacion);
         return activo is null ? NotFound() : Ok(ActivoMapeador.ADto(activo));
     }
 
     [HttpPost]
+    [Permiso("activo.crear")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult<ActivoDto> Crear(ActivoCrearDto solicitud)
+    public async Task<ActionResult<ActivoDto>> Crear(ActivoCrearDto solicitud, CancellationToken cancelacion)
     {
-        try
-        {
-            var activoCreado = _activoDao.InsertarActivo(ActivoMapeador.AEntidad(solicitud));
-            var respuesta = ActivoMapeador.ADto(activoCreado);
-            return CreatedAtAction(nameof(ObtenerPorId), new { id = activoCreado.IdActivo }, respuesta);
-        }
-        catch (ArgumentException excepcion)
-        {
-            return BadRequest(new { mensaje = excepcion.Message });
-        }
-        catch (DbUpdateException excepcion)
-            when (excepcion.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return Conflict(new { mensaje = "Ya existe un activo con ese número de serie." });
-        }
+        var activoCreado = await _activoDao.InsertarActivoAsync(ActivoMapeador.AEntidad(solicitud), cancelacion);
+        var respuesta = ActivoMapeador.ADto(activoCreado);
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = activoCreado.IdActivo }, respuesta);
     }
 
     [HttpPut("{id:long}")]
+    [Permiso("activo.editar")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult<ActivoDto> Actualizar(long id, ActivoActualizarDto solicitud)
+    public async Task<ActionResult<ActivoDto>> Actualizar(long id, ActivoActualizarDto solicitud, CancellationToken cancelacion)
     {
-        try
-        {
-            var activo = _activoDao.SeleccionarActivo(id);
-            if (activo is null) return NotFound();
+        var activo = await _activoDao.SeleccionarActivoAsync(id, cancelacion);
+        if (activo is null) return NotFound();
 
-            ActivoMapeador.AplicarCambios(activo, solicitud);
-            _activoDao.ActualizarActivo(activo);
-            return Ok(ActivoMapeador.ADto(activo));
-        }
-        catch (ArgumentException excepcion)
-        {
-            return BadRequest(new { mensaje = excepcion.Message });
-        }
-        catch (DbUpdateException excepcion)
-            when (excepcion.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return Conflict(new { mensaje = "Ya existe un activo con ese número de serie." });
-        }
+        ActivoMapeador.AplicarCambios(activo, solicitud);
+        await _activoDao.ActualizarActivoAsync(activo, cancelacion);
+        return Ok(ActivoMapeador.ADto(activo));
     }
 
     [HttpPatch("{id:long}")]
+    [Permiso("activo.editar")]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<ActivoDto> Desactivar(long id, ActivoEstadoDto solicitud)
+    public async Task<ActionResult<ActivoDto>> Desactivar(long id, ActivoEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_activoDao.DarBajaLogicaActivo(id)) return NotFound();
+        if (!await _activoDao.DarBajaLogicaActivoAsync(id, cancelacion)) return NotFound();
 
-        var activo = _activoDao.SeleccionarActivo(id)!;
+        var activo = (await _activoDao.SeleccionarActivoAsync(id, cancelacion))!;
         return Ok(ActivoMapeador.ADto(activo));
     }
 }
