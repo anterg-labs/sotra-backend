@@ -71,14 +71,14 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
-    public async Task ObtenerUnUsuarioInexistenteResponde404ConProblemDetailsSinCodigo()
+    public async Task ObtenerUnUsuarioInexistenteResponde404ConProblemDetailsYCodigo()
     {
         var respuesta = await Cliente.GetAsync("/api/v1/usuarios/999999999");
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
         var cuerpo = await respuesta.LeerJsonAsync();
         Assert.That(cuerpo.GetProperty("status").GetInt32(), Is.EqualTo(404));
-        Assert.That(cuerpo.TryGetProperty("codigo", out _), Is.False);
+        Assert.That(cuerpo.GetProperty("codigo").GetString(), Is.EqualTo("RECURSO_NO_ENCONTRADO"));
     }
 
     [Test]
