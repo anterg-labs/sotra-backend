@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Serilog.Context;
 
 namespace Api.Infraestructura;
@@ -14,7 +15,9 @@ public sealed class CorrelacionMiddleware(RequestDelegate siguiente)
         contexto.Response.Headers[Cabecera] = identificador;
         contexto.Items[Cabecera] = identificador;
 
+        // El identificador de traza enlaza cada log con su traza distribuida (OpenTelemetry).
         using (LogContext.PushProperty("IdCorrelacion", identificador))
+        using (LogContext.PushProperty("TraceId", Activity.Current?.TraceId.ToString()))
         {
             await siguiente(contexto);
         }

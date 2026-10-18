@@ -50,9 +50,11 @@ public static class ActivoMapeador
         {
             Id = activo.IdActivo,
             ClienteId = activo.IdCliente,
+            NombreCliente = activo.IdClienteNavigation?.RazonSocial,
             NumSerie = activo.NumSerie,
             Descripcion = activo.Descripcion,
             ModeloMaquinaId = activo.IdModeloMaquina,
+            NombreModeloMaquina = activo.IdModeloMaquinaNavigation?.Nombre,
             AnioFabricacion = activo.AnioFabricacion,
             Nombre = activo.Nombre,
             Ubicacion = activo.Ubicacion,

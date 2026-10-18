@@ -46,7 +46,7 @@ public class EntornoDePruebas
             ["DB_USER"] = UsuarioBase,
             ["DB_PASSWORD"] = ContrasenaBase,
             ["FRONTEND_ORIGIN"] = "http://localhost",
-            ["OLLAMA_BASE_URL"] = "http://localhost:11434",
+            ["OLLAMA_BASE_URL"] = "http://127.0.0.1:1",
         };
 
         // Program.cs carga el archivo .env que encuentre desde la carpeta actual hacia arriba.
@@ -63,6 +63,13 @@ public class EntornoDePruebas
         foreach (var variable in variables)
         {
             Environment.SetEnvironmentVariable(variable.Key, variable.Value);
+        }
+
+        // Toda la suite comparte una dirección IP: se sube el límite de solicitudes para que no frene las pruebas.
+        // Va solo como variable de entorno (no en el .env) para que una prueba pueda bajarlo.
+        foreach (var limite in new[] { "Escrituras", "General", "Subidas", "Sugerencias" })
+        {
+            Environment.SetEnvironmentVariable("LimiteSolicitudes__PorMinuto" + limite, "100000");
         }
 
         _puertoDelContenedor = puerto;

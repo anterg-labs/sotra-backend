@@ -19,10 +19,10 @@ do
     switch (opcion)
     {
         case 1:
-            MenuModeloMaquina();
+            await MenuModeloMaquina();
             break;
         case 2:
-            MenuUsuario();
+            await MenuUsuario();
             break;
         case 0:
             Console.WriteLine("Saliendo...");
@@ -41,7 +41,7 @@ do
 
 } while (opcion != 0);
 
-static void MenuModeloMaquina()
+static async Task MenuModeloMaquina()
 {
     int opcion;
 
@@ -65,20 +65,20 @@ static void MenuModeloMaquina()
         switch (opcion)
         {
             case 1:
-                testModeloMaquina.ListarTodo();
+                await testModeloMaquina.ListarTodo();
                 break;
             case 2:
                 Console.Write("Ingrese el IdModeloMaquina: ");
-                testModeloMaquina.SeleccionarPorId(LeerLong());
+                await testModeloMaquina.SeleccionarPorId(LeerLong());
                 break;
             case 3:
-                testModeloMaquina.Insertar();
+                await testModeloMaquina.Insertar();
                 break;
             case 4:
-                testModeloMaquina.Actualizar();
+                await testModeloMaquina.Actualizar();
                 break;
             case 5:
-                testModeloMaquina.Eliminar();
+                await testModeloMaquina.Eliminar();
                 break;
             case 0:
                 break;
@@ -97,7 +97,7 @@ static void MenuModeloMaquina()
     } while (opcion != 0);
 }
 
-static void MenuUsuario()
+static async Task MenuUsuario()
 {
     int opcion;
 
@@ -122,23 +122,23 @@ static void MenuUsuario()
         switch (opcion)
         {
             case 1:
-                testUsuario.ListarTodo();
+                await testUsuario.ListarTodo();
                 break;
             case 2:
                 Console.Write("Ingrese el IdUsuario: ");
-                testUsuario.SeleccionarPorId(LeerLong());
+                await testUsuario.SeleccionarPorId(LeerLong());
                 break;
             case 3:
-                testUsuario.Insertar();
+                await testUsuario.Insertar();
                 break;
             case 4:
-                testUsuario.Actualizar();
+                await testUsuario.Actualizar();
                 break;
             case 5:
-                testUsuario.Eliminar();
+                await testUsuario.Eliminar();
                 break;
             case 6:
-                testUsuario.DarBajaLogica();
+                await testUsuario.DarBajaLogica();
                 break;
             case 0:
                 break;

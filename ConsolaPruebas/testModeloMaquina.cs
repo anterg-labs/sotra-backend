@@ -1,14 +1,14 @@
-using SOTRA_BACKEND.Modelos;
+﻿using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
 
 namespace ConsolaPruebas;
 
 public static class testModeloMaquina
 {
-    public static void ListarTodo()
+    public static async Task ListarTodo()
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
-        var modelosMaquinas = dao.ListarTodo();
+        var modelosMaquinas = await dao.ListarTodoAsync(CancellationToken.None);
 
         if (modelosMaquinas.Count == 0)
         {
@@ -22,10 +22,10 @@ public static class testModeloMaquina
         }
     }
 
-    public static void SeleccionarPorId(long id)
+    public static async Task SeleccionarPorId(long id)
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
-        ModeloMaquina? modelo = dao.SeleccionarModeloMaquina(id);
+        ModeloMaquina? modelo = await dao.SeleccionarModeloMaquinaAsync(id, CancellationToken.None);
 
         if (modelo is null)
         {
@@ -36,7 +36,7 @@ public static class testModeloMaquina
         Console.WriteLine(modelo);
     }
 
-    public static void Insertar()
+    public static async Task Insertar()
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
 
@@ -54,19 +54,19 @@ public static class testModeloMaquina
         Console.Write("Activo (true/false): ");
         modelo.Activo = LeerBool();
 
-        dao.InsertarModeloMaquina(modelo);
+        await dao.InsertarModeloMaquinaAsync(modelo, CancellationToken.None);
         Console.WriteLine("ModeloMaquina insertado correctamente.");
         Console.WriteLine(modelo);
     }
 
-    public static void Actualizar()
+    public static async Task Actualizar()
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
 
         Console.Write("IdModeloMaquina a actualizar: ");
         long id = LeerLong();
 
-        ModeloMaquina? modelo = dao.SeleccionarModeloMaquina(id);
+        ModeloMaquina? modelo = await dao.SeleccionarModeloMaquinaAsync(id, CancellationToken.None);
         if (modelo is null)
         {
             Console.WriteLine($"No se encontró un ModeloMaquina con Id: {id}");
@@ -101,7 +101,7 @@ public static class testModeloMaquina
             modelo.Activo = valorActivo;
         }
 
-        bool actualizado = dao.ActualizarModeloMaquina(modelo);
+        bool actualizado = await dao.ActualizarModeloMaquinaAsync(modelo, CancellationToken.None);
         Console.WriteLine(actualizado ? "ModeloMaquina actualizado correctamente." : "No se pudo actualizar el registro.");
         if (actualizado)
         {
@@ -109,14 +109,14 @@ public static class testModeloMaquina
         }
     }
 
-    public static void Eliminar()
+    public static async Task Eliminar()
     {
         ModeloMaquinaDAO dao = new ModeloMaquinaDAO();
 
         Console.Write("IdModeloMaquina a eliminar: ");
         long id = LeerLong();
 
-        bool eliminado = dao.EliminarModeloMaquina(id);
+        bool eliminado = await dao.EliminarModeloMaquinaAsync(id, CancellationToken.None);
         Console.WriteLine(eliminado ? "ModeloMaquina eliminado correctamente." : $"No se encontró un ModeloMaquina con Id: {id}");
     }
 

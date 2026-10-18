@@ -134,7 +134,8 @@ public class TiposYModelosPruebas : PruebaBase
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         var pagina = await respuesta.LeerJsonAsync();
         var propiedades = pagina.GetProperty("elementos")[0].EnumerateObject().Select(p => p.Name).ToList();
-        Assert.That(propiedades, Is.EquivalentTo(new[] { "id", "nombre", "tipoMaquinaId", "descripcion", "estado" }));
+        Assert.That(propiedades, Is.EquivalentTo(new[] { "id", "nombre", "tipoMaquinaId", "nombreTipoMaquina", "descripcion", "estado" }));
+        Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreTipoMaquina").GetString(), Is.Not.Empty);
     }
 
     [Test]

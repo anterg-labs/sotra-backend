@@ -32,9 +32,12 @@ builder.Host.UseSerilog((contexto, configuracion) =>
 builder.Services.AgregarManejoDeErrores();
 builder.Services.AgregarLimiteDeSolicitudes(builder.Configuration);
 builder.Services.AgregarSeguridad(builder.Configuration);
+builder.Services.AgregarObservabilidad(builder.Configuration);
 builder.Services.AgregarProxiesDeConfianza(builder.Configuration);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(opciones => opciones.Filters.Add<AuditoriaDeAcciones>())
+    .AddJsonOptions(opciones => opciones.JsonSerializerOptions.Converters.Add(new TextoSinCaracteresNulosConverter()));
+builder.WebHost.ConfigureKestrel(opciones => opciones.AddServerHeader = false);
 builder.Services.AddDbContext<SotraContext>();
 
 builder.Services.AddScoped<UsuarioDAO>();
@@ -99,6 +102,7 @@ app.UseSerilogRequestLogging(opciones =>
         diagnostico.Set("DireccionIp", contexto.Connection.RemoteIpAddress?.ToString());
 });
 app.UseExceptionHandler();
+app.UseMiddleware<EntradaSinCaracteresNulosMiddleware>();
 app.UseStatusCodePages();
 app.UseRouting();
 app.UseCors("FrontendPolicy");

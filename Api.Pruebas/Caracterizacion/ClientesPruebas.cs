@@ -213,4 +213,18 @@ public class ClientesPruebas : PruebaBase
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
+
+    [Test]
+    public async Task CrearClienteConTelefonoRepetidoResponde409()
+    {
+        var primero = await DatosDePrueba.CrearClienteAsync(Cliente);
+        var telefono = primero.GetProperty("telefono").GetString();
+
+        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/clientes", DatosDePrueba.ClienteNuevo(telefono: telefono));
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        var cuerpo = await respuesta.LeerJsonAsync();
+        Assert.That(cuerpo.GetProperty("codigo").GetString(), Is.EqualTo("TELEFONO_DUPLICADO"));
+        Assert.That(cuerpo.GetProperty("mensaje").GetString(), Is.EqualTo("El número telefónico ya está registrado."));
+    }
 }
