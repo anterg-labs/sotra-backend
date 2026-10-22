@@ -118,6 +118,17 @@ Roles del realm: `administrador`, `jefe_mantenimiento`, `tecnico` y `panolero`. 
 
 El login usa el correo como nombre de usuario. La política de contraseñas exige al menos 8 caracteres, una mayúscula, un dígito y un carácter especial; no permite el correo ni el usuario como contraseña, ni repetir las últimas 3. Después de 5 intentos fallidos la cuenta se bloquea temporalmente (desde 1 minuto hasta 15). Una contraseña asignada como temporal obliga a cambiarla en el primer ingreso.
 
+### Pantalla de login (tema `sotra`)
+
+El login de Keycloak usa el tema propio `keycloak/themes/sotra/login`, con el mismo diseño que tenía la pantalla de login del frontend: logo de CVM, «Iniciar sesión», campos Usuario y Contraseña, «¿Olvidaste tu contraseña?» y, en pantallas anchas, la foto de maquinaria con el lema. Hereda las plantillas del tema `base` de Keycloak y reemplaza:
+
+- `template.ftl`: la estructura común de todas las pantallas (login, recuperar y elegir contraseña, errores).
+- `login.ftl` (la etiqueta «Usuario») y `login-reset-password.ftl` («Recuperar contraseña» con el orden del frontend).
+- `messages/messages_es.properties`: los textos propios.
+- `resources/`: estilos, logo, foto, ícono y la fuente Inter.
+
+`compose.yml` monta la carpeta en `/opt/keycloak/themes/sotra` y `realm-sotra.json` lo activa con `"loginTheme": "sotra"`. En un realm que ya existía, la importación no lo aplica: elegir `sotra` en la consola de Keycloak (Realm settings › Themes › Login theme) o actualizar el realm con la API de administración. Con `start-dev` Keycloak no cachea los temas, así que un cambio en los archivos se ve al recargar la página. Si se cambia el logo o la foto en el frontend (`public/images`), copiarlos también a `resources/img`.
+
 ### Correos con Gmail
 
 Para "¿Olvidaste tu contraseña?" (RF001-12) Keycloak envía correos por el SMTP de Gmail (`smtp.gmail.com`, puerto `587`, con StartTLS y autenticación). En `realm-sotra.json` el servidor, el puerto, el remitente, el usuario y la contraseña no están escritos: son las variables `${KC_SMTP_HOST}`, `${KC_SMTP_PORT}`, `${KC_SMTP_FROM}`, `${KC_SMTP_USER}` y `${KC_SMTP_PASSWORD}`, que Keycloak reemplaza con los valores del `.env` al importar el realm. Así la contraseña nunca queda en el repositorio. Como el resto del archivo, esto solo se aplica cuando el realm se crea; en un realm que ya existe, el correo se cambia en la consola, en **Realm settings** → **Email**.
@@ -166,8 +177,8 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 | Política | Endpoints | Roles |
 |---|---|---|
 | `usuario.listar` | `GET /usuarios` | administrador, jefe_mantenimiento |
-| `usuario.consultar` | `GET /usuarios/{id}`, `GET /roles` | administrador |
-| `usuario.crear`, `usuario.editar` | `POST`, `PUT`, `PATCH /usuarios` | administrador |
+| `usuario.consultar` | `GET /usuarios/{id}`, `GET /roles` | administrador, jefe_mantenimiento |
+| `usuario.crear`, `usuario.editar` | `POST`, `PUT`, `PATCH /usuarios`, `POST /usuarios/{id}/restablecer-contrasena` | administrador, jefe_mantenimiento (ver abajo) |
 | `cliente.consultar` | `GET /clientes` | todos |
 | `cliente.gestionar` | `POST`, `PUT`, `PATCH /clientes` | administrador, jefe_mantenimiento |
 | `activo.consultar` | `GET /activos` | todos |
@@ -181,10 +192,15 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 | `ot.registrar_avance` | `PATCH /ordenes-trabajo/{id}/estado`, `POST` de evidencias | administrador, jefe_mantenimiento, tecnico |
 | `documento.consultar` | `GET /documentos-tecnicos` y su archivo | administrador, jefe_mantenimiento, tecnico |
 | `documento.gestionar` | `POST`, `DELETE /documentos-tecnicos` | administrador, jefe_mantenimiento |
-| `stock.consultar` | `GET /repuestos`, `GET /movimientos-stock` | administrador, panolero |
+| `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, panolero |
 | `repuesto.gestionar` | `POST`, `PUT`, `PATCH /repuestos` | administrador, panolero |
 | `stock.registrar_movimiento` | `POST /repuestos/{id}/ingresos` | administrador, panolero |
 | `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` | administrador, jefe_mantenimiento |
+
+Además de la matriz, dos reglas dependen de quién pide (`Api/Seguridad/AlcancePorRol.cs`):
+
+- **El técnico solo trabaja sobre sus órdenes.** Si el usuario tiene el rol `tecnico` y ningún otro de gestión (`administrador`, `jefe_mantenimiento`, `panolero`), `GET /ordenes-trabajo` devuelve solo las órdenes que tiene asignadas (aunque pida otro `tecnicoId`), y el detalle, el cambio de estado y las evidencias de una orden ajena responden `403`.
+- **El jefe no gestiona administradores.** El jefe de mantenimiento crea, modifica, da de baja y restablece la contraseña de usuarios, pero no puede asignar el rol Administrador ni tocar a un usuario que lo tiene: la API responde `403` con `codigo: "SOLO_ADMINISTRADOR"` y un `mensaje`.
 
 `GET /version` y `/health` son públicos (`[AllowAnonymous]`). Cualquier otro endpoint sin política exige al menos una sesión iniciada (política *fallback*), así que un endpoint nuevo nunca queda abierto por olvido. Sin token la API responde `401`; con un token válido pero sin el rol necesario, `403`.
 
@@ -301,16 +317,20 @@ Listados paginados hasta ahora:
 
 - `GET /api/v1/usuarios` (`FiltrosUsuariosDto`): `buscar` (nombre, apellido o correo), `rolId`, `estado` y `direccionOrden` (`desc` invierte el orden, para ver primero los más nuevos).
 - `GET /api/v1/clientes` (`FiltrosClientesDto`): `buscar` (razón social, contacto o correo), `estado` y `direccionOrden`.
-- `GET /api/v1/repuestos` (`FiltrosRepuestosDto`): `buscar` (código, nombre, marca o descripción), `estado`, `ubicacion` (contiene) y `bajoStock=true` (cantidad menor o igual a la mínima).
+- `GET /api/v1/repuestos` (`FiltrosRepuestosDto`): `buscar` (código, nombre, marca o descripción), `estado`, `ubicacion` (contiene), `bajoStock=true` (cantidad menor o igual a la mínima), `estadoStock` (`bajo` o `sin_stock`) y `orden=criticidad` (primero sin stock, después stock bajo, del más cercano a cero). Cada repuesto trae `estadoStock`: `sin_stock` (cantidad 0), `bajo` (cantidad menor o igual a la mínima) o `normal`.
+- `GET /api/v1/repuestos/alertas-stock`: contadores de repuestos activos con stock insuficiente, `{ bajo, sinStock, total }`, para el aviso de la pantalla de repuestos.
 - `GET /api/v1/movimientos-stock` (`FiltrosMovimientosStockDto`): `buscar` (código o nombre del repuesto, o motivo), `repuestoId`, `tipo`, `fechaDesde`, `fechaHasta`, `ubicacion` y `usuarioId`. Ordenados del más nuevo al más viejo.
 
 `PaginaDto` también tiene `ErrorDePaginacion()` (el cuerpo del `400`) y `Contiene(texto, buscado)` (comparación sin distinguir mayúsculas), que usan todos los controladores paginados.
 
-### Movimientos de stock (`/api/v1/movimientos-stock` y `POST /api/v1/repuestos/{id}/ingresos`)
+### Movimientos de stock (`/api/v1/movimientos-stock` y `POST /api/v1/repuestos/{id}/ingresos`, `/egresos` y `/ajustes`)
 
 RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:** el SQL sugerido está en `SUGERENCIAS-SQL.md` (agrega `tipo`, `motivo`, `ubicacion`, `observaciones`, `stock_anterior` y `stock_posterior`, pasa `cantidad` a entero y deja `id_usuario` opcional). Hasta aplicarlo, estos endpoints responden `500`; el resto de repuestos funciona. Modelo `MovimientoStock` (actualizado), `MovimientoStockDAO`, `MovimientoStockMapeador` y `MovimientosStockController`.
 
 - `POST /api/v1/repuestos/{id}/ingresos`: recibe `{ "cantidad", "fecha" (AAAA-MM-DD), "motivo", "ubicacion", "observaciones" }`. En una transacción suma la cantidad al repuesto y registra un movimiento `ingreso` con el stock anterior y posterior. Responde `201` con el movimiento. Errores: `404` si el repuesto no existe; `409` `REPUESTO_INACTIVO`; `400` `CANTIDAD_INVALIDA` (debe ser mayor a cero), `FECHA_INVALIDA` (vacía o futura) y `DATOS_OBLIGATORIOS` (motivo y ubicación). Si la fecha es hoy se guarda la hora actual; si es otro día, ese día a las 12:00 UTC.
+- `POST /api/v1/repuestos/{id}/egresos`: recibe `{ "cantidad", "motivo", "ubicacion"?, "observaciones"? }` y descuenta la cantidad (movimiento `egreso`). Solo se rechaza si la cantidad supera el stock disponible: `409` `STOCK_INSUFICIENTE` («No hay stock suficiente: disponible N.»). Quedar por debajo del mínimo está permitido; el repuesto pasa a tener alerta de stock. Otros errores: `404`, `409` `REPUESTO_INACTIVO`, `400` `CANTIDAD_INVALIDA` y `DATOS_OBLIGATORIOS` (motivo). Sin ubicación se usa la del repuesto.
+- `POST /api/v1/repuestos/{id}/ajustes`: recibe `{ "cantidadReal", "motivo", "observaciones"? }` con el stock contado en el depósito; lo deja como stock y registra un movimiento `ajuste` cuya cantidad es la diferencia (el stock anterior y posterior muestran el sentido). Errores: `404`, `409` `REPUESTO_INACTIVO`, `400` `CANTIDAD_INVALIDA` (negativa), `DATOS_OBLIGATORIOS` y `SIN_DIFERENCIA` (el conteo coincide con el stock).
+- Los tres exigen la política `stock.registrar_movimiento` (administrador y pañolero) y registran al usuario que hizo el movimiento.
 - `GET /api/v1/movimientos-stock` (paginado, ver arriba) y `GET /api/v1/movimientos-stock/{id}`: cada movimiento tiene `id`, `repuestoId`, `codigoRepuesto`, `nombreRepuesto`, `tipo`, `cantidad`, `fecha`, `ubicacion`, `usuarioId`, `nombreUsuario`, `motivo`, `observaciones`, `stockAnterior` y `stockPosterior`.
 
 La especificación también pide filtrar repuestos por "categoría", pero el repuesto no tiene ese dato en la base; queda pendiente de definir.

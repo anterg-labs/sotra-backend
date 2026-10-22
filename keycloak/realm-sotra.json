@@ -2,6 +2,7 @@
   "id": "ac3462a5-0852-4f1a-8db7-d7a1b6dfc0a7",
   "realm": "sotra",
   "displayName": "SOTRA",
+  "loginTheme": "sotra",
   "displayNameHtml": "",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",

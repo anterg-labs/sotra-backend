@@ -78,10 +78,11 @@ public static class PoliticasDeAcceso
     // Matriz de acceso: qué roles cumplen cada política.
     private static readonly Dictionary<string, string[]> RolesPorPolitica = new()
     {
-        [Politicas.UsuarioConsultar] = [Roles.Administrador],
+        // El jefe también gestiona usuarios, salvo administradores (UsuariosController lo controla).
+        [Politicas.UsuarioConsultar] = [Roles.Administrador, Roles.JefeMantenimiento],
         [Politicas.UsuarioListar] = [Roles.Administrador, Roles.JefeMantenimiento],
-        [Politicas.UsuarioCrear] = [Roles.Administrador],
-        [Politicas.UsuarioEditar] = [Roles.Administrador],
+        [Politicas.UsuarioCrear] = [Roles.Administrador, Roles.JefeMantenimiento],
+        [Politicas.UsuarioEditar] = [Roles.Administrador, Roles.JefeMantenimiento],
 
         [Politicas.ClienteConsultar] = [Roles.Administrador, Roles.JefeMantenimiento, Roles.Tecnico, Roles.Panolero],
         [Politicas.ClienteGestionar] = [Roles.Administrador, Roles.JefeMantenimiento],

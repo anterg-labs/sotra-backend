@@ -31,6 +31,21 @@ public static class RepuestoMapeador
         repuesto.CantMin = solicitud.CantidadMinima;
     }
 
+    public const string StockNormal = "normal";
+    public const string StockBajo = "bajo";
+    public const string SinStock = "sin_stock";
+
+    // Sin unidades: sin_stock. En el mínimo o por debajo: bajo (el mismo criterio que los indicadores).
+    public static string CalcularEstadoStock(int cantidad, int cantidadMinima)
+    {
+        if (cantidad <= 0)
+        {
+            return SinStock;
+        }
+
+        return cantidad <= cantidadMinima ? StockBajo : StockNormal;
+    }
+
     public static RepuestoDto ADto(Repuesto repuesto)
     {
         return new RepuestoDto
@@ -43,7 +58,8 @@ public static class RepuestoMapeador
             Ubicacion = repuesto.Ubicacion ?? "",
             Cantidad = repuesto.Cantidad,
             CantidadMinima = repuesto.CantMin ?? 0,
-            Estado = repuesto.Estado ? "activo" : "inactivo"
+            Estado = repuesto.Estado ? "activo" : "inactivo",
+            EstadoStock = CalcularEstadoStock(repuesto.Cantidad, repuesto.CantMin ?? 0)
         };
     }
 }

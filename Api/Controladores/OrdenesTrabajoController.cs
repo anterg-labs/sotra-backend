@@ -53,6 +53,12 @@ public class OrdenesTrabajoController : ControllerBase
         var ordenes = new List<OrdenTrabajoDto>();
         foreach (var orden in _ordenTrabajoDao.ListarTodo())
         {
+            // El técnico solo ve las órdenes que tiene asignadas, aunque pida otro filtro.
+            if (!User.PuedeVerOrden(orden, _usuarioActual))
+            {
+                continue;
+            }
+
             var ordenDto = OrdenTrabajoMapeador.ADto(orden);
             if (CumpleFiltros(ordenDto, filtros))
             {
@@ -81,6 +87,11 @@ public class OrdenesTrabajoController : ControllerBase
         if (orden is null)
         {
             return NotFound();
+        }
+
+        if (!User.PuedeVerOrden(orden, _usuarioActual))
+        {
+            return Forbid();
         }
 
         return Ok(OrdenTrabajoMapeador.ADto(orden));
@@ -159,6 +170,11 @@ public class OrdenesTrabajoController : ControllerBase
         if (orden is null)
         {
             return NotFound();
+        }
+
+        if (!User.PuedeVerOrden(orden, _usuarioActual))
+        {
+            return Forbid();
         }
 
         try

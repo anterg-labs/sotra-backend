@@ -80,10 +80,62 @@ public class RepuestosController : ControllerBase
                 continue;
             }
 
+            if (!string.IsNullOrEmpty(filtros.EstadoStock) && repuestoDto.EstadoStock != filtros.EstadoStock)
+            {
+                continue;
+            }
+
             respuesta.Add(repuestoDto);
         }
 
+        if (filtros.Orden == "criticidad")
+        {
+            respuesta = respuesta
+                .OrderBy(repuesto => PesoDeCriticidad(repuesto.EstadoStock))
+                .ThenBy(repuesto => repuesto.CantidadMinima > 0 ? (double)repuesto.Cantidad / repuesto.CantidadMinima : double.MaxValue)
+                .ThenBy(repuesto => repuesto.Codigo)
+                .ToList();
+        }
+
         return Ok(PaginaDto<RepuestoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+    }
+
+    // Contadores para el aviso de stock insuficiente: solo repuestos activos.
+    [Authorize(Policy = Politicas.StockConsultar)]
+    [HttpGet("alertas-stock")]
+    public ActionResult<AlertasStockDto> ObtenerAlertasStock()
+    {
+        var bajo = 0;
+        var sinStock = 0;
+        foreach (var repuesto in _repuestoDao.ListarTodo())
+        {
+            if (!repuesto.Estado)
+            {
+                continue;
+            }
+
+            var estadoStock = RepuestoMapeador.CalcularEstadoStock(repuesto.Cantidad, repuesto.CantMin ?? 0);
+            if (estadoStock == RepuestoMapeador.StockBajo)
+            {
+                bajo++;
+            }
+            else if (estadoStock == RepuestoMapeador.SinStock)
+            {
+                sinStock++;
+            }
+        }
+
+        return Ok(new AlertasStockDto { Bajo = bajo, SinStock = sinStock, Total = bajo + sinStock });
+    }
+
+    private static int PesoDeCriticidad(string estadoStock)
+    {
+        if (estadoStock == RepuestoMapeador.SinStock)
+        {
+            return 0;
+        }
+
+        return estadoStock == RepuestoMapeador.StockBajo ? 1 : 2;
     }
 
     [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
@@ -159,6 +211,108 @@ public class RepuestosController : ControllerBase
 
         var movimiento = _movimientoStockDao.RegistrarIngreso(repuesto, solicitud.Cantidad, fechaMovimiento,
             motivo, ubicacion, observaciones, _usuarioActual.ObtenerIdUsuario());
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
+    }
+
+    // Retira unidades del stock. Solo se rechaza si se pide más de lo disponible: quedar por debajo
+    // del mínimo está permitido (el repuesto pasa a tener alerta de stock).
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
+    [HttpPost("{id:long}/egresos")]
+    public ActionResult<MovimientoStockDto> RegistrarEgreso(long id, EgresoStockDto solicitud)
+    {
+        var repuesto = _repuestoDao.Seleccionar(id);
+        if (repuesto is null)
+        {
+            return NotFound();
+        }
+
+        if (!repuesto.Estado)
+        {
+            return Conflict(new
+            {
+                codigo = "REPUESTO_INACTIVO",
+                mensaje = "No se puede retirar stock de un repuesto dado de baja."
+            });
+        }
+
+        if (solicitud.Cantidad <= 0)
+        {
+            return BadRequest(new
+            {
+                codigo = "CANTIDAD_INVALIDA",
+                mensaje = "La cantidad a retirar debe ser un número entero mayor a cero."
+            });
+        }
+
+        var motivo = solicitud.Motivo?.Trim() ?? "";
+        if (motivo == "")
+        {
+            return BadRequest(new { codigo = "DATOS_OBLIGATORIOS", mensaje = "Indicá el motivo del egreso." });
+        }
+
+        if (solicitud.Cantidad > repuesto.Cantidad)
+        {
+            return Conflict(new
+            {
+                codigo = "STOCK_INSUFICIENTE",
+                mensaje = "No hay stock suficiente: disponible " + repuesto.Cantidad + "."
+            });
+        }
+
+        var ubicacion = string.IsNullOrWhiteSpace(solicitud.Ubicacion) ? repuesto.Ubicacion ?? "" : solicitud.Ubicacion.Trim();
+        var observaciones = string.IsNullOrWhiteSpace(solicitud.Observaciones) ? null : solicitud.Observaciones.Trim();
+        var movimiento = _movimientoStockDao.RegistrarEgreso(repuesto, solicitud.Cantidad, DateTime.UtcNow, motivo,
+            ubicacion, observaciones, _usuarioActual.ObtenerIdUsuario());
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
+    }
+
+    // Corrige el stock con el conteo real del depósito.
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
+    [HttpPost("{id:long}/ajustes")]
+    public ActionResult<MovimientoStockDto> RegistrarAjuste(long id, AjusteStockDto solicitud)
+    {
+        var repuesto = _repuestoDao.Seleccionar(id);
+        if (repuesto is null)
+        {
+            return NotFound();
+        }
+
+        if (!repuesto.Estado)
+        {
+            return Conflict(new
+            {
+                codigo = "REPUESTO_INACTIVO",
+                mensaje = "No se puede ajustar el stock de un repuesto dado de baja."
+            });
+        }
+
+        if (solicitud.CantidadReal < 0)
+        {
+            return BadRequest(new
+            {
+                codigo = "CANTIDAD_INVALIDA",
+                mensaje = "El stock real debe ser un número entero mayor o igual a cero."
+            });
+        }
+
+        var motivo = solicitud.Motivo?.Trim() ?? "";
+        if (motivo == "")
+        {
+            return BadRequest(new { codigo = "DATOS_OBLIGATORIOS", mensaje = "Indicá el motivo del ajuste." });
+        }
+
+        if (solicitud.CantidadReal == repuesto.Cantidad)
+        {
+            return BadRequest(new
+            {
+                codigo = "SIN_DIFERENCIA",
+                mensaje = "El stock real es igual al registrado: no hay nada que ajustar."
+            });
+        }
+
+        var observaciones = string.IsNullOrWhiteSpace(solicitud.Observaciones) ? null : solicitud.Observaciones.Trim();
+        var movimiento = _movimientoStockDao.RegistrarAjuste(repuesto, solicitud.CantidadReal, DateTime.UtcNow, motivo,
+            repuesto.Ubicacion ?? "", observaciones, _usuarioActual.ObtenerIdUsuario());
         return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
     }
 

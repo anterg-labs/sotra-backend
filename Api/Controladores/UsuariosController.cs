@@ -18,13 +18,40 @@ public class UsuariosController : ControllerBase
     private readonly UsuarioDAO _usuarioDao;
     private readonly ServicioKeycloakUsuarios _keycloak;
     private readonly ILogger<UsuariosController> _registro;
+    private readonly RolDAO _rolDao;
+
+    private const string NombreRolAdministrador = "Administrador";
 
     public UsuariosController(UsuarioDAO usuarioDao, ServicioKeycloakUsuarios keycloak,
-        ILogger<UsuariosController> registro)
+        ILogger<UsuariosController> registro, RolDAO rolDao)
     {
         _usuarioDao = usuarioDao;
         _keycloak = keycloak;
         _registro = registro;
+        _rolDao = rolDao;
+    }
+
+    // El jefe de mantenimiento crea y modifica usuarios, pero no administradores (ver AlcancePorRol).
+    private ObjectResult SoloAdministrador()
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, new
+        {
+            codigo = "SOLO_ADMINISTRADOR",
+            mensaje = "Solo un administrador puede asignar el rol Administrador o modificar a un administrador."
+        });
+    }
+
+    private bool IncluyeRolAdministrador(IEnumerable<long> idsRol)
+    {
+        var idAdministrador = _rolDao.ListarTodo()
+            .FirstOrDefault(rol => string.Equals(rol.Nombre, NombreRolAdministrador, StringComparison.OrdinalIgnoreCase))
+            ?.IdRol;
+        return idAdministrador is not null && idsRol.Contains(idAdministrador.Value);
+    }
+
+    private static bool EsAdministrador(Usuario usuario)
+    {
+        return usuario.IdRols.Any(rol => string.Equals(rol.Nombre, NombreRolAdministrador, StringComparison.OrdinalIgnoreCase));
     }
 
     [Authorize(Policy = Politicas.UsuarioListar)]
@@ -114,6 +141,11 @@ public class UsuariosController : ControllerBase
     public async Task<ActionResult<UsuarioListadoDto>> Crear(UsuarioCrearDto solicitud,
         CancellationToken cancellationToken)
     {
+        if (!User.PuedeGestionarAdministradores() && IncluyeRolAdministrador(solicitud.IdsRol))
+        {
+            return SoloAdministrador();
+        }
+
         Guid? idKeycloakCreado = null;
         try
         {
@@ -174,6 +206,11 @@ public class UsuariosController : ControllerBase
             using var transaccion = _usuarioDao.IniciarTransaccion();
             var usuario = _usuarioDao.SeleccionarUsuario(id);
             if (usuario is null) return NotFound();
+            if (!User.PuedeGestionarAdministradores()
+                && (EsAdministrador(usuario) || IncluyeRolAdministrador(solicitud.IdsRol)))
+            {
+                return SoloAdministrador();
+            }
 
             UsuarioMapeador.AplicarCambios(usuario, solicitud);
             _usuarioDao.ActualizarUsuario(usuario, solicitud.IdsRol);
@@ -209,6 +246,10 @@ public class UsuariosController : ControllerBase
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
+        var usuarioABajar = _usuarioDao.SeleccionarUsuario(id);
+        if (usuarioABajar is null) return NotFound();
+        if (!User.PuedeGestionarAdministradores() && EsAdministrador(usuarioABajar)) return SoloAdministrador();
+
         try
         {
             using var transaccion = _usuarioDao.IniciarTransaccion();
@@ -225,7 +266,8 @@ public class UsuariosController : ControllerBase
         }
     }
 
-    // El administrador le envía al usuario un correo para elegir una contraseña nueva.
+    // El administrador (o el jefe, si el usuario no es administrador) le envía al usuario un correo
+    // para elegir una contraseña nueva.
     [Authorize(Policy = Politicas.UsuarioEditar)]
     [HttpPost("{id:long}/restablecer-contrasena")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -236,6 +278,7 @@ public class UsuariosController : ControllerBase
     {
         var usuario = _usuarioDao.SeleccionarUsuario(id);
         if (usuario is null) return NotFound();
+        if (!User.PuedeGestionarAdministradores() && EsAdministrador(usuario)) return SoloAdministrador();
 
         if (usuario.IdKeycloak is not Guid idKeycloak)
         {

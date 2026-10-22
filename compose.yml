@@ -64,6 +64,8 @@ services:
     command: start-dev --import-realm
     volumes:
       - ./keycloak:/opt/keycloak/data/import:ro
+      # Tema del login con el diseño del frontend (realm sotra, «loginTheme»: «sotra»).
+      - ./keycloak/themes/sotra:/opt/keycloak/themes/sotra:ro
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://db:5432/${DB_NAME}

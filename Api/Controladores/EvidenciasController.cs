@@ -37,6 +37,11 @@ public class EvidenciasController : ControllerBase
             return NotFound();
         }
 
+        if (!User.PuedeVerOrden(orden, _usuarioActual))
+        {
+            return Forbid();
+        }
+
         var respuesta = new List<EvidenciaDto>();
         foreach (var evidencia in _evidenciaDao.ListarDeOrden(ordenTrabajoId))
         {
@@ -57,6 +62,11 @@ public class EvidenciasController : ControllerBase
         if (orden is null)
         {
             return NotFound();
+        }
+
+        if (!User.PuedeVerOrden(orden, _usuarioActual))
+        {
+            return Forbid();
         }
 
         var estadoOrden = OrdenTrabajoMapeador.ADto(orden).Estado;
@@ -161,6 +171,12 @@ public class EvidenciasController : ControllerBase
     [HttpGet("{evidenciaId:long}/archivo")]
     public IActionResult Descargar(long ordenTrabajoId, long evidenciaId)
     {
+        var orden = _ordenTrabajoDao.Seleccionar(ordenTrabajoId);
+        if (orden is not null && !User.PuedeVerOrden(orden, _usuarioActual))
+        {
+            return Forbid();
+        }
+
         var evidencia = _evidenciaDao.Seleccionar(ordenTrabajoId, evidenciaId);
         if (evidencia is null || evidencia.Archivo is null)
         {

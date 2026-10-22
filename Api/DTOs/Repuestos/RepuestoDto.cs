@@ -11,4 +11,7 @@ public class RepuestoDto
     public int Cantidad { get; init; }
     public int CantidadMinima { get; init; }
     public required string Estado { get; init; }
+
+    // "normal", "bajo" o "sin_stock", según la cantidad y la cantidad mínima.
+    public required string EstadoStock { get; init; }
 }
