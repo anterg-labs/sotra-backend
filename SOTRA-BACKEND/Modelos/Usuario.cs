@@ -15,11 +15,11 @@ public partial class Usuario
 
     public string Telefono { get; set; } = null!;
 
-    public string Contrasena { get; set; } = null!;
-
     public bool Estado { get; set; }
 
     public DateOnly FechaIngreso { get; set; }
+
+    public Guid? IdKeycloak { get; set; }
 
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 

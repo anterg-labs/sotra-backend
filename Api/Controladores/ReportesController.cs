@@ -2,7 +2,9 @@ using Api.DTOs.OrdenesTrabajo;
 using Api.Infraestructura;
 using Api.DTOs.Reportes;
 using Api.Mapeadores;
+using Api.Seguridad;
 using Api.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -25,6 +27,7 @@ public class ReportesController : ControllerBase
     }
 
     [HttpGet("indicadores")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     public async Task<ActionResult<IndicadoresDto>> ObtenerIndicadores([FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
         if (RangoInvertido(filtros))
@@ -64,6 +67,7 @@ public class ReportesController : ControllerBase
     }
 
     [HttpGet("{tipoReporte}/pdf")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     public async Task<IActionResult> DescargarReportePdf(
         string tipoReporte, [FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {
@@ -81,6 +85,7 @@ public class ReportesController : ControllerBase
     }
 
     [HttpGet("{tipoReporte}/csv")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     public async Task<IActionResult> DescargarReporteCsv(
         string tipoReporte, [FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
     {

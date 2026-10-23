@@ -1,5 +1,7 @@
 using Api.DTOs.Reportes;
 using Api.Infraestructura;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using SOTRA_BACKEND.Operaciones;
@@ -24,6 +26,7 @@ public class AnaliticaController : ControllerBase
     }
 
     [HttpGet("tendencias")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<TendenciasDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<TendenciasDto>> ObtenerTendencias([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
@@ -71,6 +74,7 @@ public class AnaliticaController : ControllerBase
     }
 
     [HttpGet("tiempos")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<TiemposDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<TiemposDto>> ObtenerTiempos([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
@@ -113,6 +117,7 @@ public class AnaliticaController : ControllerBase
     }
 
     [HttpGet("repuestos-usados")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<RepuestosUsadosDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<RepuestosUsadosDto>> ObtenerRepuestosUsados([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
@@ -136,6 +141,7 @@ public class AnaliticaController : ControllerBase
     }
 
     [HttpGet("reincidencias")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<ReincidenciasDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ReincidenciasDto>> ObtenerReincidencias([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
@@ -175,6 +181,7 @@ public class AnaliticaController : ControllerBase
     }
 
     [HttpGet("alertas-maquinaria")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<AlertasMaquinariaDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<AlertasMaquinariaDto>> ObtenerAlertasMaquinaria([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
     {

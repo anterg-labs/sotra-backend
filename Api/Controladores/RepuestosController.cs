@@ -1,8 +1,9 @@
-using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.DTOs.Repuestos;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -14,15 +15,17 @@ public class RepuestosController : ControllerBase
 {
     private readonly RepuestoDAO _repuestoDao;
     private readonly MovimientoStockDAO _movimientoStockDao;
+    private readonly UsuarioActual _usuarioActual;
 
-    public RepuestosController(RepuestoDAO repuestoDao, MovimientoStockDAO movimientoStockDao)
+    public RepuestosController(RepuestoDAO repuestoDao, MovimientoStockDAO movimientoStockDao, UsuarioActual usuarioActual)
     {
         _repuestoDao = repuestoDao;
         _movimientoStockDao = movimientoStockDao;
+        _usuarioActual = usuarioActual;
     }
 
     [HttpGet]
-    [Permiso("stock.consultar")]
+    [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<PaginaDto<RepuestoDto>>> ObtenerTodos([FromQuery] FiltrosRepuestosDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<RepuestoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
@@ -52,7 +55,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpGet("alertas-stock")]
-    [Permiso("stock.consultar")]
+    [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<AlertasStockDto>> ObtenerAlertasStock(CancellationToken cancelacion)
     {
         var alertas = await _repuestoDao.ContarAlertasAsync(cancelacion);
@@ -60,7 +63,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPost("{id:long}/ingresos")]
-    [Permiso("stock.registrar_movimiento")]
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     public async Task<ActionResult<MovimientoStockDto>> RegistrarIngreso(
         long id, IngresoStockDto solicitud, CancellationToken cancelacion)
     {
@@ -105,7 +108,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPost("{id:long}/egresos")]
-    [Permiso("stock.registrar_movimiento")]
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     public async Task<ActionResult<MovimientoStockDto>> RegistrarEgreso(
         long id, EgresoStockDto solicitud, CancellationToken cancelacion)
     {
@@ -133,7 +136,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPost("{id:long}/ajustes")]
-    [Permiso("stock.registrar_movimiento")]
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     public async Task<ActionResult<MovimientoStockDto>> RegistrarAjuste(
         long id, AjusteStockDto solicitud, CancellationToken cancelacion)
     {
@@ -161,6 +164,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPatch("{id:long}/stock-minimo")]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> ActualizarStockMinimo(long id, StockMinimoDto solicitud, CancellationToken cancelacion)
     {
         var repuesto = await _repuestoDao.ActualizarMinimoAsync(id, solicitud.CantidadMinima, cancelacion);
@@ -174,6 +178,8 @@ public class RepuestosController : ControllerBase
 
     private async Task<ActionResult<MovimientoStockDto>> RegistrarMovimiento(SolicitudMovimientoStock solicitud, CancellationToken cancelacion)
     {
+        // Cada movimiento queda registrado con el usuario que lo hizo (null sin token).
+        solicitud = solicitud with { IdUsuario = await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion) };
         var resultado = await _movimientoStockDao.RegistrarAsync(solicitud, cancelacion);
         return resultado.Estado switch
         {
@@ -204,7 +210,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Permiso("stock.consultar")]
+    [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<RepuestoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
         var repuesto = await _repuestoDao.SeleccionarAsync(id, cancelacion);
@@ -217,6 +223,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> Crear(RepuestoCrearDto solicitud, CancellationToken cancelacion)
     {
         var repuesto = await _repuestoDao.InsertarAsync(RepuestoMapeador.AEntidad(solicitud), cancelacion);
@@ -225,6 +232,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> Actualizar(long id, RepuestoActualizarDto solicitud, CancellationToken cancelacion)
     {
         var repuesto = await _repuestoDao.SeleccionarAsync(id, cancelacion);
@@ -239,6 +247,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> CambiarEstado(long id, RepuestoEstadoDto solicitud, CancellationToken cancelacion)
     {
         bool encontrado;

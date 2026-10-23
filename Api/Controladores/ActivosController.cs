@@ -1,7 +1,8 @@
-using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.Activos;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -19,7 +20,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpGet]
-    [Permiso("activo.consultar")]
+    [Authorize(Policy = Politicas.ActivoConsultar)]
     [ProducesResponseType<PaginaDto<ActivoDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginaDto<ActivoDto>>> ObtenerTodos([FromQuery] FiltrosActivosDto filtros, CancellationToken cancelacion)
     {
@@ -40,7 +41,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Permiso("activo.consultar")]
+    [Authorize(Policy = Politicas.ActivoConsultar)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ActivoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
@@ -50,7 +51,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpPost]
-    [Permiso("activo.crear")]
+    [Authorize(Policy = Politicas.ActivoCrear)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -62,7 +63,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Permiso("activo.editar")]
+    [Authorize(Policy = Politicas.ActivoEditar)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -78,7 +79,7 @@ public class ActivosController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
-    [Permiso("activo.editar")]
+    [Authorize(Policy = Politicas.ActivoEditar)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

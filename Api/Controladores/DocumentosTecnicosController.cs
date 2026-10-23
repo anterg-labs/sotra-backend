@@ -2,7 +2,9 @@ using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
 using Api.DTOs.DocumentosTecnicos;
+using Api.Seguridad;
 using Api.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controladores;
@@ -23,6 +25,7 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<ActionResult<PaginaDto<DocumentoTecnicoDto>>> ObtenerTodos(
         [FromQuery] FiltrosDocumentosTecnicosDto filtros, CancellationToken cancellationToken)
     {
@@ -37,6 +40,7 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<ActionResult<DocumentoTecnicoDto>> ObtenerPorId(long id, CancellationToken cancellationToken)
     {
         var documento = await _servicio.ObtenerAsync(id, cancellationToken);
@@ -44,6 +48,7 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(CincuentaMegabytesEnBytes)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Crear(IFormFile archivo,
@@ -103,6 +108,7 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpGet("{id:long}/archivo")]
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<IActionResult> Descargar(long id, CancellationToken cancellationToken)
     {
         var documento = await _servicio.ObtenerArchivoAsync(id, cancellationToken);
@@ -115,6 +121,7 @@ public class DocumentosTecnicosController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
     public async Task<IActionResult> Eliminar(long id, CancellationToken cancellationToken)
     {
         try

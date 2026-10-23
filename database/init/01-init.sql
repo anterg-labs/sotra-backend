@@ -542,9 +542,9 @@ CREATE TABLE operativo.usuario (
     apellido character varying(100) NOT NULL,
     mail character varying(254) NOT NULL,
     telefono character varying(30) NOT NULL,
-    contrasena character varying(255) NOT NULL,
     estado boolean NOT NULL,
-    fecha_ingreso date DEFAULT CURRENT_DATE NOT NULL
+    fecha_ingreso date DEFAULT CURRENT_DATE NOT NULL,
+    id_keycloak uuid
 );
 
 
@@ -798,17 +798,21 @@ COPY operativo.historial_recomendaciones_ia (id_recomendacion_ia, recomendacion,
 -- Data for Name: usuario; Type: TABLE DATA; Schema: operativo; Owner: postgres
 --
 
-COPY operativo.usuario (id_usuario, nombre, apellido, mail, telefono, contrasena, estado, fecha_ingreso) FROM stdin;
-1	Kevin	Moreira	kmoreira@gmail.com	099583488	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-12
-3	Nicolas	Diaz	nicodiaz@gmail.com	099568742	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-12
-4	Cris	Romero	crisrome@gmail.com	099653147	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-12
-5	Martín	Silva	martin.silva@example.com	099111205	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-14
-6	Laura	Gómez	laura.gomez@example.com	099222316	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-14
-7	Roberto	Pérez	roberto.perez@example.com	099333427	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-15
-8	Diego	Fernández	diego.fernandez@example.com	099444538	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-15
-9	Lucía	Méndez	lucia.mendez@example.com	099555649	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-16
-10	Andrés	Rodríguez	andres.rodriguez@example.com	099666750	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	t	2026-09-16
-11	Camila	Ferreira	camila.ferreira@example.com	099777861	REEMPLAZAR_POR_HASH_ASPNET_IDENTITY	f	2026-09-17
+COPY operativo.usuario (id_usuario, nombre, apellido, mail, telefono, estado, fecha_ingreso) FROM stdin;
+1	Kevin	Moreira	kmoreira@gmail.com	099583488	t	2026-09-12
+3	Nicolas	Diaz	nicodiaz@gmail.com	099568742	t	2026-09-12
+4	Cris	Romero	crisrome@gmail.com	099653147	t	2026-09-12
+5	Martín	Silva	martin.silva@example.com	099111205	t	2026-09-14
+6	Laura	Gómez	laura.gomez@example.com	099222316	t	2026-09-14
+7	Roberto	Pérez	roberto.perez@example.com	099333427	t	2026-09-15
+8	Diego	Fernández	diego.fernandez@example.com	099444538	t	2026-09-15
+9	Lucía	Méndez	lucia.mendez@example.com	099555649	t	2026-09-16
+10	Andrés	Rodríguez	andres.rodriguez@example.com	099666750	t	2026-09-16
+11	Camila	Ferreira	camila.ferreira@example.com	099777861	f	2026-09-17
+12	Admin	Prueba	admin.prueba@sotra.test	099900101	t	2026-10-17
+13	Jefe	Prueba	jefe.prueba@sotra.test	099900102	t	2026-10-17
+14	Técnico	Prueba	tecnico.prueba@sotra.test	099900103	t	2026-10-17
+15	Pañolero	Prueba	panolero.prueba@sotra.test	099900104	t	2026-10-17
 \.
 
 
@@ -1070,6 +1074,10 @@ COPY operativo.usuario_rol (id_usuario, id_rol) FROM stdin;
 9	4
 10	3
 11	3
+12	1
+13	2
+14	3
+15	4
 \.
 
 
@@ -1182,7 +1190,7 @@ SELECT pg_catalog.setval('operativo."SEC_TIPO_MAQUINA_ID"', 7, true);
 -- Name: SEC_USUARIO_ID; Type: SEQUENCE SET; Schema: operativo; Owner: postgres
 --
 
-SELECT pg_catalog.setval('operativo."SEC_USUARIO_ID"', 11, true);
+SELECT pg_catalog.setval('operativo."SEC_USUARIO_ID"', 15, true);
 
 
 --
@@ -1356,6 +1364,14 @@ ALTER TABLE ONLY operativo.cliente
 
 ALTER TABLE ONLY operativo.usuario
     ADD CONSTRAINT "UK_MAIL_USUARIO" UNIQUE (mail);
+
+
+--
+-- Name: usuario UK_ID_KEYCLOAK_USUARIO; Type: CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.usuario
+    ADD CONSTRAINT "UK_ID_KEYCLOAK_USUARIO" UNIQUE (id_keycloak);
 
 
 --
@@ -1740,7 +1756,7 @@ SELECT 1,
        || E'de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\n'
        || E'Seguridad: el acceso es personal; no compartas tus credenciales.',
        E'Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\n'
-       || E'Contraseña (se guarda protegida y nunca se muestra; el inicio de sesión se integrará con Keycloak)\n'
+       || E'Contraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\n'
        || E'Registro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\n'
        || E'Fotos y archivos que adjuntes como evidencia en una orden de trabajo\n'
        || E'Fecha y versión de los términos que aceptaste',

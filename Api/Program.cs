@@ -1,11 +1,11 @@
 using Api.Infraestructura;
-using Api.Infraestructura.Seguridad;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Formatting.Compact;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Operaciones;
 using Api.Servicios;
+using Api.Seguridad;
 
 DotNetEnv.Env.TraversePath().Load();
 
@@ -31,7 +31,6 @@ builder.Host.UseSerilog((contexto, configuracion) =>
 
 builder.Services.AgregarManejoDeErrores();
 builder.Services.AgregarLimiteDeSolicitudes(builder.Configuration);
-builder.Services.AgregarSeguridad(builder.Configuration);
 builder.Services.AgregarObservabilidad(builder.Configuration);
 builder.Services.AgregarProxiesDeConfianza(builder.Configuration);
 
@@ -60,6 +59,14 @@ builder.Services.AddScoped<ServicioOllama>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<UsuarioActual>();
+builder.Services.AddScoped<IUsuarioActual>(proveedor => proveedor.GetRequiredService<UsuarioActual>());
+builder.Services.AddSingleton<ServicioKeycloakUsuarios>();
+
+var autenticacionObligatoria = PoliticasDeAcceso.AutenticacionObligatoria();
+builder.Services.AgregarAutenticacionKeycloak();
+builder.Services.AgregarPoliticasDeAcceso(autenticacionObligatoria);
 
 builder.Services.AddHealthChecks()
     .AddCheck<SaludDeLaBaseDeDatos>("base-de-datos", tags: [SaludDeLaBaseDeDatos.EtiquetaDisponibilidad]);
@@ -86,9 +93,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+if (!autenticacionObligatoria)
+{
+    app.Logger.LogWarning("AUTH_OBLIGATORIA=false: la API no exige token en los endpoints protegidos.");
+}
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
 app.UseForwardedHeaders();

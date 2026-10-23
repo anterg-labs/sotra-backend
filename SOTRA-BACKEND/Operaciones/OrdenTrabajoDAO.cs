@@ -185,11 +185,13 @@ public class OrdenTrabajoDAO
         return await ConsultaCompleta().FirstOrDefaultAsync(orden => orden.IdOrden == id, cancelacion);
     }
 
+    // idResponsable es el usuario que crea la orden. Si es null (pedido sin token, con
+    // AUTH_OBLIGATORIA=false), se asigna el primer jefe de mantenimiento activo.
     public async Task<OrdenTrabajo> CrearAsync(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
-        List<string> sugerencias, Guid? sesion, CancellationToken cancelacion)
+        List<string> sugerencias, Guid? sesion, long? idResponsable, CancellationToken cancelacion)
     {
         await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds, cancelacion);
-        orden.IdUsuarioResponsable = await ObtenerResponsableAsync(cancelacion);
+        orden.IdUsuarioResponsable = idResponsable ?? await ObtenerResponsableAsync(cancelacion);
         orden.FechaCreada = DateTime.UtcNow;
 
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);

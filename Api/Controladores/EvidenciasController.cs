@@ -1,8 +1,9 @@
-using Api.Infraestructura.Seguridad;
 using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -18,21 +19,29 @@ public class EvidenciasController : ControllerBase
 
     private readonly OrdenTrabajoDAO _ordenTrabajoDao;
     private readonly EvidenciaOtDAO _evidenciaDao;
+    private readonly UsuarioActual _usuarioActual;
 
-    public EvidenciasController(OrdenTrabajoDAO ordenTrabajoDao, EvidenciaOtDAO evidenciaDao)
+    public EvidenciasController(OrdenTrabajoDAO ordenTrabajoDao, EvidenciaOtDAO evidenciaDao,
+        UsuarioActual usuarioActual)
     {
         _ordenTrabajoDao = ordenTrabajoDao;
         _evidenciaDao = evidenciaDao;
+        _usuarioActual = usuarioActual;
     }
 
     [HttpGet]
-    [Permiso("ot.consultar")]
+    [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<List<EvidenciaDto>>> ObtenerTodas(long ordenTrabajoId, CancellationToken cancelacion)
     {
         var orden = await _ordenTrabajoDao.SeleccionarAsync(ordenTrabajoId, cancelacion);
         if (orden is null)
         {
             return NotFound();
+        }
+
+        if (!await User.PuedeVerOrdenAsync(orden, _usuarioActual, cancelacion))
+        {
+            return Forbid();
         }
 
         var respuesta = new List<EvidenciaDto>();
@@ -45,7 +54,7 @@ public class EvidenciasController : ControllerBase
     }
 
     [HttpPost]
-    [Permiso("ot.registrar_avance")]
+    [Authorize(Policy = Politicas.OtRegistrarAvance)]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(DiezMegabytesEnBytes + 1024 * 1024)]
     public async Task<ActionResult<EvidenciaDto>> Crear(long ordenTrabajoId, [FromForm] string tipo,
@@ -56,6 +65,11 @@ public class EvidenciasController : ControllerBase
         if (orden is null)
         {
             return NotFound();
+        }
+
+        if (!await User.PuedeVerOrdenAsync(orden, _usuarioActual, cancellationToken))
+        {
+            return Forbid();
         }
 
         var estadoOrden = OrdenTrabajoMapeador.ADto(orden).Estado;
@@ -151,14 +165,21 @@ public class EvidenciasController : ControllerBase
             evidencia.Archivo = contenido;
         }
 
+        evidencia.IdUsuario = await _usuarioActual.ObtenerIdUsuarioAsync(cancellationToken);
         var evidenciaCreada = await _evidenciaDao.CrearAsync(evidencia, cancellationToken);
         return CreatedAtAction(nameof(ObtenerTodas), new { ordenTrabajoId = ordenTrabajoId }, ADto(evidenciaCreada));
     }
 
     [HttpGet("{evidenciaId:long}/archivo")]
-    [Permiso("ot.consultar")]
+    [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<IActionResult> Descargar(long ordenTrabajoId, long evidenciaId, CancellationToken cancelacion)
     {
+        var orden = await _ordenTrabajoDao.SeleccionarAsync(ordenTrabajoId, cancelacion);
+        if (orden is not null && !await User.PuedeVerOrdenAsync(orden, _usuarioActual, cancelacion))
+        {
+            return Forbid();
+        }
+
         var evidencia = await _evidenciaDao.SeleccionarAsync(ordenTrabajoId, evidenciaId, cancelacion);
         if (evidencia is null || evidencia.Archivo is null)
         {

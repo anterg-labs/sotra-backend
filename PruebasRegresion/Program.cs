@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
-using SOTRA_BACKEND.Seguridad;
 
 var contador = new ContadorGuardados();
 using var contexto = new ContextoPrueba(new DbContextOptionsBuilder<SotraContext>()
@@ -24,7 +23,6 @@ Usuario Nuevo(int n) => new()
     Apellido = "Fecha",
     Mail = $"u{n}@example.com",
     Telefono = n.ToString(),
-    Contrasena = "Prueba!123",
     Estado = true,
     FechaIngreso = fecha
 };
@@ -49,28 +47,26 @@ contexto.ChangeTracker.Clear();
 usuario = (await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!;
 Verificar(usuario.IdRols.Count == 1, "Rol duplicado se normaliza y relacion se persiste");
 Verificar(usuario.FechaIngreso == fecha, "Fecha bisiesta persiste sin hora");
-var hash = usuario.Contrasena;
-Verificar(hash != "Prueba!123" && Contrasenas.Verificar(hash, "Prueba!123") && !Contrasenas.Verificar(hash, "incorrecta"), "Hash acepta clave correcta y rechaza incorrecta");
-Verificar(hash != Contrasenas.CrearHash("Prueba!123"), "Hashes usan sal aleatoria");
-Verificar(!Contrasenas.Verificar("texto antiguo", "texto antiguo"), "No autentica contrasenas antiguas como hashes");
-await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [99], null, CancellationToken.None), "Actualizacion rechaza rol inexistente");
-await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [2], null, CancellationToken.None), "Actualizacion rechaza rol inactivo");
-await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [0], null, CancellationToken.None), "Actualizacion rechaza rol cero");
-await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [1], " ", CancellationToken.None), "Cambio rechaza contrasena vacia");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [99], CancellationToken.None), "Actualizacion rechaza rol inexistente");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [2], CancellationToken.None), "Actualizacion rechaza rol inactivo");
+await Rechazar(async () => await dao.ActualizarUsuarioAsync(usuario, [0], CancellationToken.None), "Actualizacion rechaza rol cero");
 usuario.Nombre = "Editado";
-Verificar(await dao.ActualizarUsuarioAsync(usuario, [1], null, CancellationToken.None), "Actualiza usuario rastreado");
+Verificar(await dao.ActualizarUsuarioAsync(usuario, [1], CancellationToken.None), "Actualiza usuario rastreado");
 contexto.ChangeTracker.Clear();
 usuario = (await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!;
-Verificar(usuario.Contrasena == hash && usuario.Nombre == "Editado", "Edicion conserva hash sin duplicarlo");
+Verificar(usuario.Nombre == "Editado", "Edicion persiste los cambios");
 var desconectado = Nuevo(1); desconectado.IdUsuario = id;
-Verificar(await dao.ActualizarUsuarioAsync(desconectado, [3], "Nueva!456", CancellationToken.None), "Actualiza entidad desconectada y cambia roles y clave");
+Verificar(await dao.ActualizarUsuarioAsync(desconectado, [3], CancellationToken.None), "Actualiza entidad desconectada y cambia roles");
 contexto.ChangeTracker.Clear();
 usuario = (await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!;
-Verificar(usuario.IdRols.Single().IdRol == 3 && Contrasenas.Verificar(usuario.Contrasena, "Nueva!456"), "Cambio de roles y hash persistido");
-hash = usuario.Contrasena;
-await dao.ActualizarUsuarioAsync(desconectado, [3], null, CancellationToken.None);
+Verificar(usuario.IdRols.Single().IdRol == 3, "Cambio de roles persistido");
+var idKeycloak = Guid.NewGuid();
+Verificar(await dao.SeleccionarOVincularPorKeycloakAsync(idKeycloak, "otro@example.com", CancellationToken.None) is null, "Keycloak sin usuario con ese correo no vincula");
+Verificar((await dao.SeleccionarOVincularPorKeycloakAsync(idKeycloak, "U1@EXAMPLE.COM", CancellationToken.None))?.IdUsuario == id, "Keycloak vincula por correo sin distinguir mayusculas");
 contexto.ChangeTracker.Clear();
-Verificar((await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!.Contrasena == hash, "Entidad desconectada no sobrescribe clave sin parametro explicito");
+Verificar((await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!.IdKeycloak == idKeycloak, "Vinculo con Keycloak persistido");
+Verificar((await dao.SeleccionarOVincularPorKeycloakAsync(idKeycloak, null, CancellationToken.None))?.IdUsuario == id, "Usuario vinculado se encuentra por id de Keycloak sin correo");
+Verificar(await dao.SeleccionarOVincularPorKeycloakAsync(Guid.NewGuid(), "u1@example.com", CancellationToken.None) is null, "Otro id de Keycloak no toma un usuario ya vinculado");
 for (var n = 2; n <= 23; n++) await dao.InsertarUsuarioAsync(Nuevo(n), [], CancellationToken.None);
 var listado = (await dao.ListarTodoAsync(CancellationToken.None)).Select(UsuarioMapeador.AListadoDto).ToList();
 Verificar(listado.Count == 23, "Listado devuelve todos los usuarios sin limite de 20");
@@ -101,4 +97,7 @@ sealed class ContadorGuardados : SaveChangesInterceptor
     public int Cantidad { get; private set; }
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
     { Cantidad++; return result; }
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+        InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    { Cantidad++; return ValueTask.FromResult(result); }
 }

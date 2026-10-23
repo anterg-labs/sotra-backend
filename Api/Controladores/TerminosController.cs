@@ -1,6 +1,7 @@
 using Api.DTOs.Terminos;
-using Api.Infraestructura.Seguridad;
 using System.ComponentModel.DataAnnotations;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -23,7 +24,7 @@ public class TerminosController(TerminosDAO terminosDao) : ControllerBase
     }
 
     [HttpPost]
-    [Permiso("terminos.administrar")]
+    [Authorize(Policy = Politicas.TerminosAdministrar)]
     [ProducesResponseType<TerminosDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<TerminosDto>> Publicar(TerminosPublicarDto solicitud, CancellationToken cancelacion)

@@ -1,0 +1,379 @@
+/*
+ * Login de SOTRA: mismo diseño que la pantalla de login del frontend (sotra-frontend, Tailwind):
+ * formulario de 384 px con el logo de CVM a la izquierda y, desde 1024 px, la foto de maquinaria con el lema.
+ */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+:root {
+  --sotra-texto: #1e293b;
+  --sotra-texto-suave: #475569;
+  --sotra-borde: #94a3b8;
+  --sotra-primario: #365f7a;
+  --sotra-primario-hover: #294b64;
+  --sotra-oscuro: #111113;
+  --sotra-rojo: #d71920;
+  --sotra-peligro: #a82019;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body.sotra-cuerpo {
+  background: #fff;
+  color: var(--sotra-texto);
+  font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sotra-login {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.sotra-login-lado-formulario {
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.sotra-login-tarjeta {
+  width: 100%;
+  max-width: 384px;
+}
+
+.sotra-login-logo {
+  display: block;
+  width: 160px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.sotra-titulo {
+  margin: 24px 0 0;
+  color: var(--sotra-texto);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  text-align: center;
+}
+
+.sotra-subtitulo {
+  margin: 4px 0 0;
+  color: var(--sotra-texto-suave);
+  font-size: 14px;
+  text-align: center;
+}
+
+.sotra-contenido {
+  margin-top: 24px;
+}
+
+.sotra-contenido form {
+  display: grid;
+  gap: 16px;
+}
+
+.sotra-grupo {
+  display: grid;
+  gap: 4px;
+}
+
+.sotra-etiqueta {
+  color: var(--sotra-texto);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sotra-campo {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--sotra-borde);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--sotra-texto);
+  font: inherit;
+}
+
+.sotra-campo:focus-visible,
+.sotra-boton:focus-visible,
+.sotra-ver-contrasena:focus-visible,
+.sotra-login a:focus-visible {
+  outline: 2px solid var(--sotra-primario);
+  outline-offset: 2px;
+}
+
+.sotra-campo[aria-invalid="true"] {
+  border-color: var(--sotra-peligro);
+}
+
+.sotra-campo-con-boton {
+  position: relative;
+}
+
+.sotra-campo-con-boton .sotra-campo {
+  padding-right: 48px;
+}
+
+.sotra-ver-contrasena {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sotra-texto-suave);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.sotra-ver-contrasena:hover {
+  color: var(--sotra-texto);
+}
+
+.sotra-icono-ver,
+.sotra-icono-ocultar {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  -webkit-mask: var(--sotra-icono) center / contain no-repeat;
+  mask: var(--sotra-icono) center / contain no-repeat;
+}
+
+.sotra-icono-ver {
+  --sotra-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
+
+.sotra-icono-ocultar {
+  --sotra-icono: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3l18 18'/%3E%3Cpath d='M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.7 8.5 2 12 2 12s3.5 7 10 7a9.9 9.9 0 0 0 5.4-1.6'/%3E%3Cpath d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/%3E%3C/svg%3E");
+}
+
+.sotra-error-campo {
+  color: var(--sotra-peligro);
+  font-size: 13px;
+}
+
+.sotra-ayuda {
+  color: var(--sotra-texto-suave);
+  font-size: 13px;
+}
+
+/* «¿Olvidaste tu contraseña?» a la derecha; «Recordarme», si se habilita, a la izquierda. */
+.sotra-opciones-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#kc-form-login .sotra-opciones-fila .sotra-opciones {
+  margin-left: auto;
+}
+
+.sotra-login a {
+  color: #243449;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.sotra-opciones,
+.sotra-opciones span {
+  font-size: 14px;
+}
+
+.checkbox label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sotra-texto);
+  font-size: 14px;
+}
+
+#kc-form-buttons {
+  width: 100%;
+}
+
+.sotra-boton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sotra-boton-bloque {
+  width: 100%;
+}
+
+.sotra-boton-primario {
+  background: var(--sotra-primario);
+  color: #fff;
+}
+
+.sotra-boton-primario:hover {
+  background: var(--sotra-primario-hover);
+}
+
+.sotra-boton-secundario {
+  border-color: var(--sotra-borde);
+  background: #fff;
+  color: var(--sotra-texto);
+}
+
+.sotra-boton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.sotra-aviso {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.sotra-aviso-error {
+  background: #fde8e7;
+  color: var(--sotra-peligro);
+}
+
+.sotra-aviso-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sotra-aviso-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.sotra-aviso-info {
+  background: #e0ecf5;
+  color: #1e3a52;
+}
+
+.sotra-info {
+  margin-top: 16px;
+  color: var(--sotra-texto-suave);
+  font-size: 14px;
+  text-align: center;
+}
+
+.sotra-usuario-intentado {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  font-weight: 600;
+}
+
+.sotra-login-lado-imagen {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  background: var(--sotra-oscuro);
+}
+
+.sotra-login-foto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
+}
+
+.sotra-login-degradado {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--sotra-oscuro), rgba(17, 17, 19, 0.3), transparent);
+}
+
+.sotra-login-lema {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 48px;
+  color: #fff;
+}
+
+.sotra-login-barra {
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin-bottom: 16px;
+  background: var(--sotra-rojo);
+}
+
+.sotra-login-lema-titulo {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.sotra-login-lema-texto {
+  max-width: 448px;
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+@media (min-width: 640px) {
+  .sotra-login-lado-formulario {
+    padding: 32px 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sotra-login {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sotra-login-lado-imagen {
+    display: block;
+  }
+}
+
+.sotra-instruccion {
+  margin: 0;
+  color: var(--sotra-texto-suave);
+  font-size: 14px;
+}
+
+.sotra-volver {
+  margin: 8px 0 0;
+  font-size: 14px;
+  text-align: center;
+}

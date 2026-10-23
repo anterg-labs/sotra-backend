@@ -12,38 +12,23 @@ Docker Desktop. Los comandos `docker compose` son los mismos; se pueden ejecutar
 
 Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattributes` lo fuerza al clonar.
 
-## Configurar PostgreSQL con el archivo `.env`
+## Configuración con el archivo `.env`
 
 1. Copiar `.env.example` como `.env` en la raíz de `sotra-backend/`.
+2. Completar los valores. El archivo `.env` no se debe versionar; `.env.example` es la plantilla sin credenciales reales.
 
-Linux:
-
-```bash
-cp .env.example .env
-```
-
-Windows (PowerShell):
-
-```powershell
-Copy-Item .env.example .env
-```
-
-2. Configurar la conexión local sin publicar las credenciales:
-
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=sotra
-DB_USER=TU_USUARIO
-DB_PASSWORD=TU_PASSWORD
-FRONTEND_ORIGIN=http://localhost
-```
-
-Esta configuración permite ejecutar el backend directamente en el equipo (Linux o Windows) contra PostgreSQL publicado en el puerto estándar `5432`.
-
-`compose.yml` conserva la configuración original de producción con PostgreSQL y el backend. La configuración de desarrollo está separada en `compose.dev.yml` y carga las variables desde `sotra-backend/.env`.
-
-El archivo `.env` no se debe versionar. `.env.example` se conserva como plantilla sin credenciales reales.
+| Variable | Uso |
+|---|---|
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Base de datos que crea el contenedor `sotra-db` la primera vez. |
+| `DB_HOST`, `DB_PORT` | Conexión desde la máquina (pgAdmin, `dotnet run`). `DB_PORT` es también el puerto que publica `sotra-db`. Dentro de Docker, el backend y Keycloak usan `db:5432`. |
+| `API_PORT` | Puerto donde se publica la API (`8081`). |
+| `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi`. |
+| `FRONTEND_ORIGIN` | Origen permitido por CORS. |
+| `OLLAMA_BASE_URL` | Ollama, que corre en la máquina: `http://host.docker.internal:11434`. |
+| `RERANKER_CARPETA` | Carpeta con `model_quantized.onnx` y `tokenizer.json`, relativa a `compose.yml`. Se monta en `/modelos`. |
+| `KC_*` | Keycloak (ver "Keycloak"). |
+| `AUTH_OBLIGATORIA` | `true` exige token de Keycloak en los endpoints protegidos; `false` los deja abiertos mientras el frontend integra el login. |
+| `PROXIES_CONFIANZA` | Direcciones o redes CIDR de los proxies que reenvían `X-Forwarded-For` (por ejemplo Nginx), para que el límite de solicitudes use la IP de cada persona. |
 
 ## Ejecutar directamente en el equipo
 
@@ -59,17 +44,28 @@ Comprobar Entity Framework:
 dotnet ef dbcontext info --context SotraContext
 ```
 
-## Levantar PostgreSQL y el backend con Docker
+Fuera de Docker, la API lee el `.env` (DotNetEnv) y se conecta a `DB_HOST:DB_PORT`.
 
-### Producción local
+## Levantar el sistema con Docker
 
-Construir y levantar la configuración original de producción en segundo plano:
+Hay un único `compose.yml` y un único `Dockerfile`. `compose.yml` levanta cuatro servicios:
+
+| Servicio | Contenedor | Puerto | Qué es |
+|---|---|---|---|
+| `db` | `sotra-db` | `DB_PORT` | PostgreSQL 18 con pgvector (`pgvector/pgvector:pg18-trixie`). Datos en el volumen `postgres_data`. |
+| `db-datos` | `sotra-db-datos` | — | Se ejecuta una vez y termina: prepara el esquema de Keycloak y carga `01-init.sql` (ver "Carga automática de datos"). |
+| `backend` | `sotra-backend` | `API_PORT` (8081) | La API, compilada en Release con el `Dockerfile`. |
+| `keycloak` | `sotra-keycloak` | `KC_PORT` (9080) | Autenticación (ver "Keycloak"). |
+
+Construir y levantar todo:
 
 ```bash
 docker compose up -d --build
 ```
 
-Este comando usa `compose.yml`, levanta PostgreSQL y el backend, y deja la API disponible en `http://localhost:8080`.
+La API queda en `http://localhost:8081` y la consola de Keycloak en `http://localhost:9080/admin`. El backend y Keycloak esperan a que `db-datos` termine. El backend llega a Ollama por `host.docker.internal`, que `compose.yml` define también para Linux (`host-gateway`).
+
+El backend se ejecuta compilado, sin recarga automática: después de cambiar código hay que reconstruirlo con `docker compose up -d --build backend`. El `Dockerfile` restaura los paquetes NuGet en una capa aparte, así que la reconstrucción no los vuelve a descargar mientras no cambien las dependencias.
 
 #### Carga automática de datos
 
@@ -79,42 +75,213 @@ Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `
 - **Con diferencias o primera vez:** borra y recrea el esquema `operativo` con la estructura y los datos de `01-init.sql` (clientes, activos, usuarios, roles, permisos, órdenes, repuestos, etc.). Los cambios hechos a mano en `operativo` se pierden.
 - **Esquema `vectorial`:** `02-vectorial.sql` crea solo su estructura vacía, y únicamente si el esquema no existe. Si ya existe, no se toca. Los PDF, fragmentos y embeddings no vienen en el SQL; se generan con la asistencia documental.
 
-Las contraseñas de usuario que no eran un hash de ASP.NET Identity se reemplazaron por `REEMPLAZAR_POR_HASH_ASPNET_IDENTITY`: esos usuarios no pueden iniciar sesión hasta que se les asigne una contraseña.
-
-**Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 10 personas usuarias con los 4 roles, 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Las contraseñas son un marcador: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
+**Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 14 personas usuarias con los 4 roles (entre ellas `admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`, que coinciden con los usuarios de prueba del realm de Keycloak), 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Los usuarios no tienen contraseña en SOTRA: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
 
 Para actualizar los datos, editar `01-init.sql` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
 
-### Desarrollo local
+La imagen de la base está fijada en la variante `trixie` (Debian 13). PostgreSQL ordena el texto con la glibc del sistema: si un volumen creado con una variante se abre con otra (por ejemplo `pg18`, que es Debian 12), PostgreSQL no permite crear bases nuevas. No hay que cambiar la variante sobre un volumen existente.
 
-La configuración de desarrollo usa la base local publicada en `localhost:5432`. Si se utiliza `sotra-postgres-local`, debe iniciarse antes:
+### Usuario y esquema de Keycloak
 
-```bash
-docker start sotra-postgres-local
-docker compose -f compose.dev.yml up -d --build
-```
+Antes de comparar huellas, `cargar-datos.sh` crea, si todavía no existen, el usuario `KC_DB_USERNAME` con la contraseña `KC_DB_PASSWORD` y el esquema `keycloak`, de su propiedad. Corre en cada `docker compose up` sin tocar nada si ya están, y Keycloak arranca recién cuando `db-datos` terminó. `.gitattributes` fuerza saltos de línea LF en los `.sh` y en `database/init/`, porque con CRLF fallan dentro del contenedor.
 
-La API queda disponible en `http://localhost:8081`. El código fuente está montado dentro del contenedor y `dotnet watch --no-hot-reload` reinicia la aplicación al guardar cambios. Así se evita que la recarga en caliente intente leer archivos temporales de recursos estáticos que no existen cuando la carpeta se monta desde Windows. Esta configuración no modifica ni reemplaza el `Dockerfile` ni el `compose.yml` de producción.
-
-Servicios expuestos al equipo:
-
-- PostgreSQL: host `localhost` y puerto `5432`.
-- Backend de producción: `http://localhost:8080`.
-- Backend de desarrollo: `http://localhost:8081`.
-
-Comprobar la conexión:
+Comprobar que todo responde:
 
 ```bash
-docker exec sotra-postgres-local pg_isready -U sotra -d sotra
-curl http://localhost:8080/api/v1/roles
+docker exec sotra-db pg_isready -U TU_USUARIO -d sotra
+curl http://localhost:8081/health
 curl http://localhost:8081/api/v1/roles
 ```
+
+## Keycloak (autenticación)
+
+`compose.yml` levanta Keycloak 26.7.4 en el contenedor `sotra-keycloak`, publicado en el puerto `KC_PORT` (9080). Por ahora corre en modo `start-dev` (HTTP y `localhost`); para producción hay que pasarlo a `start` con el dominio real y HTTPS. Guarda sus datos en la misma base que el backend, dentro del esquema `keycloak` y con un usuario propio (`KC_DB_USERNAME`, por defecto `keycloak_user`), que no tiene acceso a `operativo` ni a `vectorial`.
+
+La configuración del realm `sotra` está versionada en `keycloak/realm-sotra.json`: clientes, roles, el client scope de audiencia, la política de contraseñas y la protección contra fuerza bruta. Keycloak arranca con `--import-realm` y lo importa solamente si el realm todavía no existe; si ya existe, no lo modifica. El archivo es una exportación parcial: no incluye usuarios (salvo la cuenta de servicio de `sotra-backend-admin`), ni claves de firma, y los secretos de los clientes aparecen como `**********`.
+
+### Primera puesta en marcha
+
+1. Copiar las variables `KC_*` de `.env.example` al `.env` y completarlas con valores propios del entorno.
+   - `KC_DB_USERNAME` y `KC_DB_PASSWORD`: usuario de la base con el que se conecta Keycloak. `db-datos` (`cargar-datos.sh`) lo crea con esa contraseña si todavía no existe.
+   - `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`: usuario y contraseña del administrador temporal que Keycloak crea al arrancar por primera vez. Solo se usan esa vez, cuando el realm `master` no tiene ningún administrador; cambiarlos después en el `.env` no tiene efecto. Conviene anotarlos antes de levantar Keycloak.
+   - `KC_SMTP_*`: la cuenta de Gmail que envía los correos (ver "Correos con Gmail").
+
+   Para generar una contraseña segura:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(24))"
+   ```
+
+2. Levantar el sistema (`docker compose up -d --build`). La primera vez, Keycloak crea sus tablas e importa el realm `sotra`.
+3. Entrar a `http://localhost:9080/admin` con `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD`, cambiar al realm `sotra` y generar el secreto propio en **Clients** → `sotra-backend-admin` → **Credentials** → **Regenerate**.
+4. Reemplazar el administrador temporal por uno definitivo, en el realm `master`:
+   1. **Users** → **Create new user** con un usuario propio (por ejemplo `nombre.admin`), correo y **Email verified** activado.
+   2. **Credentials** → **Set password** con una contraseña fuerte y **Temporary** desactivado.
+   3. **Role mapping** → **Assign role** → **Filter by realm roles** → `admin`.
+   4. Cerrar sesión y entrar con el usuario nuevo. Comprobar que ya no aparece el aviso de administrador temporal.
+   5. Recién entonces borrar el temporal: **Users** → `admin` → **Action** → **Delete**. Si se borra antes de comprobar el nuevo y algo falla, no queda ningún administrador.
+
+Comprobar que el realm responde:
+
+```bash
+curl http://localhost:9080/realms/sotra/.well-known/openid-configuration
+```
+
+### Contenido del realm `sotra`
+
+| Cliente | Tipo | Uso |
+|---|---|---|
+| `sotra-frontend` | Público, *Standard flow* con PKCE `S256` | Login de la PWA. Redirecciones y orígenes permitidos: `http://localhost`. |
+| `sotra-api` | Confidencial, sin flujos de login | Representa a la API. Los tokens llevan `aud: sotra-api` gracias al client scope `sotra-api-audience`. |
+| `sotra-backend-admin` | Confidencial, cuenta de servicio | La API lo usa para crear y modificar usuarios en Keycloak. Solo tiene `manage-users` y `view-users` de `realm-management`. |
+| `sotra-postman` | Público, *Direct access grants* | Solo para desarrollo: pedir tokens con usuario y contraseña desde Postman. No debe existir en producción. |
+
+Roles del realm: `administrador`, `jefe_mantenimiento`, `tecnico` y `panolero`. Viajan en el token dentro de `realm_access.roles`.
+
+El login usa el correo como nombre de usuario. La política de contraseñas exige al menos 8 caracteres, una mayúscula, un dígito y un carácter especial; no permite el correo ni el usuario como contraseña, ni repetir las últimas 3. Después de 5 intentos fallidos la cuenta se bloquea temporalmente (desde 1 minuto hasta 15). Una contraseña asignada como temporal obliga a cambiarla en el primer ingreso.
+
+### Pantalla de login (tema `sotra`)
+
+El login de Keycloak usa el tema propio `keycloak/themes/sotra/login`, con el mismo diseño que tenía la pantalla de login del frontend: logo de CVM, «Iniciar sesión», campos Usuario y Contraseña, «¿Olvidaste tu contraseña?» y, en pantallas anchas, la foto de maquinaria con el lema. Hereda las plantillas del tema `base` de Keycloak y reemplaza:
+
+- `template.ftl`: la estructura común de todas las pantallas (login, recuperar y elegir contraseña, errores).
+- `login.ftl` (la etiqueta «Usuario») y `login-reset-password.ftl` («Recuperar contraseña» con el orden del frontend).
+- `messages/messages_es.properties`: los textos propios.
+- `resources/`: estilos, logo, foto, ícono y la fuente Inter.
+
+`compose.yml` monta la carpeta en `/opt/keycloak/themes/sotra` y `realm-sotra.json` lo activa con `"loginTheme": "sotra"`. En un realm que ya existía, la importación no lo aplica: elegir `sotra` en la consola de Keycloak (Realm settings › Themes › Login theme) o actualizar el realm con la API de administración. Con `start-dev` Keycloak no cachea los temas, así que un cambio en los archivos se ve al recargar la página. Si se cambia el logo o la foto en el frontend (`public/images`), copiarlos también a `resources/img`.
+
+### Correos con Gmail
+
+Para "¿Olvidaste tu contraseña?" (RF001-12) Keycloak envía correos por el SMTP de Gmail (`smtp.gmail.com`, puerto `587`, con StartTLS y autenticación). En `realm-sotra.json` el servidor, el puerto, el remitente, el usuario y la contraseña no están escritos: son las variables `${KC_SMTP_HOST}`, `${KC_SMTP_PORT}`, `${KC_SMTP_FROM}`, `${KC_SMTP_USER}` y `${KC_SMTP_PASSWORD}`, que Keycloak reemplaza con los valores del `.env` al importar el realm. Así la contraseña nunca queda en el repositorio. Como el resto del archivo, esto solo se aplica cuando el realm se crea; en un realm que ya existe, el correo se cambia en la consola, en **Realm settings** → **Email**.
+
+Gmail no acepta la contraseña normal de la cuenta, sino una contraseña de aplicación:
+
+1. Activar la verificación en dos pasos de la cuenta en `https://myaccount.google.com/security`.
+2. Crear la contraseña de aplicación en `https://myaccount.google.com/apppasswords` (por ejemplo, con el nombre `SOTRA Keycloak`).
+3. Copiar los 16 caracteres, sin espacios, en `KC_SMTP_PASSWORD`. `KC_SMTP_FROM` y `KC_SMTP_USER` deben ser la misma dirección de Gmail.
+
+Gmail permite unos 500 correos por día.
+
+Para probarlo: crear en el realm `sotra` un usuario con un correo real, abrir `http://localhost:9080/realms/sotra/account`, elegir **¿Has olvidado tu contraseña?**, escribir ese correo y abrir el enlace que llega (puede caer en spam). El enlace vence a los 5 minutos.
+
+Pedir un token de prueba con `sotra-postman`:
+
+```bash
+curl -d client_id=sotra-postman -d grant_type=password -d username=CORREO_DEL_USUARIO -d password=PASSWORD_DEL_USUARIO http://localhost:9080/realms/sotra/protocol/openid-connect/token
+```
+
+### Validación de tokens en la API
+
+La API acepta los tokens de acceso que emite Keycloak para el realm `sotra` (`Microsoft.AspNetCore.Authentication.JwtBearer`, configurado en `Api/Seguridad/AutenticacionKeycloak.cs`). Un token es válido si:
+
+- está firmado con una clave del realm (la API descarga las claves públicas de Keycloak y verifica la firma sin consultarlo en cada pedido);
+- su emisor (`iss`) es `KEYCLOAK_EMISOR`;
+- su audiencia (`aud`) incluye `KEYCLOAK_AUDIENCIA` (`sotra-api`);
+- no venció (el token de acceso dura 5 minutos).
+
+| Variable | Valor en Docker | Para qué |
+|---|---|---|
+| `KEYCLOAK_EMISOR` | `http://localhost:9080/realms/sotra` | Emisor que deben tener los tokens. Es la URL pública de Keycloak, la que ve el navegador. |
+| `KEYCLOAK_METADATA` | `http://keycloak:8080/realms/sotra/.well-known/openid-configuration` | De dónde descarga la API los metadatos y las claves. Dentro de Docker usa la red interna; Keycloak responde con direcciones internas gracias a `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`. |
+| `KEYCLOAK_AUDIENCIA` | `sotra-api` | Audiencia exigida. |
+
+`compose.yml` define las tres. Para correr la API fuera de Docker (`dotnet run`) se toman del `.env`, con `KEYCLOAK_METADATA` apuntando a `localhost:9080`.
+
+Keycloak manda los roles del realm dentro de `realm_access.roles`; la API los convierte en roles de .NET, así que se pueden usar con `[Authorize(Roles = "tecnico")]`. El nombre de usuario (`User.Identity.Name`) es `preferred_username`, que en este realm es el correo.
+
+`GET /api/v1/sesion` exige token y devuelve el usuario que inició sesión: `idKeycloak` (el `sub` del token), `correo`, `nombre` y `roles` (solo los de SOTRA). Sin token o con un token inválido responde `401`.
+
+### Autorización por rol
+
+Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las políticas y los roles que las cumplen están en un solo archivo, `Api/Seguridad/PoliticasDeAcceso.cs`; para cambiar quién puede hacer qué, se edita esa matriz. Cuando el permiso existe en `operativo.permiso`, la política usa el mismo nombre.
+
+| Política | Endpoints | Roles |
+|---|---|---|
+| `usuario.listar` | `GET /usuarios` | administrador, jefe_mantenimiento |
+| `usuario.consultar` | `GET /usuarios/{id}`, `GET /roles` | administrador, jefe_mantenimiento |
+| `usuario.crear`, `usuario.editar` | `POST`, `PUT`, `PATCH /usuarios`, `POST /usuarios/{id}/restablecer-contrasena` | administrador, jefe_mantenimiento (ver abajo) |
+| `cliente.consultar` | `GET /clientes` | todos |
+| `cliente.gestionar` | `POST`, `PUT`, `PATCH /clientes` | administrador, jefe_mantenimiento |
+| `activo.consultar` | `GET /activos` | todos |
+| `activo.crear`, `activo.editar` | `POST`, `PUT`, `PATCH /activos` | administrador, jefe_mantenimiento |
+| `modelo.consultar`, `tipo_maquina.consultar` | `GET /modelos-maquina`, `GET /tipos-maquina` | administrador, jefe_mantenimiento, tecnico |
+| `modelo.crear`, `modelo.editar`, `tipo_maquina.gestionar` | `POST`, `PUT`, `PATCH` de modelos y tipos | administrador, jefe_mantenimiento |
+| `ot.consultar` | `GET /ordenes-trabajo`, `GET` de evidencias y su archivo | todos |
+| `ot.crear` | `POST /ordenes-trabajo`, `POST /ordenes-trabajo/sugerencia` | administrador, jefe_mantenimiento |
+| `ot.editar` | `PUT /ordenes-trabajo/{id}` | administrador, jefe_mantenimiento |
+| `ot.asignar_tecnico` | `PATCH /ordenes-trabajo/{id}/tecnico` | administrador, jefe_mantenimiento |
+| `ot.registrar_avance` | `PATCH /ordenes-trabajo/{id}/estado`, `POST` de evidencias | administrador, jefe_mantenimiento, tecnico |
+| `documento.consultar` | `GET /documentos-tecnicos` y su archivo | administrador, jefe_mantenimiento, tecnico |
+| `documento.gestionar` | `POST`, `DELETE /documentos-tecnicos` | administrador, jefe_mantenimiento |
+| `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, panolero |
+| `repuesto.gestionar` | `POST`, `PUT`, `PATCH /repuestos`, `PATCH /repuestos/{id}/stock-minimo` | administrador, panolero |
+| `stock.registrar_movimiento` | `POST /repuestos/{id}/ingresos`, `/egresos` y `/ajustes` | administrador, panolero |
+| `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` y `/csv`, y el dashboard analítico (`/reportes/tendencias`, `/tiempos`, `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria`) | administrador, jefe_mantenimiento |
+| `terminos.administrar` | `POST /terminos` | administrador |
+
+`GET /terminos/vigente`, el estado y la aceptación de los términos no tienen política propia: alcanza con una sesión iniciada.
+
+Además de la matriz, dos reglas dependen de quién pide (`Api/Seguridad/AlcancePorRol.cs`):
+
+- **El técnico solo trabaja sobre sus órdenes.** Si el usuario tiene el rol `tecnico` y ningún otro de gestión (`administrador`, `jefe_mantenimiento`, `panolero`), `GET /ordenes-trabajo` devuelve solo las órdenes que tiene asignadas (aunque pida otro `tecnicoId`), y el detalle, el cambio de estado y las evidencias de una orden ajena responden `403`.
+- **El jefe no gestiona administradores.** El jefe de mantenimiento crea, modifica, da de baja y restablece la contraseña de usuarios, pero no puede asignar el rol Administrador ni tocar a un usuario que lo tiene: la API responde `403` con `codigo: "SOLO_ADMINISTRADOR"` y un `mensaje`.
+
+`GET /version` y `/health` son públicos (`[AllowAnonymous]`). Cualquier otro endpoint sin política exige al menos una sesión iniciada (política *fallback*), así que un endpoint nuevo nunca queda abierto por olvido. Sin token la API responde `401`; con un token válido pero sin el rol necesario, `403`.
+
+`AUTH_OBLIGATORIA` controla la protección. Con `true` (el valor por defecto si falta) rige la matriz. Con `false` los endpoints con política no exigen token, para poder usar el frontend mientras todavía no integra el login; la API lo avisa en el log al arrancar. `GET /sesion` exige token en los dos casos. En producción debe quedar en `true`.
+
+```bash
+curl -H "Authorization: Bearer TOKEN" http://localhost:8081/api/v1/sesion
+```
+
+### Gestión de usuarios con Keycloak
+
+Los datos de cada usuario (nombre, apellido, correo, teléfono, fecha de ingreso, estado y roles) se guardan en `operativo.usuario`, que es la fuente principal. Lo referido al login (contraseña, cambio obligatorio de contraseña, bloqueo por intentos y sesiones) vive solo en Keycloak. `id_keycloak` vincula los dos. La API copia a Keycloak lo que necesita para el login: correo (que es el nombre de usuario), nombre, apellido, roles y si está habilitado. No hace falta tocar los usuarios desde la consola de Keycloak.
+
+`Api/Servicios/ServicioKeycloakUsuarios.cs` usa la API de administración de Keycloak con la cuenta de servicio de `sotra-backend-admin`, que solo tiene `manage-users` y `view-users`.
+
+| Endpoint | En la base | En Keycloak |
+|---|---|---|
+| `POST /usuarios` | Crea el usuario. Ya no recibe contraseña. | Crea el usuario sin contraseña, con la acción "cambiar contraseña" pendiente, y le envía un correo con el enlace para elegirla (válido 3 días). Si ya existía un usuario con ese correo, lo vincula y no envía el correo. |
+| `PUT /usuarios/{id}` | Actualiza los datos y los roles. | Copia roles, nombre, correo y estado. Si queda inactivo, se cierran sus sesiones. |
+| `PATCH /usuarios/{id}` (`inactivo`) | Baja lógica. | Lo deshabilita (no puede iniciar sesión) y cierra sus sesiones. |
+| `POST /usuarios/{id}/restablecer-contrasena` | — | Le envía el correo para elegir una contraseña nueva. Responde `204`; `409` (`USUARIO_SIN_ACCESO`) si no está en Keycloak y `409` (`USUARIO_INACTIVO`) si está dado de baja. |
+
+Cada operación corre en una transacción de la base que solo se confirma si Keycloak también aceptó el cambio. Si en un alta falla la base después de crear el usuario en Keycloak, se borra de Keycloak. Si Keycloak no responde, la API devuelve `502` (`KEYCLOAK_NO_DISPONIBLE`). Si falla solo el envío del correo del alta, el usuario queda creado y el administrador puede reenviarlo con `restablecer-contrasena`.
+
+Los roles de `operativo.rol` se traducen a los de Keycloak (Administrador → `administrador`, Jefe de mantenimiento → `jefe_mantenimiento`, Técnico → `tecnico`, Pañolero → `panolero`); los roles inactivos no se copian. Los usuarios cargados antes de esta integración no tienen `id_keycloak`: se modifican solo en la base y no pueden iniciar sesión.
+
+Variables (en Docker las define `compose.yml`, salvo el secreto):
+
+| Variable | Valor |
+|---|---|
+| `KEYCLOAK_ADMIN_SECRETO` | Secreto de `sotra-backend-admin` (realm `sotra` → **Clients** → `sotra-backend-admin` → **Credentials**). Va en el `.env`. |
+| `KEYCLOAK_ADMIN_URL` | `http://keycloak:8080` en Docker. |
+| `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENTE` | `sotra`, `sotra-backend-admin`. |
+| `KEYCLOAK_CLIENTE_FRONTEND` | `sotra-frontend`: después de elegir la contraseña, el usuario vuelve a `FRONTEND_ORIGIN`. |
+
+Si falta alguna, la API arranca igual y solo fallan las operaciones de usuarios, con `502`.
+
+### Usuario actual
+
+Cada usuario de SOTRA (`operativo.usuario`) se vincula con su usuario de Keycloak por la columna `id_keycloak` (el `sub` del token, única). `Api/Seguridad/UsuarioActual.cs` traduce el token de cada pedido al `id_usuario`:
+
+1. Busca el usuario con ese `id_keycloak`.
+2. Si no hay ninguno, busca por correo (sin distinguir mayúsculas) entre los usuarios todavía no vinculados y le guarda el `id_keycloak`. Así cada usuario queda vinculado en su primer ingreso, sin cargar nada a mano; después la vinculación ya no depende del correo.
+3. Si tampoco hay coincidencia, el usuario de Keycloak no está registrado en SOTRA y no hay `id_usuario`.
+
+Se usa para el responsable de las órdenes que se crean, el usuario de las evidencias y el de los movimientos de stock. `GET /api/v1/sesion` también devuelve el `idUsuario`.
+
+### Actualizar `realm-sotra.json`
+
+Si se cambia la configuración del realm desde la consola, hay que volver a exportarla para que quede versionada: **Realm settings** → **Action** → **Partial export**, con **Include groups and roles** e **Include clients** activados, y reemplazar `keycloak/realm-sotra.json` con el archivo descargado. La exportación trae el correo con los valores reales de quien exporta (su cuenta de Gmail); antes de subirla hay que volver a dejar el bloque `smtpServer` con las variables `${KC_SMTP_*}`. Un Keycloak que ya tiene el realm creado no recibe los cambios al reiniciar, porque la importación se saltea si el realm existe; hay que aplicarlos a mano en la consola o borrar el realm y reiniciar Keycloak.
 
 ## Contratos de modificación
 
 Los endpoints `PUT` reciben todos los campos editables del recurso. No funcionan como modificaciones parciales.
 
-En usuarios son obligatorios `nombre`, `apellido`, `correo`, `telefono`, `idsRol`, `estado` y `fechaIngreso`. `contrasena` puede omitirse para conservar la contraseña actual.
+En usuarios son obligatorios `nombre`, `apellido`, `correo`, `telefono`, `idsRol`, `estado` y `fechaIngreso`. La API no recibe contraseñas: la contraseña vive solo en Keycloak (ver "Gestión de usuarios con Keycloak").
 
 En activos, `estado` es opcional y acepta `activo` o `inactivo`. Si se omite, el estado no cambia; cualquier otro valor responde `400`. Permite reactivar un activo dado de baja. El cliente y el modelo de máquina deben estar activos.
 
@@ -142,15 +309,7 @@ Un manejador global (`Api/Infraestructura/ManejadorGlobalDeErrores.cs`) cubre lo
 - **Detrás de un proxy** (Nginx o Cloudflare) hay que definir `PROXIES_CONFIANZA` con la dirección o red del proxy; si no, todas las personas comparten el límite del proxy.
 - **CORS** acepta solo el origen de `FRONTEND_ORIGIN`, con los métodos y headers que usa el frontend.
 
-## Autenticación preparada y apagada
-
-La integración con Keycloak (login, tokens, usuarios) la implementa otra persona del equipo. Aquí solo queda la API lista para recibir el token.
-
-- **Interruptor:** `Seguridad__Habilitada` (por defecto `false`). Apagada, la API responde igual que antes y no exige nada.
-- **Encendida:** valida un token JWT `Bearer` contra el emisor `URL_KEYCLOAK` (debe ser `https`, salvo bucle local) y la audiencia `ID_CLIENTE_KEYCLOAK`, y exige una persona autenticada en todos los endpoints salvo `/health`, `/health/ready` y `/api/v1/version`. Sin token responde `401` y sin permiso `403`, ambos como `ProblemDetails` con `codigo` (`NO_AUTENTICADO` o `SIN_PERMISO`).
-- **Permisos:** los endpoints llevan `[Permiso("...")]` con los nombres de la tabla `permiso` (por ejemplo `usuario.crear`, `ot.asignar_tecnico`, `stock.registrar_movimiento`). Se leen de la claim `Seguridad__ClaimPermisos` (por defecto `permisos`, valores separados por espacio). El contrato real del token se define con quien integra Keycloak.
-- **Persona actual:** `IUsuarioActual` expone si hay una persona autenticada y su correo (claim `Seguridad__ClaimCorreo`, por defecto `email`). Con la seguridad apagada siempre devuelve "sin autenticar".
-- **Sin cubrir todavía:** la base solo define 14 permisos, que alcanzan para usuarios, activos, consulta y alta de modelos, órdenes, evidencias y stock. Clientes, tipos de máquina, modificación y baja de modelos, alta y modificación de repuestos, documentos técnicos y reportes no tienen permiso definido y, con la seguridad encendida, solo exigen estar autenticado.
+La autenticación y los permisos los resuelve Keycloak (ver "Validación de tokens en la API" y "Autorización por rol"). `/health`, `/health/ready` y `/api/v1/version` son públicos.
 
 ## Errores de negocio centralizados
 
@@ -160,7 +319,7 @@ Los controladores ya no repiten bloques `catch`. Las reglas de negocio lanzan ex
 
 Un único documento editable, sin historial. `GET /api/v1/terminos/vigente` devuelve el texto y su marcador interno de cambios. `POST /api/v1/terminos` recibe únicamente `{ texto }` y responde `200`, modificando el mismo registro; valida de 20 a 20 000 caracteres. Si cambia el texto se incrementa el marcador y se reinician sus aceptaciones. Guardar sin cambios las conserva. No hay endpoint de historial, ni campos de título, datos o autor en el contrato.
 
-La aceptación por persona exige `{ usuarioId, terminosId, version, acepta: true }`; es idempotente y rechaza contenido desactualizado con `409 TERMINOS_DESACTUALIZADOS`. Guardado y aceptación se serializan con bloqueo transaccional de PostgreSQL. La auditoría existente obtiene al autor de `IUsuarioActual`, sin permitir que el formulario lo elija; hasta Keycloak registra «sin autenticar». El frontend usa un único editor visual y comparte el mismo modal para la vista previa y el footer; temporalmente recuerda la aceptación por navegador.
+La aceptación por persona exige `{ usuarioId, terminosId, version, acepta: true }`; es idempotente y rechaza contenido desactualizado con `409 TERMINOS_DESACTUALIZADOS`. Guardado y aceptación se serializan con bloqueo transaccional de PostgreSQL. La auditoría existente obtiene al autor de `IUsuarioActual` (el correo del token de Keycloak), sin permitir que el formulario lo elija; sin token (`AUTH_OBLIGATORIA=false`) registra «sin autenticar». El frontend usa un único editor visual y comparte el mismo modal para la vista previa y el footer; temporalmente recuerda la aceptación por navegador.
 
 No se agregan tablas. Las bases nuevas exigen un único registro mediante `CHECK (vigente)` y el índice único parcial. Para bases existentes se entrega `database/cambios/2026-10-17-terminos-documento-unico.sql`, que elimina el historial antiguo y conserva el texto vigente. **No aplicado a la base local ni al VPS: requiere ejecución manual autorizada.** No se reutilizan las columnas heredadas de título, datos separados o autor en el contrato. Detalles en `Documentacion/Flujo de datos SOTRA.md`, sección 15 bis.
 
@@ -187,7 +346,7 @@ La API implementa los módulos restantes que consume el frontend:
 - `/api/v1/documentos-tecnicos`: `GET`, `POST`, `GET /{id}/archivo` y `DELETE /{id}`.
 - `/api/v1/reportes/indicadores`: `GET`.
 
-Las órdenes usan las tablas existentes del esquema `operativo`. La fecha prevista se conserva en la observación del primer registro de `historial_estado_ot`, y las sugerencias se guardan en `historial_recomendaciones_ia`. El responsable (`id_usuario_responsable`) es el jefe de mantenimiento: hasta que exista el login, `OrdenTrabajoDAO.Crear` asigna el primer usuario activo con el rol activo "Jefe de mantenimiento" y responde `400` si no hay ninguno. `Actualizar` conserva el responsable de la orden.
+Las órdenes usan las tablas existentes del esquema `operativo`. La fecha prevista se conserva en la observación del primer registro de `historial_estado_ot`, y las sugerencias se guardan en `historial_recomendaciones_ia`. El responsable (`id_usuario_responsable`) es el usuario que crea la orden (ver "Usuario actual"). Si el pedido no trae token (con `AUTH_OBLIGATORIA=false`) o el usuario de Keycloak no está registrado en SOTRA, `OrdenTrabajoDAO.Crear` asigna el primer usuario activo con el rol activo "Jefe de mantenimiento" y responde `400` si no hay ninguno. `Actualizar` conserva el responsable de la orden.
 
 Los documentos se guardan en la tabla `vectorial.documento_tecnico`, creada por la API cuando hace falta. Todo el módulo de documentos y sugerencias accede a PostgreSQL con SQL directo (Npgsql) y no con Entity Framework, porque las tablas `vectorial.*` no forman parte del modelo de EF y usan el tipo `vector` de pgvector. Por eso también la validación del activo asociado se hace con SQL sobre `operativo.activo`; el resto de los módulos (usuarios, clientes, activos, repuestos y órdenes) usa Entity Framework. El archivo se valida por su firma `%PDF-`; si se marca para sugerencias, PdfPig extrae el texto. Al procesar un documento para IA, el texto se divide en fragmentos y cada uno se guarda con su embedding de `bge-m3` en `vectorial.fragmentos` (pgvector).
 
@@ -230,7 +389,7 @@ Los listados y detalles paginados de activos incluyen `nombreCliente` y `nombreM
 
 `PaginaDto` también tiene `ErrorDePaginacion()` (el cuerpo del `400`) y `Contiene(texto, buscado)` (comparación sin distinguir mayúsculas), que usan todos los controladores paginados.
 
-### Movimientos de stock (`/api/v1/movimientos-stock` y `POST /api/v1/repuestos/{id}/ingresos`)
+### Movimientos de stock (`/api/v1/movimientos-stock` y `POST /api/v1/repuestos/{id}/ingresos`, `/egresos` y `/ajustes`)
 
 RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:** el SQL sugerido está en `SUGERENCIAS-SQL.md` (agrega `tipo`, `motivo`, `ubicacion`, `observaciones`, `stock_anterior` y `stock_posterior`, pasa `cantidad` a entero y deja `id_usuario` opcional). Hasta aplicarlo, estos endpoints responden `500`; el resto de repuestos funciona. Modelo `MovimientoStock` (actualizado), `MovimientoStockDAO`, `MovimientoStockMapeador` y `MovimientosStockController`.
 
@@ -238,6 +397,7 @@ RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:**
 - `POST /api/v1/repuestos/{id}/egresos` (`cantidad`, `motivo`, `ubicacion?`, `observaciones?`) y `POST /api/v1/repuestos/{id}/ajustes` (`cantidadReal`, `motivo`, `observaciones?`) usan el mismo método y bloqueo. `409` `STOCK_INSUFICIENTE` si el egreso supera el stock, `409` `REPUESTO_INACTIVO`, `400` `CANTIDAD_INVALIDA` y `DATOS_OBLIGATORIOS`. En un ajuste la `cantidad` del movimiento es la diferencia con signo.
 - `PATCH /api/v1/repuestos/{id}/stock-minimo` cambia solo `cantidadMinima` (entero mayor o igual a 0). `GET /api/v1/repuestos/alertas-stock` devuelve `{ bajo, sinStock, total }` de repuestos activos, contados en la base.
 - Restricción de base: `database/cambios/2026-10-16-repuesto-stock-no-negativo.sql` (aplicar a mano) impide `cantidad` y `cant_min` negativos; `01-init.sql` ya la incluye para bases nuevas.
+- Los tres exigen la política `stock.registrar_movimiento` (administrador y pañolero) y registran al usuario que hizo el movimiento.
 - `GET /api/v1/movimientos-stock` (paginado, ver arriba) y `GET /api/v1/movimientos-stock/{id}`: cada movimiento tiene `id`, `repuestoId`, `codigoRepuesto`, `nombreRepuesto`, `tipo`, `cantidad`, `fecha`, `ubicacion`, `usuarioId`, `nombreUsuario`, `motivo`, `observaciones`, `stockAnterior` y `stockPosterior`.
 
 La especificación también pide filtrar repuestos por "categoría", pero el repuesto no tiene ese dato en la base; queda pendiente de definir.
@@ -261,7 +421,7 @@ RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones 
 - Ediciones simultáneas: `OrdenTrabajoDto.Version` (hash SHA-256 truncado del DTO, calculado en `OrdenTrabajoMapeador`) se devuelve también como `ETag` en `GET /ordenes-trabajo/{id}` y `PUT`. El `PUT` acepta `If-Match` y lo compara dentro del bloqueo de fila de `OrdenTrabajoDAO.Actualizar`; si no coincide responde `412` `ORDEN_MODIFICADA` sin cambiar nada. Sin el encabezado (o con `*`) no se verifica. CORS permite `If-Match` y expone `ETag`.
 - `OrdenTrabajoDto` incluye `estadosSiguientes` (los estados a los que puede pasar) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
 
-El historial todavía no registra el usuario responsable del cambio, porque no hay login.
+El historial todavía no registra el usuario responsable del cambio: `historial_estado_ot` no tiene una columna para eso.
 
 ### Evidencias (`/api/v1/ordenes-trabajo/{id}/evidencias`)
 
@@ -271,7 +431,7 @@ RF005-05. **Requiere la tabla `operativo.evidencia_ot`, que todavía no existe:*
 - `POST` (`multipart/form-data`): campos `tipo` (`foto`, `documento` u `observacion`), `observacion`, `fechaRegistro` y `archivo`. Responde `201`. Reglas: la orden no puede estar cerrada ni cancelada (`409` `ORDEN_NO_MODIFICABLE`); `foto` y `documento` exigen archivo (`ARCHIVO_OBLIGATORIO`) y `observacion` exige texto (`OBSERVACION_OBLIGATORIA`); la fecha no puede ser futura (`FECHA_REGISTRO_INVALIDA`); tipo desconocido: `TIPO_EVIDENCIA_INVALIDO`. El archivo se valida por su contenido real (firma de JPG, PNG o PDF), no por la extensión: las fotos solo JPG o PNG y los documentos PDF, JPG o PNG (`ARCHIVO_NO_PERMITIDO`); hasta 10 MB (`413` `ARCHIVO_DEMASIADO_GRANDE`).
 - `GET /{evidenciaId}/archivo`: descarga el archivo con su tipo de contenido.
 
-El usuario que registra la evidencia (`id_usuario`) queda vacío hasta que exista el login.
+El usuario que registra la evidencia (`id_usuario`) es el del token (ver "Usuario actual"); queda vacío si el pedido no trae token o el usuario no está registrado en SOTRA.
 
 ### Registro de sugerencias de IA (RF006-05)
 
@@ -321,7 +481,7 @@ Tipos de reporte (`tipoReporte`):
 
 Acepta los mismos filtros que `/indicadores` y además `prioridad` (`baja`, `media` o `alta`), que también vale para `/indicadores`. Errores: `400` con `TIPO_REPORTE_INVALIDO` si el tipo no existe y `RANGO_FECHAS_INVALIDO` si las fechas están invertidas.
 
-Al agregar el paquete, el contenedor `sotra-backend-dev` necesita reiniciarse (`docker restart sotra-backend-dev`) para restaurarlo.
+Al agregar un paquete, hay que reconstruir la imagen del backend (`docker compose up -d --build backend`) para restaurarlo.
 
 ### Sugerencias (`POST /api/v1/ordenes-trabajo/sugerencia`)
 
@@ -396,39 +556,47 @@ Toda la cadena (controlador, DAO y EF Core) es `async/await` de punta a punta, s
 - Esa excepción no se captura en el código de negocio. `ManejadorGlobalDeErrores` la ignora (también el error `57014` de PostgreSQL) cuando el cliente cerró la solicitud, y la auditoría la registra como `499` en vez de `500`.
 - La prueba `CancelacionPruebas` cancela solicitudes de ingreso de stock a mitad de camino y comprueba que el stock coincide siempre con los movimientos registrados.
 
-## Detener el backend
+## Cambios de esquema en bases existentes
 
-Detener temporalmente la configuración de producción:
+Con Docker, `db-datos` recrea el esquema `operativo` cada vez que cambia `01-init.sql`, así que no hace falta aplicar nada a mano. Para una base que no se carga así (por ejemplo la del VPS), los cambios están en `database/cambios/`, con fecha en el nombre, y se pueden ejecutar más de una vez sin error:
+
+```bash
+docker exec -i sotra-db psql -U TU_USUARIO -d sotra < database/cambios/2026-10-17-usuario-id-keycloak.sql
+docker exec -i sotra-db psql -U TU_USUARIO -d sotra < database/cambios/2026-10-17-usuario-sin-contrasena.sql
+```
+
+| Cambio | Qué hace |
+|---|---|
+| `2026-10-17-usuario-id-keycloak.sql` | Columna `id_keycloak` (uuid, única) en `operativo.usuario`. |
+| `2026-10-17-usuario-sin-contrasena.sql` | Elimina la columna `contrasena` de `operativo.usuario`: la contraseña vive solo en Keycloak. Hay que aplicarla con la versión de la API que ya no usa esa columna (detener el backend, migrar y volver a levantarlo). |
+
+## Detener el sistema
+
+Detener temporalmente los contenedores:
 
 ```bash
 docker compose stop
 ```
 
-Iniciar nuevamente la configuración de producción:
+Iniciarlos nuevamente:
 
 ```bash
 docker compose start
 ```
 
-Detener y eliminar los contenedores de producción sin borrar el volumen de PostgreSQL:
+Detener y eliminar los contenedores sin borrar los datos:
 
 ```bash
 docker compose down
 ```
 
-Detener y eliminar solamente el contenedor de desarrollo:
-
-```bash
-docker compose -f compose.dev.yml down
-```
-
-Este último comando no elimina `sotra-postgres-local` ni sus datos, porque la base utilizada en desarrollo se administra por separado.
+Los datos de la base, incluida la configuración de Keycloak, quedan en el volumen `postgres_data`. `docker compose down -v` también borra el volumen y deja la base vacía: la próxima vez se vuelve a crear con los scripts de `database/init/`.
 
 ## Diagnóstico de las sugerencias de IA
 
 Si `POST /api/v1/ordenes-trabajo/sugerencia` responde `502`, mirar el campo `codigo`:
 
-- `SERVICIO_IA_NO_DISPONIBLE`: Ollama no responde. Comprobar que corre y que `OLLAMA_BASE_URL` es alcanzable **desde el contenedor** del backend: en `compose.dev.yml`, `localhost` apunta al anfitrión mediante `extra_hosts`, así que Ollama debe escuchar en el equipo anfitrión (por defecto el puerto 11434, con los modelos `bge-m3` y `qwen2.5:7b`). `curl http://localhost:11434/api/tags` debe responder. El detalle queda en el log como advertencia.
+- `SERVICIO_IA_NO_DISPONIBLE`: Ollama no responde. Comprobar que corre y que `OLLAMA_BASE_URL` es alcanzable **desde el contenedor** del backend: en `compose.yml` apunta a `host.docker.internal`, así que Ollama debe escuchar en el equipo anfitrión (por defecto el puerto 11434, con los modelos `bge-m3` y `qwen2.5:7b`). `curl http://localhost:11434/api/tags` debe responder. El detalle queda en el log como advertencia.
 - `SUGERENCIA_FALLIDA`: otro error en la búsqueda, el reranker o la generación; el log del backend trae la excepción (`LogError`) con el identificador de correlación.
 - `422 SIN_CONTEXTO_TECNICO`: el servicio funciona, pero ningún documento técnico procesado cubre la tarea.
 

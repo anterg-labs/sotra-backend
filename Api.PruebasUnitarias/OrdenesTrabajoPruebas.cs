@@ -281,7 +281,6 @@ public class OrdenesTrabajoPruebas
             Apellido = "Gómez",
             Mail = "",
             Telefono = "",
-            Contrasena = "",
         };
         orden.OtRepuestos.Add(new OtRepuesto
         {

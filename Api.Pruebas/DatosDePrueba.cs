@@ -28,7 +28,6 @@ public static class DatosDePrueba
             apellido = "Usuario",
             correo = correo ?? "prueba." + Sufijo() + "@pruebas.test",
             telefono = telefono ?? Telefono(),
-            contrasena = "Clave1234!",
             idsRol = idsRol ?? new long[] { 1 },
         };
     }

@@ -1,7 +1,8 @@
-using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.ModelosMaquina;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -19,7 +20,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpGet]
-    [Permiso("modelo.consultar")]
+    [Authorize(Policy = Politicas.ModeloConsultar)]
     [ProducesResponseType<PaginaDto<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginaDto<ModeloMaquinaDto>>> ObtenerTodos([FromQuery] FiltrosModelosMaquinaDto filtros, CancellationToken cancelacion)
     {
@@ -40,7 +41,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Permiso("modelo.consultar")]
+    [Authorize(Policy = Politicas.ModeloConsultar)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ModeloMaquinaDto>> ObtenerPorId(long id, CancellationToken cancelacion)
@@ -50,7 +51,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpPost]
-    [Permiso("modelo.crear")]
+    [Authorize(Policy = Politicas.ModeloCrear)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -63,6 +64,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.ModeloEditar)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -78,6 +80,7 @@ public class ModelosMaquinaController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.ModeloEditar)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

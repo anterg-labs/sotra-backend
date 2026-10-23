@@ -13,7 +13,6 @@ public static class UsuarioMapeador
             Apellido = usuario.Apellido,
             Mail = usuario.Correo,
             Telefono = usuario.Telefono,
-            Contrasena = usuario.Contrasena,
             Estado = true,
             FechaIngreso = DateOnly.FromDateTime(DateTime.UtcNow)
         };

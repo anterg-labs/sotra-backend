@@ -1,7 +1,8 @@
-using Api.Infraestructura.Seguridad;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -19,7 +20,7 @@ public class MovimientosStockController : ControllerBase
     }
 
     [HttpGet]
-    [Permiso("stock.consultar")]
+    [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<PaginaDto<MovimientoStockDto>>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<MovimientoStockDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
@@ -44,7 +45,7 @@ public class MovimientosStockController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Permiso("stock.consultar")]
+    [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<MovimientoStockDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
         var movimiento = await _movimientoStockDao.SeleccionarAsync(id, cancelacion);

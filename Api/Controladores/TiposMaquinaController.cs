@@ -1,6 +1,8 @@
 using Api.DTOs;
 using Api.DTOs.TiposMaquina;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -18,6 +20,7 @@ public class TiposMaquinaController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [ProducesResponseType<PaginaDto<TipoMaquinaDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginaDto<TipoMaquinaDto>>> ObtenerTodos([FromQuery] FiltrosTiposMaquinaDto filtros, CancellationToken cancelacion)
     {
@@ -38,6 +41,7 @@ public class TiposMaquinaController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TipoMaquinaDto>> ObtenerPorId(long id, CancellationToken cancelacion)
@@ -47,6 +51,7 @@ public class TiposMaquinaController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<TipoMaquinaDto>> Crear(TipoMaquinaCrearDto solicitud, CancellationToken cancelacion)
@@ -58,6 +63,7 @@ public class TiposMaquinaController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -73,6 +79,7 @@ public class TiposMaquinaController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -1,5 +1,7 @@
 using Api.DTOs.Roles;
 using Api.Mapeadores;
+using Api.Seguridad;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
 
@@ -17,6 +19,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = Politicas.UsuarioConsultar)]
     [ProducesResponseType<List<RolDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<List<RolDto>>> ObtenerTodos(CancellationToken cancelacion)
     {

@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using SOTRA_BACKEND.Seguridad;
+using Microsoft.EntityFrameworkCore.Storage;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
 
@@ -62,21 +62,57 @@ public class UsuarioDAO
             .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
     }
 
+    // Permite que el alta, la modificación y la baja confirmen la base solo si Keycloak
+    // también aceptó el cambio.
+    public async Task<IDbContextTransaction> IniciarTransaccionAsync(CancellationToken cancelacion)
+    {
+        return await _contexto.Database.BeginTransactionAsync(cancelacion);
+    }
+
+    public async Task GuardarIdKeycloakAsync(long idUsuario, Guid idKeycloak, CancellationToken cancelacion)
+    {
+        var usuario = await _contexto.Usuarios.FirstAsync(u => u.IdUsuario == idUsuario, cancelacion);
+        usuario.IdKeycloak = idKeycloak;
+        await _contexto.SaveChangesAsync(cancelacion);
+    }
+
+    // Busca el usuario de SOTRA vinculado a un usuario de Keycloak. Si todavía no hay
+    // ninguno, vincula al usuario sin vincular que tenga el mismo correo.
+    public async Task<Usuario?> SeleccionarOVincularPorKeycloakAsync(
+        Guid idKeycloak, string? correo, CancellationToken cancelacion)
+    {
+        var usuario = await _contexto.Usuarios.FirstOrDefaultAsync(u => u.IdKeycloak == idKeycloak, cancelacion);
+        if (usuario is not null || string.IsNullOrWhiteSpace(correo))
+        {
+            return usuario;
+        }
+
+        var correoNormalizado = correo.Trim().ToLower();
+        usuario = await _contexto.Usuarios
+            .FirstOrDefaultAsync(u => u.IdKeycloak == null && u.Mail.ToLower() == correoNormalizado, cancelacion);
+        if (usuario is null)
+        {
+            return null;
+        }
+
+        usuario.IdKeycloak = idKeycloak;
+        await _contexto.SaveChangesAsync(cancelacion);
+        return usuario;
+    }
+
     public async Task<Usuario> InsertarUsuarioAsync(Usuario usuario, IEnumerable<long>? idsRol, CancellationToken cancelacion)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
 
         var rolesValidos = await ObtenerRolesValidosAsync(idsRolNormalizados, cancelacion);
-        var hash = Contrasenas.CrearHash(usuario.Contrasena);
         usuario.IdRols = rolesValidos;
-        usuario.Contrasena = hash;
         _contexto.Usuarios.Add(usuario);
         await _contexto.SaveChangesAsync(cancelacion);
         return usuario;
     }
 
     public async Task<bool> ActualizarUsuarioAsync(
-        Usuario usuario, IEnumerable<long>? idsRol, string? nuevaContrasena, CancellationToken cancelacion)
+        Usuario usuario, IEnumerable<long>? idsRol, CancellationToken cancelacion)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
         var usuarioExistente = await _contexto.Usuarios.Include(u => u.IdRols)
@@ -85,12 +121,10 @@ public class UsuarioDAO
 
         var rolesAAgregar = await ObtenerRolesValidosAsync(
             idsRolNormalizados.Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList(), cancelacion);
-        var hash = nuevaContrasena is null ? null : Contrasenas.CrearHash(nuevaContrasena);
         usuarioExistente.Nombre = usuario.Nombre;
         usuarioExistente.Apellido = usuario.Apellido;
         usuarioExistente.Mail = usuario.Mail;
         usuarioExistente.Telefono = usuario.Telefono;
-        if (hash is not null) usuarioExistente.Contrasena = hash;
         usuarioExistente.Estado = usuario.Estado;
         usuarioExistente.FechaIngreso = usuario.FechaIngreso;
 

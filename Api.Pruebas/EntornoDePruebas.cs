@@ -47,6 +47,10 @@ public class EntornoDePruebas
             ["DB_PASSWORD"] = ContrasenaBase,
             ["FRONTEND_ORIGIN"] = "http://localhost",
             ["OLLAMA_BASE_URL"] = "http://127.0.0.1:1",
+            // La API exige estas variables para validar tokens; las pruebas no levantan Keycloak.
+            ["KEYCLOAK_EMISOR"] = "https://keycloak.pruebas.test/realms/sotra",
+            ["KEYCLOAK_METADATA"] = "https://keycloak.pruebas.test/realms/sotra/.well-known/openid-configuration",
+            ["KEYCLOAK_AUDIENCIA"] = "sotra-api",
         };
 
         // Program.cs carga el archivo .env que encuentre desde la carpeta actual hacia arriba.
@@ -64,6 +68,10 @@ public class EntornoDePruebas
         {
             Environment.SetEnvironmentVariable(variable.Key, variable.Value);
         }
+
+        // Las pruebas de caracterización llaman a la API sin token. Va solo como variable de entorno
+        // (no en el .env) para que SeguridadPruebas pueda encender la autenticación.
+        Environment.SetEnvironmentVariable("AUTH_OBLIGATORIA", "false");
 
         // Toda la suite comparte una dirección IP: se sube el límite de solicitudes para que no frene las pruebas.
         // Va solo como variable de entorno (no en el .env) para que una prueba pueda bajarlo.

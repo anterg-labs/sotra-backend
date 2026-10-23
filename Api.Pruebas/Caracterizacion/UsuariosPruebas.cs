@@ -114,7 +114,7 @@ public class UsuariosPruebas : PruebaBase
     [Test]
     public async Task CrearUsuarioConCamposInvalidosResponde400ConErroresPorCampo()
     {
-        var datos = new { nombre = "", apellido = "", correo = "no-es-un-correo", telefono = "", contrasena = "" };
+        var datos = new { nombre = "", apellido = "", correo = "no-es-un-correo", telefono = "" };
 
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
 
@@ -125,7 +125,6 @@ public class UsuariosPruebas : PruebaBase
         Assert.That(campos, Does.Contain("Apellido"));
         Assert.That(campos, Does.Contain("Correo"));
         Assert.That(campos, Does.Contain("Telefono"));
-        Assert.That(campos, Does.Contain("Contrasena"));
     }
 
     [Test]
@@ -188,24 +187,6 @@ public class UsuariosPruebas : PruebaBase
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test]
-    public async Task CrearUsuarioRechazaUnaContrasenaSinPoliticaDeSeguridad()
-    {
-        var datos = new
-        {
-            nombre = "Prueba",
-            apellido = "Usuario",
-            correo = "prueba." + DatosDePrueba.Sufijo() + "@pruebas.test",
-            telefono = DatosDePrueba.Telefono(),
-            contrasena = "a",
-            idsRol = new long[] { 1 },
-        };
-
-        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
-
-        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-    }
-
     [TestCase("", "Perez")]
     [TestCase("   ", "Perez")]
     [TestCase("###", "Perez")]
@@ -220,7 +201,6 @@ public class UsuariosPruebas : PruebaBase
             apellido,
             correo = "prueba." + DatosDePrueba.Sufijo() + "@pruebas.test",
             telefono = DatosDePrueba.Telefono(),
-            contrasena = "Clave1234!",
             idsRol = new long[] { 1 },
         };
 
@@ -240,36 +220,12 @@ public class UsuariosPruebas : PruebaBase
             apellido = texto,
             correo = "prueba." + DatosDePrueba.Sufijo() + "@pruebas.test",
             telefono = DatosDePrueba.Telefono(),
-            contrasena = "Clave1234!",
             idsRol = new long[] { 1 },
         };
 
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-    }
-
-    [TestCase("Clave12!", true)]
-    [TestCase("Clave1!", false)]
-    [TestCase("clave1234!", false)]
-    [TestCase("CLAVE1234!", false)]
-    [TestCase("Clave12345", false)]
-    public async Task CrearUsuarioAplicaLaPoliticaDeContrasena(string contrasena, bool esValida)
-    {
-        var datos = new
-        {
-            nombre = "Prueba",
-            apellido = "Usuario",
-            correo = "prueba." + DatosDePrueba.Sufijo() + "@pruebas.test",
-            telefono = DatosDePrueba.Telefono(),
-            contrasena,
-            idsRol = new long[] { 1 },
-        };
-
-        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
-
-        var esperado = esValida ? HttpStatusCode.Created : HttpStatusCode.BadRequest;
-        Assert.That(respuesta.StatusCode, Is.EqualTo(esperado));
     }
 
     [Test]

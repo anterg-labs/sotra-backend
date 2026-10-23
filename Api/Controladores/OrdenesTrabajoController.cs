@@ -1,10 +1,11 @@
-using Api.Infraestructura.Seguridad;
 using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
+using Api.Seguridad;
 using Api.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -17,20 +18,23 @@ public class OrdenesTrabajoController : ControllerBase
 {
     private readonly OrdenTrabajoDAO _ordenTrabajoDao;
     private readonly ServicioSugerencias _servicioSugerencias;
+    private readonly UsuarioActual _usuarioActual;
     private const int StatusCodeClienteCerroLaSolicitud = 499;
 
     private readonly ILogger<OrdenesTrabajoController> _logger;
 
     public OrdenesTrabajoController(OrdenTrabajoDAO ordenTrabajoDao,
-        ServicioSugerencias servicioSugerencias, ILogger<OrdenesTrabajoController> logger)
+        ServicioSugerencias servicioSugerencias, ILogger<OrdenesTrabajoController> logger,
+        UsuarioActual usuarioActual)
     {
         _ordenTrabajoDao = ordenTrabajoDao;
         _servicioSugerencias = servicioSugerencias;
+        _usuarioActual = usuarioActual;
         _logger = logger;
     }
 
     [HttpGet]
-    [Permiso("ot.consultar")]
+    [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<PaginaDto<OrdenTrabajoDto>>> ObtenerTodos([FromQuery] FiltrosOrdenesTrabajoDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<OrdenTrabajoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
@@ -53,8 +57,21 @@ public class OrdenesTrabajoController : ControllerBase
             });
         }
 
+        // El técnico solo ve las órdenes que tiene asignadas, aunque pida otro filtro.
+        var tecnicoId = filtros.TecnicoId;
+        if (User.EsSoloTecnico())
+        {
+            var idUsuario = await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion);
+            if (idUsuario is null || (tecnicoId is not null && tecnicoId != idUsuario))
+            {
+                return Ok(PaginaDto<OrdenTrabajoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
+            }
+
+            tecnicoId = idUsuario;
+        }
+
         var filtro = new FiltroOrdenesTrabajo(
-            filtros.Buscar, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId, filtros.Estado,
+            filtros.Buscar, filtros.ClienteId, filtros.ActivoId, tecnicoId, filtros.Estado,
             filtros.Prioridad, filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo",
             filtros.FechaDesde, filtros.FechaHasta, filtros.ConSugerencias,
             filtros.OrdenarPor == "creadoEn", filtros.DireccionOrden == "desc");
@@ -70,7 +87,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Permiso("ot.consultar")]
+    [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<OrdenTrabajoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
         var orden = await _ordenTrabajoDao.SeleccionarAsync(id, cancelacion);
@@ -79,11 +96,16 @@ public class OrdenesTrabajoController : ControllerBase
             return NotFound();
         }
 
+        if (!await User.PuedeVerOrdenAsync(orden, _usuarioActual, cancelacion))
+        {
+            return Forbid();
+        }
+
         return OkConVersion(OrdenTrabajoMapeador.ADto(orden));
     }
 
     [HttpPost]
-    [Permiso("ot.crear")]
+    [Authorize(Policy = Politicas.OtCrear)]
     public async Task<ActionResult<OrdenTrabajoDto>> Crear(OrdenTrabajoCrearDto solicitud, CancellationToken cancelacion)
     {
         ValidarFecha(solicitud.FechaPrevistaEjecucion);
@@ -99,12 +121,14 @@ public class OrdenesTrabajoController : ControllerBase
         };
 
         var ordenCreada = await _ordenTrabajoDao.CrearAsync(orden, solicitud.FechaPrevistaEjecucion,
-            solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion, cancelacion);
+            solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion,
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         var respuesta = OrdenTrabajoMapeador.ADto(ordenCreada);
         return CreatedAtAction(nameof(ObtenerPorId), new { id = ordenCreada.IdOrden }, respuesta);
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.OtEditar)]
     public async Task<ActionResult<OrdenTrabajoDto>> Actualizar(long id, OrdenTrabajoActualizarDto solicitud, CancellationToken cancelacion)
     {
         ValidarFecha(solicitud.FechaPrevistaEjecucion);
@@ -133,13 +157,18 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPatch("{id:long}/estado")]
-    [Permiso("ot.registrar_avance")]
+    [Authorize(Policy = Politicas.OtRegistrarAvance)]
     public async Task<ActionResult<OrdenTrabajoDto>> CambiarEstado(long id, CambioEstadoOrdenTrabajoDto solicitud, CancellationToken cancelacion)
     {
         var orden = await _ordenTrabajoDao.SeleccionarAsync(id, cancelacion);
         if (orden is null)
         {
             return NotFound();
+        }
+
+        if (!await User.PuedeVerOrdenAsync(orden, _usuarioActual, cancelacion))
+        {
+            return Forbid();
         }
 
         var motivo = solicitud.Motivo;
@@ -153,7 +182,7 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     [HttpPatch("{id:long}/tecnico")]
-    [Permiso("ot.asignar_tecnico")]
+    [Authorize(Policy = Politicas.OtAsignarTecnico)]
     public async Task<ActionResult<OrdenTrabajoDto>> AsignarTecnico(long id, AsignacionTecnicoDto solicitud, CancellationToken cancelacion)
     {
         var orden = await _ordenTrabajoDao.SeleccionarAsync(id, cancelacion);
@@ -179,7 +208,7 @@ public class OrdenesTrabajoController : ControllerBase
         return encabezado.Length == 0 ? null : encabezado.Trim('"');
     }
     [HttpPost("sugerencia")]
-    [Permiso("ot.crear")]
+    [Authorize(Policy = Politicas.OtCrear)]
     [EnableRateLimiting(PoliticasDeLimite.Sugerencias)]
     public async Task<IActionResult> SolicitarSugerencia(SolicitudSugerenciaDto solicitud,
         CancellationToken cancellationToken)

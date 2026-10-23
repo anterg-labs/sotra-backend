@@ -413,7 +413,6 @@ public class MapeadoresPruebas
             Apellido = "Paz",
             Correo = "a@b.com",
             Telefono = "099",
-            Contrasena = "Abcdef1!",
         });
 
         Assert.Multiple(() =>
@@ -427,7 +426,7 @@ public class MapeadoresPruebas
     [Test]
     public void Usuario_AplicarCambios_ActualizaYValidaEstado()
     {
-        var usuario = new Usuario { Nombre = "a", Apellido = "b", Mail = "c", Telefono = "1", Contrasena = "x", Estado = true };
+        var usuario = new Usuario { Nombre = "a", Apellido = "b", Mail = "c", Telefono = "1", Estado = true };
         var cambios = new UsuarioActualizarDto
         {
             Nombre = "N",
@@ -447,14 +446,13 @@ public class MapeadoresPruebas
             Assert.That(usuario.Mail, Is.EqualTo("n@a.com"));
             Assert.That(usuario.Estado, Is.False);
             Assert.That(usuario.FechaIngreso, Is.EqualTo(new DateOnly(2024, 1, 2)));
-            Assert.That(usuario.Contrasena, Is.EqualTo("x"));
         });
     }
 
     [Test]
     public void Usuario_AplicarCambios_EstadoInvalidoLanza()
     {
-        var usuario = new Usuario { Nombre = "a", Apellido = "b", Mail = "c", Telefono = "1", Contrasena = "x" };
+        var usuario = new Usuario { Nombre = "a", Apellido = "b", Mail = "c", Telefono = "1" };
 
         Assert.Throws<ArgumentException>(() => UsuarioMapeador.AplicarCambios(usuario, new UsuarioActualizarDto
         {
@@ -550,7 +548,7 @@ public class MapeadoresPruebas
             StockAnterior = 7,
             StockPosterior = 5,
             IdUsuario = 3,
-            IdUsuarioNavigation = new Usuario { Nombre = "Ana", Apellido = "Paz", Mail = "", Telefono = "", Contrasena = "" },
+            IdUsuarioNavigation = new Usuario { Nombre = "Ana", Apellido = "Paz", Mail = "", Telefono = "" },
             IdRepuestoNavigation = new Repuesto { Codigo = "R", Nombre = "F" },
         });
 

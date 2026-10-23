@@ -1,4 +1,4 @@
-using Api.Infraestructura.Seguridad;
+using Api.Seguridad;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 

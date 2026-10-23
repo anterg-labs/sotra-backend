@@ -568,15 +568,14 @@ public partial class SotraContext : DbContext
 
             entity.HasIndex(e => e.Telefono, "UK_TELEFONO_USUARIO").IsUnique();
 
+            entity.HasIndex(e => e.IdKeycloak, "UK_ID_KEYCLOAK_USUARIO").IsUnique();
+
             entity.Property(e => e.IdUsuario)
                 .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_USUARIO_ID\"'::regclass)")
                 .HasColumnName("id_usuario");
             entity.Property(e => e.Apellido)
                 .HasMaxLength(100)
                 .HasColumnName("apellido");
-            entity.Property(e => e.Contrasena)
-                .HasMaxLength(255)
-                .HasColumnName("contrasena");
             entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.FechaIngreso)
                 .HasDefaultValueSql("CURRENT_DATE")
@@ -590,6 +589,7 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.Telefono)
                 .HasMaxLength(30)
                 .HasColumnName("telefono");
+            entity.Property(e => e.IdKeycloak).HasColumnName("id_keycloak");
 
             entity.HasMany(d => d.IdRols).WithMany(p => p.IdUsuarios)
                 .UsingEntity<Dictionary<string, object>>(

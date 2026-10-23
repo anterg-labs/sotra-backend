@@ -142,6 +142,7 @@ public class MovimientoStockDAO
                 ? (int)stockPosterior - stockAnterior
                 : solicitud.Cantidad,
             IdRepuesto = solicitud.RepuestoId,
+            IdUsuario = solicitud.IdUsuario,
             Motivo = solicitud.Motivo,
             Ubicacion = solicitud.Ubicacion ?? repuesto.Ubicacion,
             Observaciones = solicitud.Observaciones,
@@ -165,8 +166,10 @@ public static class TiposMovimientoStock
 }
 
 /// <param name="Cantidad">Unidades a sumar o restar; en un ajuste es el stock real contado.</param>
+/// <param name="IdUsuario">Quién registra el movimiento; null si el pedido no trae token (AUTH_OBLIGATORIA=false).</param>
 public sealed record SolicitudMovimientoStock(
-    long RepuestoId, string Tipo, int Cantidad, DateTime Fecha, string Motivo, string? Ubicacion, string? Observaciones);
+    long RepuestoId, string Tipo, int Cantidad, DateTime Fecha, string Motivo, string? Ubicacion, string? Observaciones,
+    long? IdUsuario = null);
 
 public enum EstadoMovimientoStock
 {

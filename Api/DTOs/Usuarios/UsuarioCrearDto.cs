@@ -17,8 +17,5 @@ public class UsuarioCrearDto
     [Required(ErrorMessage = "El campo Teléfono es obligatorio."), MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono]
     public required string Telefono { get; init; }
 
-    [Required(ErrorMessage = "El campo Contraseña es obligatorio."), ContrasenaSegura]
-    public required string Contrasena { get; init; }
-
     public List<long> IdsRol { get; init; } = [];
 }
