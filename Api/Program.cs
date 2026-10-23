@@ -7,7 +7,7 @@ using SOTRA_BACKEND.Operaciones;
 using Api.Servicios;
 using Api.Seguridad;
 
-DotNetEnv.Env.TraversePath().Load();
+DotNetEnv.Env.NoClobber().TraversePath().Load();
 
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 

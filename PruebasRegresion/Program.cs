@@ -68,7 +68,7 @@ Verificar((await dao.SeleccionarUsuarioAsync(id, CancellationToken.None))!.IdKey
 Verificar((await dao.SeleccionarOVincularPorKeycloakAsync(idKeycloak, null, CancellationToken.None))?.IdUsuario == id, "Usuario vinculado se encuentra por id de Keycloak sin correo");
 Verificar(await dao.SeleccionarOVincularPorKeycloakAsync(Guid.NewGuid(), "u1@example.com", CancellationToken.None) is null, "Otro id de Keycloak no toma un usuario ya vinculado");
 for (var n = 2; n <= 23; n++) await dao.InsertarUsuarioAsync(Nuevo(n), [], CancellationToken.None);
-var listado = (await dao.ListarTodoAsync(CancellationToken.None)).Select(UsuarioMapeador.AListadoDto).ToList();
+var listado = (await dao.ListarTodoAsync(CancellationToken.None)).Select(usuario => UsuarioMapeador.AListadoDto(usuario)).ToList();
 Verificar(listado.Count == 23, "Listado devuelve todos los usuarios sin limite de 20");
 Verificar(listado.Select(x => x.Id).SequenceEqual(listado.Select(x => x.Id).Order()), "Listado ordenado por identificador");
 var json = JsonSerializer.Serialize(listado[0], new JsonSerializerOptions(JsonSerializerDefaults.Web));

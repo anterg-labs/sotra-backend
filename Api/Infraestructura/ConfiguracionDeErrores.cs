@@ -36,7 +36,7 @@ public static class ConfiguracionDeErrores
         });
 
         servicios.AddExceptionHandler<ManejadorGlobalDeErrores>();
-        servicios.Configure<ApiBehaviorOptions>(opciones =>
+        servicios.PostConfigure<ApiBehaviorOptions>(opciones =>
             opciones.InvalidModelStateResponseFactory = CrearRespuestaDeValidacion);
         return servicios;
     }
