@@ -18,10 +18,12 @@ public class AnaliticaController : ControllerBase
 
     private readonly AnaliticaDAO _analiticaDao;
     private readonly OpcionesDeAlertasDeMaquinaria _opciones;
+    private readonly CacheDeAnalitica _cache;
 
-    public AnaliticaController(AnaliticaDAO analiticaDao, IOptions<OpcionesDeAlertasDeMaquinaria> opciones)
+    public AnaliticaController(AnaliticaDAO analiticaDao, IOptions<OpcionesDeAlertasDeMaquinaria> opciones, CacheDeAnalitica cache)
     {
         _analiticaDao = analiticaDao;
+        _cache = cache;
         _opciones = opciones.Value;
     }
 
@@ -39,14 +41,16 @@ public class AnaliticaController : ControllerBase
         var agrupacion = (filtros.Agrupacion ?? "semana").ToLowerInvariant();
         if (agrupacion is not ("semana" or "mes"))
         {
-            return BadRequest(new
-            {
-                codigo = "AGRUPACION_INVALIDA",
-                mensaje = "La agrupación debe ser semana o mes."
-            });
+            return this.RespuestaDeError(400, "AGRUPACION_INVALIDA", "La agrupación debe ser semana o mes.");
         }
 
         var filtro = ADominio(filtros);
+        return Ok(await _cache.ObtenerAsync($"tendencias|{agrupacion}|{filtro}",
+            token => CalcularTendenciasAsync(agrupacion, filtro, token), cancelacion));
+    }
+
+    private async Task<TendenciasDto> CalcularTendenciasAsync(string agrupacion, FiltroAnalitica filtro, CancellationToken cancelacion)
+    {
         var filas = await _analiticaDao.ObtenerTendenciasAsync(agrupacion == "mes" ? "month" : "week", filtro, cancelacion);
         var puntos = filas.Select(fila => new PuntoTendenciaDto
         {
@@ -57,20 +61,20 @@ public class AnaliticaController : ControllerBase
         }).ToList();
 
         int? totalAnterior = null;
-        if (filtros.FechaDesde is { } desde && filtros.FechaHasta is { } hasta)
+        if (filtro.Desde is { } desde && filtro.Hasta is { } hasta)
         {
             var dias = hasta.DayNumber - desde.DayNumber + 1;
             totalAnterior = await _analiticaDao.ContarOrdenesAsync(
                 filtro with { Desde = desde.AddDays(-dias), Hasta = desde.AddDays(-1) }, cancelacion);
         }
 
-        return Ok(new TendenciasDto
+        return new TendenciasDto
         {
             Agrupacion = agrupacion,
             Puntos = puntos,
             TotalPeriodo = puntos.Sum(punto => punto.Total),
             TotalPeriodoAnterior = totalAnterior,
-        });
+        };
     }
 
     [HttpGet("tiempos")]
@@ -85,11 +89,16 @@ public class AnaliticaController : ControllerBase
         }
 
         var filtro = ADominio(filtros);
+        return Ok(await _cache.ObtenerAsync($"tiempos|{filtro}", token => CalcularTiemposAsync(filtro, token), cancelacion));
+    }
+
+    private async Task<TiemposDto> CalcularTiemposAsync(FiltroAnalitica filtro, CancellationToken cancelacion)
+    {
         var duracion = await _analiticaDao.ObtenerDuracionDeOrdenesCerradasAsync(filtro, cancelacion);
         var etapas = await _analiticaDao.ObtenerTiempoPorEtapaAsync(filtro, cancelacion);
         var cumplimiento = await _analiticaDao.ObtenerCumplimientoDeFechasAsync(filtro, cancelacion);
 
-        return Ok(new TiemposDto
+        return new TiemposDto
         {
             Duracion = new DuracionDto
             {
@@ -113,7 +122,7 @@ public class AnaliticaController : ControllerBase
                     : Redondear(cumplimiento.EnPlazo * 100.0 / cumplimiento.Evaluadas),
                 AtrasoPromedioDias = Redondear(cumplimiento.AtrasoPromedioDias),
             },
-        });
+        };
     }
 
     [HttpGet("repuestos-usados")]
@@ -127,8 +136,14 @@ public class AnaliticaController : ControllerBase
             return error;
         }
 
-        var filas = await _analiticaDao.ObtenerRepuestosMasUsadosAsync(MaximoDeRepuestosUsados, ADominio(filtros), cancelacion);
-        return Ok(new RepuestosUsadosDto
+        var filtro = ADominio(filtros);
+        return Ok(await _cache.ObtenerAsync($"repuestos|{filtro}", token => CalcularRepuestosUsadosAsync(filtro, token), cancelacion));
+    }
+
+    private async Task<RepuestosUsadosDto> CalcularRepuestosUsadosAsync(FiltroAnalitica filtro, CancellationToken cancelacion)
+    {
+        var filas = await _analiticaDao.ObtenerRepuestosMasUsadosAsync(MaximoDeRepuestosUsados, filtro, cancelacion);
+        return new RepuestosUsadosDto
         {
             Elementos = filas.Select(fila => new RepuestoUsadoDto
             {
@@ -137,7 +152,7 @@ public class AnaliticaController : ControllerBase
                 Nombre = fila.Nombre,
                 Ordenes = fila.Ordenes,
             }).ToList(),
-        });
+        };
     }
 
     [HttpGet("reincidencias")]
@@ -155,15 +170,18 @@ public class AnaliticaController : ControllerBase
         var minimo = filtros.Minimo ?? 1;
         if (dias is < 1 or > 3650 || minimo is < 1 or > 100)
         {
-            return BadRequest(new
-            {
-                codigo = "PARAMETRO_INVALIDO",
-                mensaje = "Los días deben estar entre 1 y 3650 y el mínimo de reincidencias entre 1 y 100."
-            });
+            return this.RespuestaDeError(400, "PARAMETRO_INVALIDO", "Los días deben estar entre 1 y 3650 y el mínimo de reincidencias entre 1 y 100.");
         }
 
-        var filas = await _analiticaDao.ObtenerReincidenciasAsync(dias, minimo, MaximoDeReincidencias, ADominio(filtros), cancelacion);
-        return Ok(new ReincidenciasDto
+        var filtro = ADominio(filtros);
+        return Ok(await _cache.ObtenerAsync($"reincidencias|{dias}|{minimo}|{filtro}",
+            token => CalcularReincidenciasAsync(dias, minimo, filtro, token), cancelacion));
+    }
+
+    private async Task<ReincidenciasDto> CalcularReincidenciasAsync(int dias, int minimo, FiltroAnalitica filtro, CancellationToken cancelacion)
+    {
+        var filas = await _analiticaDao.ObtenerReincidenciasAsync(dias, minimo, MaximoDeReincidencias, filtro, cancelacion);
+        return new ReincidenciasDto
         {
             Dias = dias,
             Minimo = minimo,
@@ -177,7 +195,7 @@ public class AnaliticaController : ControllerBase
                 DiasPromedioEntreIntervenciones = Redondear(fila.DiasPromedioEntreIntervenciones),
                 UltimaIntervencion = DateTime.SpecifyKind(fila.UltimaIntervencion, DateTimeKind.Utc),
             }).ToList(),
-        });
+        };
     }
 
     [HttpGet("alertas-maquinaria")]
@@ -185,8 +203,14 @@ public class AnaliticaController : ControllerBase
     [ProducesResponseType<AlertasMaquinariaDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<AlertasMaquinariaDto>> ObtenerAlertasMaquinaria([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
     {
+        var filtro = new FiltroAnalitica(null, null, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId);
+        return Ok(await _cache.ObtenerAsync($"alertas|{filtro}", token => CalcularAlertasAsync(filtro, token), cancelacion));
+    }
+
+    private async Task<AlertasMaquinariaDto> CalcularAlertasAsync(FiltroAnalitica filtro, CancellationToken cancelacion)
+    {
         var alertas = new List<AlertaMaquinariaDto>();
-        foreach (var orden in await _analiticaDao.ListarOrdenesAbiertasAsync(new FiltroAnalitica(null, null, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId), cancelacion))
+        foreach (var orden in await _analiticaDao.ListarOrdenesAbiertasAsync(filtro, cancelacion))
         {
             var prioridad = orden.Prioridad >= 5 ? "alta" : orden.Prioridad >= 3 ? "media" : "baja";
 
@@ -216,12 +240,12 @@ public class AnaliticaController : ControllerBase
             .OrderByDescending(alerta => alerta.Gravedad == "critica")
             .ThenByDescending(alerta => alerta.HorasTranscurridas)
             .ToList();
-        return Ok(new AlertasMaquinariaDto
+        return new AlertasMaquinariaDto
         {
             Total = ordenadas.Count,
             Criticas = ordenadas.Count(alerta => alerta.Gravedad == "critica"),
             Alertas = ordenadas,
-        });
+        };
     }
 
     private static void AgregarSiSuperaElUmbral(List<AlertaMaquinariaDto> alertas, OrdenAbiertaFila orden,
@@ -251,11 +275,7 @@ public class AnaliticaController : ControllerBase
     {
         if (filtros.FechaDesde is not null && filtros.FechaHasta is not null && filtros.FechaDesde > filtros.FechaHasta)
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO", "La fecha desde no puede ser posterior a la fecha hasta.");
         }
 
         return null;

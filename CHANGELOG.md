@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.66 (2026-10-23)
+
+- Analítica: las consultas repetidas con los mismos filtros reutilizan su resultado durante un plazo configurable y comparten el cálculo cuando llegan a la vez.
+
 ## Version 1.0.65 (2026-10-23)
 
 - Acceso: el formulario de Keycloak informa los campos obligatorios, muestra un estado al ingresar y evita envíos duplicados.
