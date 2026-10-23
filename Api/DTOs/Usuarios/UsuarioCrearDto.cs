@@ -14,8 +14,9 @@ public class UsuarioCrearDto
     [Required(ErrorMessage = "El campo Correo es obligatorio."), EmailAddress(ErrorMessage = "El correo no tiene un formato válido."), MaxLength(254, ErrorMessage = "El correo no puede superar los 254 caracteres.")]
     public required string Correo { get; init; }
 
-    [Required(ErrorMessage = "El campo Teléfono es obligatorio."), MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono]
+    [Required(ErrorMessage = "El campo teléfono es obligatorio."), MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono]
     public required string Telefono { get; init; }
 
+    [MinLength(1, ErrorMessage = "El usuario debe tener al menos un rol.")]
     public List<long> IdsRol { get; init; } = [];
 }

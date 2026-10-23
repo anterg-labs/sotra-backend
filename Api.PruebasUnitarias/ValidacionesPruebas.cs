@@ -103,28 +103,54 @@ public class ValidacionesPruebas
         Assert.That(Validar(new NombrePersonaAttribute(), 42)!.ErrorMessage, Does.Contain("obligatorio"));
     }
 
-    [TestCase("099123456")]
-    [TestCase("0")]
-    public void Telefono_AceptaSoloDigitos(string telefono)
+    [TestCase("99123456")]
+    [TestCase("09912345")]
+    [TestCase("00000000")]
+    public void Telefono_AceptaExactamenteOchoDigitos(string telefono)
     {
         Assert.That(Validar(new TelefonoAttribute(), telefono), Is.EqualTo(ValidationResult.Success));
     }
 
     [TestCase("+598 99 123 456")]
-    [TestCase("099-123")]
-    [TestCase("12a")]
-    [TestCase("١٢٣")]
-    [TestCase("12\n")]
+    [TestCase("099-1234")]
+    [TestCase("1234567a")]
+    [TestCase("١٢٣٤٥٦٧٨")]
+    [TestCase("1234567\n")]
     public void Telefono_RechazaCualquierCosaQueNoSeanDigitosAscii(string telefono)
     {
-        Assert.That(Validar(new TelefonoAttribute(), telefono)!.ErrorMessage, Is.EqualTo("El campo Teléfono solo admite dígitos."));
+        Assert.That(Validar(new TelefonoAttribute(), telefono)!.ErrorMessage, Is.EqualTo("El campo teléfono solo admite dígitos."));
+    }
+
+    [TestCase("099123456")]
+    [TestCase("092624911")]
+    public void Telefono_AceptaUnCelularDeNueveDigitosConCeroInicial(string telefono)
+    {
+        Assert.That(Validar(new TelefonoAttribute(), telefono), Is.EqualTo(ValidationResult.Success));
+    }
+
+    [TestCase("099123456", "99123456")]
+    [TestCase("092624911", "92624911")]
+    [TestCase("99123456", "99123456")]
+    [TestCase("09912345", "09912345")]
+    public void NumerosDeTelefono_GuardaSiempreLaFormaDeOchoDigitos(string entrada, string esperado)
+    {
+        Assert.That(Api.Validaciones.NumerosDeTelefono.Normalizar(entrada), Is.EqualTo(esperado));
+    }
+
+    [TestCase("1234567")]
+    [TestCase("123456789")]
+    [TestCase("0")]
+    [TestCase("0991234567")]
+    public void Telefono_RechazaUnLargoDistintoDeOchoDigitos(string telefono)
+    {
+        Assert.That(Validar(new TelefonoAttribute(), telefono)!.ErrorMessage, Is.EqualTo("El campo teléfono debe tener 8 dígitos (o 9 si empieza con 0)."));
     }
 
     [TestCase("")]
     [TestCase("   ")]
     public void Telefono_VacioEsErrorSiEsObligatorio(string telefono)
     {
-        Assert.That(Validar(new TelefonoAttribute(), telefono)!.ErrorMessage, Is.EqualTo("El campo Teléfono es obligatorio."));
+        Assert.That(Validar(new TelefonoAttribute(), telefono)!.ErrorMessage, Is.EqualTo("El campo teléfono es obligatorio."));
     }
 
     [TestCase("")]

@@ -1,3 +1,4 @@
+using Api.Validaciones;
 using Api.DTOs.Usuarios;
 using SOTRA_BACKEND.Modelos;
 
@@ -12,7 +13,7 @@ public static class UsuarioMapeador
             Nombre = usuario.Nombre,
             Apellido = usuario.Apellido,
             Mail = usuario.Correo,
-            Telefono = usuario.Telefono,
+            Telefono = NumerosDeTelefono.Normalizar(usuario.Telefono),
             Estado = true,
             FechaIngreso = DateOnly.FromDateTime(DateTime.UtcNow)
         };
@@ -23,7 +24,7 @@ public static class UsuarioMapeador
         destino.Nombre = cambios.Nombre;
         destino.Apellido = cambios.Apellido;
         destino.Mail = cambios.Correo;
-        destino.Telefono = cambios.Telefono;
+        destino.Telefono = NumerosDeTelefono.Normalizar(cambios.Telefono);
         destino.FechaIngreso = cambios.FechaIngreso;
 
         if (cambios.Estado == "activo")
@@ -41,6 +42,9 @@ public static class UsuarioMapeador
     }
 
     public static UsuarioListadoDto AListadoDto(Usuario usuario)
+        => AListadoDto(usuario, 0);
+
+    public static UsuarioListadoDto AListadoDto(Usuario usuario, int cantidadOrdenesAsignadas, bool? correoDeContrasenaEnviado = null)
     {
         return new UsuarioListadoDto
         {
@@ -51,6 +55,8 @@ public static class UsuarioMapeador
             Telefono = usuario.Telefono,
             Estado = usuario.Estado ? "activo" : "inactivo",
             FechaIngreso = usuario.FechaIngreso,
+            CantidadOrdenesAsignadas = cantidadOrdenesAsignadas,
+            CorreoDeContrasenaEnviado = correoDeContrasenaEnviado,
             Roles = usuario.IdRols.OrderBy(rol => rol.IdRol).Select(rol => new RolUsuarioDto
             {
                 Id = rol.IdRol,

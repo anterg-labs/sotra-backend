@@ -1,5 +1,7 @@
 # Backend de SOTRA
 
+En la versión 1.0.54, el teléfono de usuario admite ocho dígitos o nueve con cero inicial y se guarda sin ese cero. El alta informa `correoDeContrasenaEnviado` (`true`, `false` o ausente si no correspondía enviarlo). Si falla el reenvío, `POST /api/v1/usuarios/{id}/restablecer-contrasena` responde 502 con `codigo: CORREO_NO_ENVIADO`.
+
 ## Corrección de integración con Keycloak
 
 La versión 1.0.53 conserva el contrato de validación (`codigo`, `mensaje` y errores por campo) independientemente del orden de registro de MVC. Las variables ya definidas en el entorno tienen prioridad sobre `.env`, para no reemplazar la conexión y configuración del contenedor por valores locales. El corpus de evaluación se busca en el repositorio hermano `sotra-test-automation/herramientas-previas/ia/corpus`; se omite si no está disponible. El ejecutor de regresión selecciona explícitamente el mapeador de usuarios. Se conserva la autenticación y los controles de CI de qa. Estas correcciones no incorporan funcionalidades pendientes de la rama de trabajo.
