@@ -38,8 +38,13 @@
 
 - Listados: se pueden ordenar por columnas permitidas en los listados de usuarios, clientes, máquinas, órdenes, repuestos y movimientos, con paginación estable.
 
+## Version 1.0.57 (2026-10-23)
+
+- Pruebas: se adaptan las comprobaciones de actualización a los contratos completos de activos, clientes, tipos, modelos y repuestos.
+
 ## Version 1.0.56 (2026-10-23)
 
+- Contratos: las actualizaciones distinguen campos opcionales vacíos o nulos de campos faltantes y rechazan valores obligatorios ausentes.
 - Pruebas: se actualizan las comprobaciones de usuarios para el rol obligatorio y el conteo de órdenes del listado.
 
 ## Version 1.0.55 (2026-10-23)

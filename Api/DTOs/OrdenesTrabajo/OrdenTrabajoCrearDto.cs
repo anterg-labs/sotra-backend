@@ -4,6 +4,8 @@ namespace Api.DTOs.OrdenesTrabajo;
 
 public class OrdenTrabajoCrearDto
 {
+    public const int LargoMaximoDeTexto = 4000;
+
     [Range(1, long.MaxValue)]
     public long ClienteId { get; init; }
 
@@ -19,16 +21,21 @@ public class OrdenTrabajoCrearDto
     public required string Prioridad { get; init; }
 
     [Required]
+    [MaxLength(LargoMaximoDeTexto, ErrorMessage = "La descripción no puede superar los 4000 caracteres.")]
     public required string Descripcion { get; init; }
 
-    public string Observaciones { get; init; } = "";
+    [MaxLength(LargoMaximoDeTexto, ErrorMessage = "Las observaciones no pueden superar los 4000 caracteres.")]
+    public string? Observaciones { get; init; } = "";
 
     public DateOnly FechaPrevistaEjecucion { get; init; }
 
+    [Required]
     public List<string> Sugerencias { get; init; } = new();
 
+    [Required]
     public List<long> RepuestosIds { get; init; } = new();
 
+    [Required]
     public string Estado { get; init; } = "creada";
     public Guid? Sesion { get; init; }
 }
