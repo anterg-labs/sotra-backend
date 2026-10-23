@@ -3,33 +3,31 @@ using NUnit.Framework;
 
 namespace Api.PruebasUnitarias;
 
-/// <summary>El corpus de <c>herramientas-plan/ia/corpus</c> debe poder leerse con el extractor real de PDF.</summary>
+/// <summary>El corpus de <c>sotra-test-automation/herramientas-previas/ia/corpus</c> debe poder leerse con el extractor real de PDF.</summary>
 public class CorpusDeEvaluacionIaPruebas
 {
-    // El corpus vive fuera del repositorio del backend: sin él (por ejemplo en CI) las pruebas se omiten.
-    private static string RutaDelCorpus
+    private static readonly string[] RutaRelativa = ["sotra-test-automation", "herramientas-previas", "ia", "corpus"];
+
+    /// <summary>Busca el corpus en el repositorio hermano; si no está (por ejemplo, en la integración continua del backend), omite la prueba.</summary>
+    private static string RutaDelCorpus()
     {
-        get
+        for (var carpeta = new DirectoryInfo(AppContext.BaseDirectory); carpeta is not null; carpeta = carpeta.Parent)
         {
-            var carpeta = new DirectoryInfo(AppContext.BaseDirectory);
-            while (carpeta is not null && !Directory.Exists(Path.Combine(carpeta.FullName, "herramientas-plan")))
+            var candidata = Path.Combine([carpeta.FullName, .. RutaRelativa]);
+            if (Directory.Exists(candidata))
             {
-                carpeta = carpeta.Parent;
+                return candidata;
             }
-
-            if (carpeta is null)
-            {
-                Assert.Ignore("No se encontró herramientas-plan: el corpus de evaluación no está disponible.");
-            }
-
-            return Path.Combine(carpeta!.FullName, "herramientas-plan", "ia", "corpus");
         }
+
+        Assert.Ignore("El corpus de evaluación vive en sotra-test-automation/herramientas-previas/ia/corpus y no está disponible junto a este repositorio.");
+        return string.Empty;
     }
 
     [Test]
     public void ElManualDeEvaluacionSeExtraeConSusValoresClave()
     {
-        var fragmentos = DocumentoPdf.Extraer(File.ReadAllBytes(Path.Combine(RutaDelCorpus, "manual-retroexcavadora-rx200.pdf")));
+        var fragmentos = DocumentoPdf.Extraer(File.ReadAllBytes(Path.Combine(RutaDelCorpus(), "manual-retroexcavadora-rx200.pdf")));
         var texto = string.Join(" ", fragmentos.Select(f => f.Texto));
 
         Assert.That(fragmentos, Is.Not.Empty);
@@ -39,7 +37,7 @@ public class CorpusDeEvaluacionIaPruebas
     [Test]
     public void LaGuiaDeSeguridadSeExtrae()
     {
-        var fragmentos = DocumentoPdf.Extraer(File.ReadAllBytes(Path.Combine(RutaDelCorpus, "guia-seguridad-taller.pdf")));
+        var fragmentos = DocumentoPdf.Extraer(File.ReadAllBytes(Path.Combine(RutaDelCorpus(), "guia-seguridad-taller.pdf")));
 
         Assert.That(string.Join(" ", fragmentos.Select(f => f.Texto)), Does.Contain("bloquee y etiquete"));
     }
