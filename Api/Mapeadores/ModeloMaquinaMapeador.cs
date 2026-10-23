@@ -47,6 +47,7 @@ public static class ModeloMaquinaMapeador
             Id = modelo.IdModeloMaquina,
             Nombre = modelo.Nombre,
             TipoMaquinaId = modelo.IdTipoMaquina,
+            NombreTipoMaquina = modelo.IdTipoMaquinaNavigation?.Nombre,
             Descripcion = modelo.Descripcion,
             Estado = modelo.Activo ? "activo" : "inactivo"
         };

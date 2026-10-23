@@ -5,7 +5,6 @@ using Api.Seguridad;
 using Api.Servicios;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
 
@@ -41,9 +40,9 @@ public class UsuariosController : ControllerBase
         });
     }
 
-    private bool IncluyeRolAdministrador(IEnumerable<long> idsRol)
+    private async Task<bool> IncluyeRolAdministradorAsync(IEnumerable<long> idsRol, CancellationToken cancelacion)
     {
-        var idAdministrador = _rolDao.ListarTodo()
+        var idAdministrador = (await _rolDao.ListarTodoAsync(cancelacion))
             .FirstOrDefault(rol => string.Equals(rol.Nombre, NombreRolAdministrador, StringComparison.OrdinalIgnoreCase))
             ?.IdRol;
         return idAdministrador is not null && idsRol.Contains(idAdministrador.Value);
@@ -54,94 +53,49 @@ public class UsuariosController : ControllerBase
         return usuario.IdRols.Any(rol => string.Equals(rol.Nombre, NombreRolAdministrador, StringComparison.OrdinalIgnoreCase));
     }
 
-    [Authorize(Policy = Politicas.UsuarioListar)]
     [HttpGet]
+    [Authorize(Policy = Politicas.UsuarioListar)]
     [ProducesResponseType<PaginaDto<UsuarioListadoDto>>(StatusCodes.Status200OK)]
-    public ActionResult<PaginaDto<UsuarioListadoDto>> ObtenerTodos([FromQuery] FiltrosUsuariosDto filtros)
+    public async Task<ActionResult<PaginaDto<UsuarioListadoDto>>> ObtenerTodos([FromQuery] FiltrosUsuariosDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<UsuarioListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
             return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<UsuarioListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<UsuarioListadoDto>();
-        foreach (var usuario in _usuarioDao.ListarTodo())
-        {
-            var usuarioDto = UsuarioMapeador.AListadoDto(usuario);
-
-            if (textoBuscado != "")
-            {
-                var nombreCompleto = usuarioDto.Nombre + " " + usuarioDto.Apellido;
-                var coincide = PaginaDto<UsuarioListadoDto>.Contiene(nombreCompleto, textoBuscado)
-                               || PaginaDto<UsuarioListadoDto>.Contiene(usuarioDto.Correo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.RolId is not null)
-            {
-                var tieneElRol = false;
-                foreach (var rol in usuarioDto.Roles)
-                {
-                    if (rol.Id == filtros.RolId)
-                    {
-                        tieneElRol = true;
-                    }
-                }
-
-                if (!tieneElRol)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && usuarioDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(usuarioDto);
-        }
-
-        if (filtros.DireccionOrden == "desc")
-        {
-            respuesta.Reverse();
-        }
-
-        return Ok(PaginaDto<UsuarioListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc");
+        var (usuarios, total) = await _usuarioDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
+        var elementos = usuarios.Select(UsuarioMapeador.AListadoDto).ToList();
+        return Ok(PaginaDto<UsuarioListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
-    [Authorize(Policy = Politicas.UsuarioConsultar)]
     [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.UsuarioConsultar)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<UsuarioListadoDto> ObtenerPorId(long id)
+    public async Task<ActionResult<UsuarioListadoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
-        var usuario = _usuarioDao.SeleccionarUsuario(id);
+        var usuario = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
         return usuario is null ? NotFound() : Ok(UsuarioMapeador.AListadoDto(usuario));
     }
 
     // Crea el usuario en la base y en Keycloak. En Keycloak queda sin contraseña: le llega
     // un correo para elegirla. Si ya existía en Keycloak un usuario con ese correo, se
     // vincula ese y no se envía el correo. Si Keycloak falla, la base no guarda nada.
-    [Authorize(Policy = Politicas.UsuarioCrear)]
     [HttpPost]
+    [Authorize(Policy = Politicas.UsuarioCrear)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult<UsuarioListadoDto>> Crear(UsuarioCrearDto solicitud,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<UsuarioListadoDto>> Crear(UsuarioCrearDto solicitud, CancellationToken cancelacion)
     {
-        if (!User.PuedeGestionarAdministradores() && IncluyeRolAdministrador(solicitud.IdsRol))
+        if (!User.PuedeGestionarAdministradores() && await IncluyeRolAdministradorAsync(solicitud.IdsRol, cancelacion))
         {
             return SoloAdministrador();
         }
@@ -149,84 +103,71 @@ public class UsuariosController : ControllerBase
         Guid? idKeycloakCreado = null;
         try
         {
-            using var transaccion = _usuarioDao.IniciarTransaccion();
+            await using var transaccion = await _usuarioDao.IniciarTransaccionAsync(cancelacion);
             var usuario = UsuarioMapeador.AEntidad(solicitud);
-            var usuarioCreado = _usuarioDao.InsertarUsuario(usuario, solicitud.IdsRol);
+            var usuarioCreado = await _usuarioDao.InsertarUsuarioAsync(usuario, solicitud.IdsRol, cancelacion);
 
-            var (idKeycloak, creado) = await _keycloak.CrearOObtenerAsync(DatosParaKeycloak(usuarioCreado),
-                cancellationToken);
+            var (idKeycloak, creado) = await _keycloak.CrearOObtenerAsync(DatosParaKeycloak(usuarioCreado), cancelacion);
             if (creado)
             {
                 idKeycloakCreado = idKeycloak;
             }
 
-            await _keycloak.ReemplazarRolesAsync(idKeycloak, RolesParaKeycloak(usuarioCreado), cancellationToken);
-            _usuarioDao.GuardarIdKeycloak(usuarioCreado.IdUsuario, idKeycloak);
-            transaccion.Commit();
+            await _keycloak.ReemplazarRolesAsync(idKeycloak, RolesParaKeycloak(usuarioCreado), cancelacion);
+            await _usuarioDao.GuardarIdKeycloakAsync(usuarioCreado.IdUsuario, idKeycloak, cancelacion);
+            await transaccion.CommitAsync(cancelacion);
 
             if (creado)
             {
-                await EnviarCorreoDeContrasenaSinErrorAsync(idKeycloak, cancellationToken);
+                await EnviarCorreoDeContrasenaSinErrorAsync(idKeycloak, cancelacion);
             }
 
             var respuesta = UsuarioMapeador.AListadoDto(usuarioCreado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = usuarioCreado.IdUsuario }, respuesta);
         }
-        catch (ArgumentException excepcion)
-        {
-            await DeshacerAltaEnKeycloakAsync(idKeycloakCreado, cancellationToken);
-            return BadRequest(new { mensaje = excepcion.Message });
-        }
-        catch (DbUpdateException)
-        {
-            await DeshacerAltaEnKeycloakAsync(idKeycloakCreado, cancellationToken);
-            return Conflict(new { mensaje = "Ya existe un usuario con el correo o teléfono indicado." });
-        }
         catch (ExcepcionKeycloak excepcion)
         {
-            await DeshacerAltaEnKeycloakAsync(idKeycloakCreado, cancellationToken);
+            await DeshacerAltaEnKeycloakAsync(idKeycloakCreado);
             return ErrorDeKeycloak(excepcion);
+        }
+        catch
+        {
+            // Las validaciones y los duplicados los traduce el manejador global de errores;
+            // antes se borra de Keycloak el usuario recién creado para no dejarlo huérfano.
+            await DeshacerAltaEnKeycloakAsync(idKeycloakCreado);
+            throw;
         }
     }
 
     // Actualiza la base y copia a Keycloak nombre, correo, roles y estado. Un usuario
     // desactivado no puede iniciar sesión y se cierran sus sesiones abiertas.
-    [Authorize(Policy = Politicas.UsuarioEditar)]
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.UsuarioEditar)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult<UsuarioListadoDto>> Actualizar(long id, UsuarioActualizarDto solicitud,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<UsuarioListadoDto>> Actualizar(long id, UsuarioActualizarDto solicitud, CancellationToken cancelacion)
     {
         try
         {
-            using var transaccion = _usuarioDao.IniciarTransaccion();
-            var usuario = _usuarioDao.SeleccionarUsuario(id);
+            await using var transaccion = await _usuarioDao.IniciarTransaccionAsync(cancelacion);
+            var usuario = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
             if (usuario is null) return NotFound();
             if (!User.PuedeGestionarAdministradores()
-                && (EsAdministrador(usuario) || IncluyeRolAdministrador(solicitud.IdsRol)))
+                && (EsAdministrador(usuario) || await IncluyeRolAdministradorAsync(solicitud.IdsRol, cancelacion)))
             {
                 return SoloAdministrador();
             }
 
             UsuarioMapeador.AplicarCambios(usuario, solicitud);
-            _usuarioDao.ActualizarUsuario(usuario, solicitud.IdsRol);
+            await _usuarioDao.ActualizarUsuarioAsync(usuario, solicitud.IdsRol, cancelacion);
 
-            var usuarioActualizado = _usuarioDao.SeleccionarUsuario(id)!;
-            await SincronizarConKeycloakAsync(usuarioActualizado, cancellationToken);
-            transaccion.Commit();
+            var usuarioActualizado = (await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion))!;
+            await SincronizarConKeycloakAsync(usuarioActualizado, cancelacion);
+            await transaccion.CommitAsync(cancelacion);
             return Ok(UsuarioMapeador.AListadoDto(usuarioActualizado));
-        }
-        catch (ArgumentException excepcion)
-        {
-            return BadRequest(new { mensaje = excepcion.Message });
-        }
-        catch (DbUpdateException)
-        {
-            return Conflict(new { mensaje = "Ya existe un usuario con el correo o teléfono indicado." });
         }
         catch (ExcepcionKeycloak excepcion)
         {
@@ -234,30 +175,29 @@ public class UsuariosController : ControllerBase
         }
     }
 
-    [Authorize(Policy = Politicas.UsuarioEditar)]
     [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.UsuarioEditar)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult<UsuarioListadoDto>> Desactivar(long id, UsuarioEstadoDto solicitud,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<UsuarioListadoDto>> Desactivar(long id, UsuarioEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        var usuarioABajar = _usuarioDao.SeleccionarUsuario(id);
+        var usuarioABajar = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
         if (usuarioABajar is null) return NotFound();
         if (!User.PuedeGestionarAdministradores() && EsAdministrador(usuarioABajar)) return SoloAdministrador();
 
         try
         {
-            using var transaccion = _usuarioDao.IniciarTransaccion();
-            if (!_usuarioDao.DarBajaLogicaUsuario(id)) return NotFound();
+            await using var transaccion = await _usuarioDao.IniciarTransaccionAsync(cancelacion);
+            if (!await _usuarioDao.DarBajaLogicaUsuarioAsync(id, cancelacion)) return NotFound();
 
-            var usuario = _usuarioDao.SeleccionarUsuario(id)!;
-            await SincronizarConKeycloakAsync(usuario, cancellationToken);
-            transaccion.Commit();
+            var usuario = (await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion))!;
+            await SincronizarConKeycloakAsync(usuario, cancelacion);
+            await transaccion.CommitAsync(cancelacion);
             return Ok(UsuarioMapeador.AListadoDto(usuario));
         }
         catch (ExcepcionKeycloak excepcion)
@@ -268,15 +208,15 @@ public class UsuariosController : ControllerBase
 
     // El administrador (o el jefe, si el usuario no es administrador) le envía al usuario un correo
     // para elegir una contraseña nueva.
-    [Authorize(Policy = Politicas.UsuarioEditar)]
     [HttpPost("{id:long}/restablecer-contrasena")]
+    [Authorize(Policy = Politicas.UsuarioEditar)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<IActionResult> RestablecerContrasena(long id, CancellationToken cancellationToken)
+    public async Task<IActionResult> RestablecerContrasena(long id, CancellationToken cancelacion)
     {
-        var usuario = _usuarioDao.SeleccionarUsuario(id);
+        var usuario = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
         if (usuario is null) return NotFound();
         if (!User.PuedeGestionarAdministradores() && EsAdministrador(usuario)) return SoloAdministrador();
 
@@ -300,7 +240,7 @@ public class UsuariosController : ControllerBase
 
         try
         {
-            await _keycloak.EnviarCorreoParaElegirContrasenaAsync(idKeycloak, cancellationToken);
+            await _keycloak.EnviarCorreoParaElegirContrasenaAsync(idKeycloak, cancelacion);
             return NoContent();
         }
         catch (ExcepcionKeycloak excepcion)
@@ -311,7 +251,7 @@ public class UsuariosController : ControllerBase
 
     // Los usuarios cargados antes de la integración, sin id_keycloak, no tienen acceso
     // al sistema y solo se actualizan en la base.
-    private async Task SincronizarConKeycloakAsync(Usuario usuario, CancellationToken cancellationToken)
+    private async Task SincronizarConKeycloakAsync(Usuario usuario, CancellationToken cancelacion)
     {
         if (usuario.IdKeycloak is not Guid idKeycloak)
         {
@@ -320,19 +260,19 @@ public class UsuariosController : ControllerBase
 
         // Primero los roles: es el paso que más puede fallar y, si falla, los datos del
         // usuario en Keycloak quedan sin tocar.
-        await _keycloak.ReemplazarRolesAsync(idKeycloak, RolesParaKeycloak(usuario), cancellationToken);
-        await _keycloak.ActualizarAsync(idKeycloak, DatosParaKeycloak(usuario), cancellationToken);
+        await _keycloak.ReemplazarRolesAsync(idKeycloak, RolesParaKeycloak(usuario), cancelacion);
+        await _keycloak.ActualizarAsync(idKeycloak, DatosParaKeycloak(usuario), cancelacion);
         if (!usuario.Estado)
         {
-            await _keycloak.CerrarSesionesAsync(idKeycloak, cancellationToken);
+            await _keycloak.CerrarSesionesAsync(idKeycloak, cancelacion);
         }
     }
 
-    private async Task EnviarCorreoDeContrasenaSinErrorAsync(Guid idKeycloak, CancellationToken cancellationToken)
+    private async Task EnviarCorreoDeContrasenaSinErrorAsync(Guid idKeycloak, CancellationToken cancelacion)
     {
         try
         {
-            await _keycloak.EnviarCorreoParaElegirContrasenaAsync(idKeycloak, cancellationToken);
+            await _keycloak.EnviarCorreoParaElegirContrasenaAsync(idKeycloak, cancelacion);
         }
         catch (ExcepcionKeycloak excepcion)
         {
@@ -343,11 +283,12 @@ public class UsuariosController : ControllerBase
         }
     }
 
-    private async Task DeshacerAltaEnKeycloakAsync(Guid? idKeycloakCreado, CancellationToken cancellationToken)
+    // Sin el token de la solicitud: aunque el cliente haya cancelado, hay que borrar el usuario creado.
+    private async Task DeshacerAltaEnKeycloakAsync(Guid? idKeycloakCreado)
     {
         if (idKeycloakCreado is Guid idKeycloak)
         {
-            await _keycloak.EliminarSinErrorAsync(idKeycloak, cancellationToken);
+            await _keycloak.EliminarSinErrorAsync(idKeycloak, CancellationToken.None);
         }
     }
 

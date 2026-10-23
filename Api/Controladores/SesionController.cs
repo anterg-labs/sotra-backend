@@ -27,7 +27,7 @@ public class SesionController : ControllerBase
     [HttpGet]
     [ProducesResponseType<SesionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public ActionResult<SesionDto> Obtener()
+    public async Task<ActionResult<SesionDto>> Obtener(CancellationToken cancelacion)
     {
         var idKeycloak = User.FindFirstValue("sub");
         if (string.IsNullOrWhiteSpace(idKeycloak))
@@ -47,7 +47,7 @@ public class SesionController : ControllerBase
         return Ok(new SesionDto
         {
             IdKeycloak = idKeycloak,
-            IdUsuario = _usuarioActual.ObtenerIdUsuario(),
+            IdUsuario = await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion),
             Correo = User.FindFirstValue("email"),
             Nombre = User.FindFirstValue("name"),
             Roles = roles

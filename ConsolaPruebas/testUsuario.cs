@@ -1,14 +1,14 @@
-using SOTRA_BACKEND.Modelos;
+﻿using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
 
 namespace ConsolaPruebas;
 
 public static class testUsuario
 {
-    public static void ListarTodo()
+    public static async Task ListarTodo()
     {
         UsuarioDAO dao = new UsuarioDAO();
-        var usuarios = dao.ListarTodo();
+        var usuarios = await dao.ListarTodoAsync(CancellationToken.None);
 
         if (usuarios.Count == 0)
         {
@@ -24,10 +24,10 @@ public static class testUsuario
         }
     }
 
-    public static void SeleccionarPorId(long id)
+    public static async Task SeleccionarPorId(long id)
     {
         UsuarioDAO dao = new UsuarioDAO();
-        Usuario? usuario = dao.SeleccionarUsuario(id);
+        Usuario? usuario = await dao.SeleccionarUsuarioAsync(id, CancellationToken.None);
 
         if (usuario is null)
         {
@@ -39,7 +39,7 @@ public static class testUsuario
         Console.WriteLine($"Rol: {ObtenerRol(usuario)}");
     }
 
-    public static void Insertar()
+    public static async Task Insertar()
     {
         UsuarioDAO dao = new UsuarioDAO();
 
@@ -64,21 +64,21 @@ public static class testUsuario
 
         List<long> idsRol = LeerRolesUsuario();
 
-        usuario = dao.InsertarUsuario(usuario, idsRol);
+        usuario = await dao.InsertarUsuarioAsync(usuario, idsRol, CancellationToken.None);
 
         Console.WriteLine("Usuario insertado correctamente.");
         Console.WriteLine(usuario);
         Console.WriteLine($"Roles: {(idsRol.Count == 0 ? "Ninguno" : string.Join(", ", idsRol))}");
     }
 
-    public static void Actualizar()
+    public static async Task Actualizar()
     {
         UsuarioDAO dao = new UsuarioDAO();
 
         Console.Write("IdUsuario a actualizar: ");
         long id = LeerLong();
 
-        Usuario? usuario = dao.SeleccionarUsuario(id);
+        Usuario? usuario = await dao.SeleccionarUsuarioAsync(id, CancellationToken.None);
         if (usuario is null)
         {
             Console.WriteLine($"No se encontró un Usuario con Id: {id}");
@@ -123,7 +123,7 @@ public static class testUsuario
         List<long> idsRolActuales = usuario.IdRols.Select(r => r.IdRol).ToList();
         List<long> idsRol = LeerRolesUsuario(idsRolActuales);
 
-        bool actualizado = dao.ActualizarUsuario(usuario, idsRol);
+        bool actualizado = await dao.ActualizarUsuarioAsync(usuario, idsRol, CancellationToken.None);
         Console.WriteLine(actualizado ? "Usuario actualizado correctamente." : "No se pudo actualizar el registro.");
         if (actualizado)
         {
@@ -132,25 +132,25 @@ public static class testUsuario
         }
     }
 
-    public static void Eliminar()
+    public static async Task Eliminar()
     {
         UsuarioDAO dao = new UsuarioDAO();
 
         Console.Write("IdUsuario a eliminar: ");
         long id = LeerLong();
 
-        bool eliminado = dao.EliminarUsuario(id);
+        bool eliminado = await dao.EliminarUsuarioAsync(id, CancellationToken.None);
         Console.WriteLine(eliminado ? "Usuario eliminado correctamente." : $"No se encontró un Usuario con Id: {id}");
     }
 
-    public static void DarBajaLogica()
+    public static async Task DarBajaLogica()
     {
         UsuarioDAO dao = new UsuarioDAO();
 
         Console.Write("IdUsuario a dar de baja lógica: ");
         long id = LeerLong();
 
-        bool dadoDeBaja = dao.DarBajaLogicaUsuario(id);
+        bool dadoDeBaja = await dao.DarBajaLogicaUsuarioAsync(id, CancellationToken.None);
         Console.WriteLine(dadoDeBaja ? "Usuario dado de baja lógica correctamente." : $"No se encontró un Usuario con Id: {id}");
     }
 

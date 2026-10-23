@@ -4,7 +4,6 @@ using Api.Mapeadores;
 using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -20,133 +19,86 @@ public class ClientesController : ControllerBase
         _clienteDao = clienteDao;
     }
 
-    [Authorize(Policy = Politicas.ClienteConsultar)]
     [HttpGet]
+    [Authorize(Policy = Politicas.ClienteConsultar)]
     [ProducesResponseType<PaginaDto<ClienteListadoDto>>(StatusCodes.Status200OK)]
-    public ActionResult<PaginaDto<ClienteListadoDto>> ObtenerTodos([FromQuery] FiltrosClientesDto filtros)
+    public async Task<ActionResult<PaginaDto<ClienteListadoDto>>> ObtenerTodos([FromQuery] FiltrosClientesDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<ClienteListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
             return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<ClienteListadoDto>();
-        foreach (var cliente in _clienteDao.ListarTodo())
-        {
-            var clienteDto = ClienteMapeador.AListadoDto(cliente);
-
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<ClienteListadoDto>.Contiene(clienteDto.RazonSocial, textoBuscado)
-                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.NombreContacto, textoBuscado)
-                               || PaginaDto<ClienteListadoDto>.Contiene(clienteDto.Correo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && clienteDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(clienteDto);
-        }
-
-        if (filtros.DireccionOrden == "desc")
-        {
-            respuesta.Reverse();
-        }
-
-        return Ok(PaginaDto<ClienteListadoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc");
+        var (entidades, total) = await _clienteDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
+        var elementos = entidades.Select(ClienteMapeador.AListadoDto).ToList();
+        return Ok(PaginaDto<ClienteListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
-    [Authorize(Policy = Politicas.ClienteConsultar)]
     [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.ClienteConsultar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<ClienteListadoDto> ObtenerPorId(long id)
+    public async Task<ActionResult<ClienteListadoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
-        var cliente = _clienteDao.SeleccionarCliente(id);
+        var cliente = await _clienteDao.SeleccionarClienteAsync(id, cancelacion);
         return cliente is null ? NotFound() : Ok(ClienteMapeador.AListadoDto(cliente));
     }
 
-    [Authorize(Policy = Politicas.ClienteGestionar)]
     [HttpPost]
+    [Authorize(Policy = Politicas.ClienteGestionar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult<ClienteListadoDto> Crear(ClienteCrearDto solicitud)
+    public async Task<ActionResult<ClienteListadoDto>> Crear(ClienteCrearDto solicitud, CancellationToken cancelacion)
     {
-        try
-        {
-            var cliente = ClienteMapeador.AEntidad(solicitud);
-            var clienteCreado = _clienteDao.InsertarCliente(cliente);
-            var respuesta = ClienteMapeador.AListadoDto(clienteCreado);
-            return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
-        }
-        catch (DbUpdateException)
-        {
-            return Conflict(new
-            {
-                mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado."
-            });
-        }
+        var cliente = ClienteMapeador.AEntidad(solicitud);
+        var clienteCreado = await _clienteDao.InsertarClienteAsync(cliente, cancelacion);
+        var respuesta = ClienteMapeador.AListadoDto(clienteCreado);
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
     }
 
-    [Authorize(Policy = Politicas.ClienteGestionar)]
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.ClienteGestionar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult<ClienteListadoDto> Actualizar(long id, ClienteActualizarDto solicitud)
+    public async Task<ActionResult<ClienteListadoDto>> Actualizar(long id, ClienteActualizarDto solicitud, CancellationToken cancelacion)
     {
-        try
-        {
-            var cliente = _clienteDao.SeleccionarCliente(id);
-            if (cliente is null) return NotFound();
+        var cliente = await _clienteDao.SeleccionarClienteAsync(id, cancelacion);
+        if (cliente is null) return NotFound();
 
-            ClienteMapeador.AplicarCambios(cliente, solicitud);
-            _clienteDao.ActualizarCliente(cliente);
+        ClienteMapeador.AplicarCambios(cliente, solicitud);
+        await _clienteDao.ActualizarClienteAsync(cliente, cancelacion);
 
-            return Ok(ClienteMapeador.AListadoDto(cliente));
-        }
-        catch (DbUpdateException)
-        {
-            return Conflict(new
-            {
-                mensaje = "Ya existe un cliente con la razón social, nombre, correo o teléfono indicado."
-            });
-        }
+        return Ok(ClienteMapeador.AListadoDto(cliente));
     }
 
-    [Authorize(Policy = Politicas.ClienteGestionar)]
     [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.ClienteGestionar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<ClienteListadoDto> CambiarEstado(long id, ClienteEstadoDto solicitud)
+    public async Task<ActionResult<ClienteListadoDto>> CambiarEstado(long id, ClienteEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (solicitud.Estado == "activo")
         {
-            if (!_clienteDao.ReactivarCliente(id)) return NotFound();
+            if (!await _clienteDao.ReactivarClienteAsync(id, cancelacion)) return NotFound();
         }
         else if (solicitud.Estado == "inactivo")
         {
-            if (!_clienteDao.DarBajaLogicaCliente(id)) return NotFound();
+            if (!await _clienteDao.DarBajaLogicaClienteAsync(id, cancelacion)) return NotFound();
         }
         else
         {
             return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
         }
 
-        var cliente = _clienteDao.SeleccionarCliente(id)!;
+        var cliente = (await _clienteDao.SeleccionarClienteAsync(id, cancelacion))!;
         return Ok(ClienteMapeador.AListadoDto(cliente));
     }
 }

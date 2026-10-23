@@ -5,8 +5,6 @@ using Api.Mapeadores;
 using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -19,144 +17,56 @@ public class RepuestosController : ControllerBase
     private readonly MovimientoStockDAO _movimientoStockDao;
     private readonly UsuarioActual _usuarioActual;
 
-    public RepuestosController(RepuestoDAO repuestoDao, MovimientoStockDAO movimientoStockDao,
-        UsuarioActual usuarioActual)
+    public RepuestosController(RepuestoDAO repuestoDao, MovimientoStockDAO movimientoStockDao, UsuarioActual usuarioActual)
     {
         _repuestoDao = repuestoDao;
         _movimientoStockDao = movimientoStockDao;
         _usuarioActual = usuarioActual;
     }
 
-    [Authorize(Policy = Politicas.StockConsultar)]
     [HttpGet]
-    public ActionResult<PaginaDto<RepuestoDto>> ObtenerTodos([FromQuery] FiltrosRepuestosDto filtros)
+    [Authorize(Policy = Politicas.StockConsultar)]
+    public async Task<ActionResult<PaginaDto<RepuestoDto>>> ObtenerTodos([FromQuery] FiltrosRepuestosDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<RepuestoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
             return BadRequest(PaginaDto<RepuestoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<RepuestoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var ubicacionBuscada = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Ubicacion))
+        if (filtros.EstadoStock is not null && !EstadosStock.Validos.Contains(filtros.EstadoStock))
         {
-            ubicacionBuscada = filtros.Ubicacion.Trim().ToLower();
-        }
-
-        var respuesta = new List<RepuestoDto>();
-        foreach (var repuesto in _repuestoDao.ListarTodo())
-        {
-            var repuestoDto = RepuestoMapeador.ADto(repuesto);
-
-            if (textoBuscado != "")
+            return BadRequest(new
             {
-                var coincide = PaginaDto<RepuestoDto>.Contiene(repuestoDto.Codigo, textoBuscado)
-                               || PaginaDto<RepuestoDto>.Contiene(repuestoDto.Nombre, textoBuscado)
-                               || PaginaDto<RepuestoDto>.Contiene(repuestoDto.Marca, textoBuscado)
-                               || PaginaDto<RepuestoDto>.Contiene(repuestoDto.Descripcion, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && repuestoDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            if (ubicacionBuscada != "" && !PaginaDto<RepuestoDto>.Contiene(repuestoDto.Ubicacion, ubicacionBuscada))
-            {
-                continue;
-            }
-
-            if (filtros.BajoStock == true && repuestoDto.Cantidad > repuestoDto.CantidadMinima)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.EstadoStock) && repuestoDto.EstadoStock != filtros.EstadoStock)
-            {
-                continue;
-            }
-
-            respuesta.Add(repuestoDto);
-        }
-
-        if (filtros.Orden == "criticidad")
-        {
-            respuesta = respuesta
-                .OrderBy(repuesto => PesoDeCriticidad(repuesto.EstadoStock))
-                .ThenBy(repuesto => repuesto.CantidadMinima > 0 ? (double)repuesto.Cantidad / repuesto.CantidadMinima : double.MaxValue)
-                .ThenBy(repuesto => repuesto.Codigo)
-                .ToList();
-        }
-
-        return Ok(PaginaDto<RepuestoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
-    }
-
-    // Contadores para el aviso de stock insuficiente: solo repuestos activos.
-    [Authorize(Policy = Politicas.StockConsultar)]
-    [HttpGet("alertas-stock")]
-    public ActionResult<AlertasStockDto> ObtenerAlertasStock()
-    {
-        var bajo = 0;
-        var sinStock = 0;
-        foreach (var repuesto in _repuestoDao.ListarTodo())
-        {
-            if (!repuesto.Estado)
-            {
-                continue;
-            }
-
-            var estadoStock = RepuestoMapeador.CalcularEstadoStock(repuesto.Cantidad, repuesto.CantMin ?? 0);
-            if (estadoStock == RepuestoMapeador.StockBajo)
-            {
-                bajo++;
-            }
-            else if (estadoStock == RepuestoMapeador.SinStock)
-            {
-                sinStock++;
-            }
-        }
-
-        return Ok(new AlertasStockDto { Bajo = bajo, SinStock = sinStock, Total = bajo + sinStock });
-    }
-
-    private static int PesoDeCriticidad(string estadoStock)
-    {
-        if (estadoStock == RepuestoMapeador.SinStock)
-        {
-            return 0;
-        }
-
-        return estadoStock == RepuestoMapeador.StockBajo ? 1 : 2;
-    }
-
-    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
-    [HttpPost("{id:long}/ingresos")]
-    public ActionResult<MovimientoStockDto> RegistrarIngreso(long id, IngresoStockDto solicitud)
-    {
-        var repuesto = _repuestoDao.Seleccionar(id);
-        if (repuesto is null)
-        {
-            return NotFound();
-        }
-
-        if (!repuesto.Estado)
-        {
-            return Conflict(new
-            {
-                codigo = "REPUESTO_INACTIVO",
-                mensaje = "No se puede ingresar stock a un repuesto dado de baja."
+                codigo = "ESTADO_STOCK_INVALIDO",
+                mensaje = "El estado de stock debe ser normal, bajo o sin_stock."
             });
         }
 
+        var filtro = new FiltroRepuestos(filtros.Buscar, estado, filtros.Ubicacion, filtros.BajoStock,
+            filtros.EstadoStock, string.Equals(filtros.Orden, "criticidad", StringComparison.OrdinalIgnoreCase));
+        var (entidades, total) = await _repuestoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
+        var elementos = entidades.Select(RepuestoMapeador.ADto).ToList();
+        return Ok(PaginaDto<RepuestoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
+    }
+
+    [HttpGet("alertas-stock")]
+    [Authorize(Policy = Politicas.StockConsultar)]
+    public async Task<ActionResult<AlertasStockDto>> ObtenerAlertasStock(CancellationToken cancelacion)
+    {
+        var alertas = await _repuestoDao.ContarAlertasAsync(cancelacion);
+        return Ok(new AlertasStockDto { Bajo = alertas.Bajo, SinStock = alertas.SinStock, Total = alertas.Total });
+    }
+
+    [HttpPost("{id:long}/ingresos")]
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
+    public async Task<ActionResult<MovimientoStockDto>> RegistrarIngreso(
+        long id, IngresoStockDto solicitud, CancellationToken cancelacion)
+    {
         if (solicitud.Cantidad <= 0)
         {
             return BadRequest(new
@@ -176,18 +86,8 @@ public class RepuestosController : ControllerBase
             });
         }
 
-        var motivo = "";
-        if (solicitud.Motivo is not null)
-        {
-            motivo = solicitud.Motivo.Trim();
-        }
-
-        var ubicacion = "";
-        if (solicitud.Ubicacion is not null)
-        {
-            ubicacion = solicitud.Ubicacion.Trim();
-        }
-
+        var motivo = solicitud.Motivo?.Trim() ?? "";
+        var ubicacion = solicitud.Ubicacion?.Trim() ?? "";
         if (motivo == "" || ubicacion == "")
         {
             return BadRequest(new
@@ -197,130 +97,77 @@ public class RepuestosController : ControllerBase
             });
         }
 
-        string? observaciones = null;
-        if (!string.IsNullOrWhiteSpace(solicitud.Observaciones))
-        {
-            observaciones = solicitud.Observaciones.Trim();
-        }
-
         var fechaMovimiento = DateTime.UtcNow;
         if (solicitud.Fecha != hoy)
         {
             fechaMovimiento = solicitud.Fecha.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc);
         }
 
-        var movimiento = _movimientoStockDao.RegistrarIngreso(repuesto, solicitud.Cantidad, fechaMovimiento,
-            motivo, ubicacion, observaciones, _usuarioActual.ObtenerIdUsuario());
-        return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
+        return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Ingreso, solicitud.Cantidad,
+            fechaMovimiento, motivo, ubicacion, ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
-    // Retira unidades del stock. Solo se rechaza si se pide más de lo disponible: quedar por debajo
-    // del mínimo está permitido (el repuesto pasa a tener alerta de stock).
-    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     [HttpPost("{id:long}/egresos")]
-    public ActionResult<MovimientoStockDto> RegistrarEgreso(long id, EgresoStockDto solicitud)
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
+    public async Task<ActionResult<MovimientoStockDto>> RegistrarEgreso(
+        long id, EgresoStockDto solicitud, CancellationToken cancelacion)
     {
-        var repuesto = _repuestoDao.Seleccionar(id);
-        if (repuesto is null)
-        {
-            return NotFound();
-        }
-
-        if (!repuesto.Estado)
-        {
-            return Conflict(new
-            {
-                codigo = "REPUESTO_INACTIVO",
-                mensaje = "No se puede retirar stock de un repuesto dado de baja."
-            });
-        }
-
         if (solicitud.Cantidad <= 0)
         {
             return BadRequest(new
             {
                 codigo = "CANTIDAD_INVALIDA",
-                mensaje = "La cantidad a retirar debe ser un número entero mayor a cero."
+                mensaje = "La cantidad a retirar debe ser mayor a cero."
             });
         }
 
         var motivo = solicitud.Motivo?.Trim() ?? "";
         if (motivo == "")
         {
-            return BadRequest(new { codigo = "DATOS_OBLIGATORIOS", mensaje = "Indicá el motivo del egreso." });
-        }
-
-        if (solicitud.Cantidad > repuesto.Cantidad)
-        {
-            return Conflict(new
+            return BadRequest(new
             {
-                codigo = "STOCK_INSUFICIENTE",
-                mensaje = "No hay stock suficiente: disponible " + repuesto.Cantidad + "."
+                codigo = "DATOS_OBLIGATORIOS",
+                mensaje = "El motivo del egreso es obligatorio."
             });
         }
 
-        var ubicacion = string.IsNullOrWhiteSpace(solicitud.Ubicacion) ? repuesto.Ubicacion ?? "" : solicitud.Ubicacion.Trim();
-        var observaciones = string.IsNullOrWhiteSpace(solicitud.Observaciones) ? null : solicitud.Observaciones.Trim();
-        var movimiento = _movimientoStockDao.RegistrarEgreso(repuesto, solicitud.Cantidad, DateTime.UtcNow, motivo,
-            ubicacion, observaciones, _usuarioActual.ObtenerIdUsuario());
-        return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
+        return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Egreso, solicitud.Cantidad,
+            DateTime.UtcNow, motivo, solicitud.Ubicacion?.Trim(), ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
-    // Corrige el stock con el conteo real del depósito.
-    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     [HttpPost("{id:long}/ajustes")]
-    public ActionResult<MovimientoStockDto> RegistrarAjuste(long id, AjusteStockDto solicitud)
+    [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
+    public async Task<ActionResult<MovimientoStockDto>> RegistrarAjuste(
+        long id, AjusteStockDto solicitud, CancellationToken cancelacion)
     {
-        var repuesto = _repuestoDao.Seleccionar(id);
-        if (repuesto is null)
-        {
-            return NotFound();
-        }
-
-        if (!repuesto.Estado)
-        {
-            return Conflict(new
-            {
-                codigo = "REPUESTO_INACTIVO",
-                mensaje = "No se puede ajustar el stock de un repuesto dado de baja."
-            });
-        }
-
         if (solicitud.CantidadReal < 0)
         {
             return BadRequest(new
             {
                 codigo = "CANTIDAD_INVALIDA",
-                mensaje = "El stock real debe ser un número entero mayor o igual a cero."
+                mensaje = "El stock real no puede ser negativo."
             });
         }
 
         var motivo = solicitud.Motivo?.Trim() ?? "";
         if (motivo == "")
         {
-            return BadRequest(new { codigo = "DATOS_OBLIGATORIOS", mensaje = "Indicá el motivo del ajuste." });
-        }
-
-        if (solicitud.CantidadReal == repuesto.Cantidad)
-        {
             return BadRequest(new
             {
-                codigo = "SIN_DIFERENCIA",
-                mensaje = "El stock real es igual al registrado: no hay nada que ajustar."
+                codigo = "DATOS_OBLIGATORIOS",
+                mensaje = "El motivo del ajuste es obligatorio."
             });
         }
 
-        var observaciones = string.IsNullOrWhiteSpace(solicitud.Observaciones) ? null : solicitud.Observaciones.Trim();
-        var movimiento = _movimientoStockDao.RegistrarAjuste(repuesto, solicitud.CantidadReal, DateTime.UtcNow, motivo,
-            repuesto.Ubicacion ?? "", observaciones, _usuarioActual.ObtenerIdUsuario());
-        return CreatedAtAction(nameof(ObtenerPorId), new { id = id }, MovimientoStockMapeador.ADto(movimiento));
+        return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Ajuste, solicitud.CantidadReal,
+            DateTime.UtcNow, motivo, null, ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
-    [Authorize(Policy = Politicas.StockConsultar)]
-    [HttpGet("{id:long}")]
-    public ActionResult<RepuestoDto> ObtenerPorId(long id)
+    [HttpPatch("{id:long}/stock-minimo")]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
+    public async Task<ActionResult<RepuestoDto>> ActualizarStockMinimo(long id, StockMinimoDto solicitud, CancellationToken cancelacion)
     {
-        var repuesto = _repuestoDao.Seleccionar(id);
+        var repuesto = await _repuestoDao.ActualizarMinimoAsync(id, solicitud.CantidadMinima, cancelacion);
         if (repuesto is null)
         {
             return NotFound();
@@ -329,61 +176,99 @@ public class RepuestosController : ControllerBase
         return Ok(RepuestoMapeador.ADto(repuesto));
     }
 
-    [Authorize(Policy = Politicas.RepuestoGestionar)]
-    [HttpPost]
-    public ActionResult<RepuestoDto> Crear(RepuestoCrearDto solicitud)
+    private async Task<ActionResult<MovimientoStockDto>> RegistrarMovimiento(SolicitudMovimientoStock solicitud, CancellationToken cancelacion)
     {
-        try
+        // Cada movimiento queda registrado con el usuario que lo hizo (null sin token).
+        solicitud = solicitud with { IdUsuario = await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion) };
+        var resultado = await _movimientoStockDao.RegistrarAsync(solicitud, cancelacion);
+        return resultado.Estado switch
         {
-            var repuesto = _repuestoDao.Insertar(RepuestoMapeador.AEntidad(solicitud));
-            var respuesta = RepuestoMapeador.ADto(repuesto);
-            return CreatedAtAction(nameof(ObtenerPorId), new { id = repuesto.IdRepuesto }, respuesta);
-        }
-        catch (DbUpdateException excepcion) when (excepcion.InnerException is PostgresException
-        { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return Conflict(new { mensaje = "Ya existe un repuesto con ese código." });
-        }
-    }
-
-    [Authorize(Policy = Politicas.RepuestoGestionar)]
-    [HttpPut("{id:long}")]
-    public ActionResult<RepuestoDto> Actualizar(long id, RepuestoActualizarDto solicitud)
-    {
-        try
-        {
-            var repuesto = _repuestoDao.Seleccionar(id);
-            if (repuesto is null)
+            EstadoMovimientoStock.Registrado => CreatedAtAction(nameof(ObtenerPorId), new { id = solicitud.RepuestoId },
+                MovimientoStockMapeador.ADto(resultado.Movimiento!)),
+            EstadoMovimientoStock.RepuestoNoEncontrado => NotFound(),
+            EstadoMovimientoStock.RepuestoInactivo => Conflict(new
             {
-                return NotFound();
-            }
-
-            RepuestoMapeador.AplicarCambios(repuesto, solicitud);
-            _repuestoDao.Actualizar(repuesto);
-            return Ok(RepuestoMapeador.ADto(repuesto));
-        }
-        catch (DbUpdateException excepcion) when (excepcion.InnerException is PostgresException
-        { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return Conflict(new { mensaje = "Ya existe un repuesto con ese código." });
-        }
+                codigo = "REPUESTO_INACTIVO",
+                mensaje = "No se puede mover el stock de un repuesto dado de baja."
+            }),
+            EstadoMovimientoStock.StockInsuficiente => Conflict(new
+            {
+                codigo = "STOCK_INSUFICIENTE",
+                mensaje = "No hay stock suficiente para retirar esa cantidad."
+            }),
+            _ => Conflict(new
+            {
+                codigo = "STOCK_EXCEDIDO",
+                mensaje = "La cantidad resultante supera el máximo permitido."
+            }),
+        };
     }
 
-    [Authorize(Policy = Politicas.RepuestoGestionar)]
-    [HttpPatch("{id:long}")]
-    public ActionResult<RepuestoDto> Desactivar(long id, RepuestoEstadoDto solicitud)
+    private static string? ObservacionesONulo(string? observaciones)
     {
-        if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
-        }
+        return string.IsNullOrWhiteSpace(observaciones) ? null : observaciones.Trim();
+    }
 
-        if (!_repuestoDao.Desactivar(id))
+    [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.StockConsultar)]
+    public async Task<ActionResult<RepuestoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
+    {
+        var repuesto = await _repuestoDao.SeleccionarAsync(id, cancelacion);
+        if (repuesto is null)
         {
             return NotFound();
         }
 
-        var repuesto = _repuestoDao.Seleccionar(id)!;
         return Ok(RepuestoMapeador.ADto(repuesto));
+    }
+
+    [HttpPost]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
+    public async Task<ActionResult<RepuestoDto>> Crear(RepuestoCrearDto solicitud, CancellationToken cancelacion)
+    {
+        var repuesto = await _repuestoDao.InsertarAsync(RepuestoMapeador.AEntidad(solicitud), cancelacion);
+        var respuesta = RepuestoMapeador.ADto(repuesto);
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = repuesto.IdRepuesto }, respuesta);
+    }
+
+    [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
+    public async Task<ActionResult<RepuestoDto>> Actualizar(long id, RepuestoActualizarDto solicitud, CancellationToken cancelacion)
+    {
+        var repuesto = await _repuestoDao.SeleccionarAsync(id, cancelacion);
+        if (repuesto is null)
+        {
+            return NotFound();
+        }
+
+        RepuestoMapeador.AplicarCambios(repuesto, solicitud);
+        await _repuestoDao.ActualizarAsync(repuesto, cancelacion);
+        return Ok(RepuestoMapeador.ADto(repuesto));
+    }
+
+    [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.RepuestoGestionar)]
+    public async Task<ActionResult<RepuestoDto>> CambiarEstado(long id, RepuestoEstadoDto solicitud, CancellationToken cancelacion)
+    {
+        bool encontrado;
+        if (string.Equals(solicitud.Estado, "activo", StringComparison.OrdinalIgnoreCase))
+        {
+            encontrado = await _repuestoDao.ReactivarAsync(id, cancelacion);
+        }
+        else if (string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
+        {
+            encontrado = await _repuestoDao.DesactivarAsync(id, cancelacion);
+        }
+        else
+        {
+            return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
+        }
+
+        if (!encontrado)
+        {
+            return NotFound();
+        }
+
+        return Ok(RepuestoMapeador.ADto((await _repuestoDao.SeleccionarAsync(id, cancelacion))!));
     }
 }

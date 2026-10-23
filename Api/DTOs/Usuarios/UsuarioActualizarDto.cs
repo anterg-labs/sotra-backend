@@ -1,19 +1,20 @@
 using System.ComponentModel.DataAnnotations;
+using Api.Validaciones;
 
 namespace Api.DTOs.Usuarios;
 
 public class UsuarioActualizarDto
 {
-    [Required, MaxLength(100)]
+    [Required(ErrorMessage = "El campo Nombre es obligatorio."), MaxLength(100, ErrorMessage = "El campo Nombre no puede superar los 100 caracteres."), NombrePersona]
     public required string Nombre { get; init; }
 
-    [Required, MaxLength(100)]
+    [Required(ErrorMessage = "El campo Apellido es obligatorio."), MaxLength(100, ErrorMessage = "El campo Apellido no puede superar los 100 caracteres."), NombrePersona]
     public required string Apellido { get; init; }
 
-    [Required, EmailAddress, MaxLength(254)]
+    [Required(ErrorMessage = "El campo Correo es obligatorio."), EmailAddress(ErrorMessage = "El correo no tiene un formato válido."), MaxLength(254, ErrorMessage = "El correo no puede superar los 254 caracteres.")]
     public required string Correo { get; init; }
 
-    [Required, MaxLength(30)]
+    [Required(ErrorMessage = "El campo Teléfono es obligatorio."), MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono]
     public required string Telefono { get; init; }
 
     [Required]

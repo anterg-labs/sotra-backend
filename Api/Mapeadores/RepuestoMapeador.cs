@@ -1,5 +1,6 @@
 using Api.DTOs.Repuestos;
 using SOTRA_BACKEND.Modelos;
+using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Mapeadores;
 
@@ -27,23 +28,7 @@ public static class RepuestoMapeador
         repuesto.Descripcion = solicitud.Descripcion;
         repuesto.Marca = solicitud.Marca;
         repuesto.Ubicacion = solicitud.Ubicacion;
-        repuesto.Cantidad = solicitud.Cantidad;
         repuesto.CantMin = solicitud.CantidadMinima;
-    }
-
-    public const string StockNormal = "normal";
-    public const string StockBajo = "bajo";
-    public const string SinStock = "sin_stock";
-
-    // Sin unidades: sin_stock. En el mínimo o por debajo: bajo (el mismo criterio que los indicadores).
-    public static string CalcularEstadoStock(int cantidad, int cantidadMinima)
-    {
-        if (cantidad <= 0)
-        {
-            return SinStock;
-        }
-
-        return cantidad <= cantidadMinima ? StockBajo : StockNormal;
     }
 
     public static RepuestoDto ADto(Repuesto repuesto)
@@ -59,7 +44,7 @@ public static class RepuestoMapeador
             Cantidad = repuesto.Cantidad,
             CantidadMinima = repuesto.CantMin ?? 0,
             Estado = repuesto.Estado ? "activo" : "inactivo",
-            EstadoStock = CalcularEstadoStock(repuesto.Cantidad, repuesto.CantMin ?? 0)
+            EstadoStock = EstadosStock.Calcular(repuesto.Cantidad, repuesto.CantMin)
         };
     }
 }

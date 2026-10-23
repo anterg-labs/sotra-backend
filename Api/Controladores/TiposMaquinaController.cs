@@ -4,8 +4,6 @@ using Api.Mapeadores;
 using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -21,112 +19,78 @@ public class TiposMaquinaController : ControllerBase
         _tipoMaquinaDao = tipoMaquinaDao;
     }
 
-    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [HttpGet]
+    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [ProducesResponseType<PaginaDto<TipoMaquinaDto>>(StatusCodes.Status200OK)]
-    public ActionResult<PaginaDto<TipoMaquinaDto>> ObtenerTodos([FromQuery] FiltrosTiposMaquinaDto filtros)
+    public async Task<ActionResult<PaginaDto<TipoMaquinaDto>>> ObtenerTodos([FromQuery] FiltrosTiposMaquinaDto filtros, CancellationToken cancelacion)
     {
         if (!PaginaDto<TipoMaquinaDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
             return BadRequest(PaginaDto<TipoMaquinaDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
+        if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
+            return Ok(PaginaDto<TipoMaquinaDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var respuesta = new List<TipoMaquinaDto>();
-        foreach (var tipo in _tipoMaquinaDao.ListarTodo())
-        {
-            var tipoDto = TipoMaquinaMapeador.ADto(tipo);
-
-            if (textoBuscado != "" && !PaginaDto<TipoMaquinaDto>.Contiene(tipoDto.Nombre, textoBuscado))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(filtros.Estado) && tipoDto.Estado != filtros.Estado)
-            {
-                continue;
-            }
-
-            respuesta.Add(tipoDto);
-        }
-
-        return Ok(PaginaDto<TipoMaquinaDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var filtro = new FiltroTiposMaquina(filtros.Buscar, estado);
+        var (entidades, total) = await _tipoMaquinaDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
+        var elementos = entidades.Select(TipoMaquinaMapeador.ADto).ToList();
+        return Ok(PaginaDto<TipoMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
-    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<TipoMaquinaDto> ObtenerPorId(long id)
+    public async Task<ActionResult<TipoMaquinaDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
-        var tipo = _tipoMaquinaDao.SeleccionarTipoMaquina(id);
+        var tipo = await _tipoMaquinaDao.SeleccionarTipoMaquinaAsync(id, cancelacion);
         return tipo is null ? NotFound() : Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 
-    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [HttpPost]
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult<TipoMaquinaDto> Crear(TipoMaquinaCrearDto solicitud)
+    public async Task<ActionResult<TipoMaquinaDto>> Crear(TipoMaquinaCrearDto solicitud, CancellationToken cancelacion)
     {
-        try
-        {
-            var tipoCreado = _tipoMaquinaDao.InsertarTipoMaquina(
-                TipoMaquinaMapeador.AEntidad(solicitud));
-            var respuesta = TipoMaquinaMapeador.ADto(tipoCreado);
-            return CreatedAtAction(nameof(ObtenerPorId), new { id = tipoCreado.IdTipoMaquina }, respuesta);
-        }
-        catch (DbUpdateException excepcion)
-            when (excepcion.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return Conflict(new { mensaje = "Ya existe un tipo de máquina con ese nombre." });
-        }
+        var tipoCreado = await _tipoMaquinaDao.InsertarTipoMaquinaAsync(
+            TipoMaquinaMapeador.AEntidad(solicitud), cancelacion);
+        var respuesta = TipoMaquinaMapeador.ADto(tipoCreado);
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = tipoCreado.IdTipoMaquina }, respuesta);
     }
 
-    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [HttpPut("{id:long}")]
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult<TipoMaquinaDto> Actualizar(long id, TipoMaquinaActualizarDto solicitud)
+    public async Task<ActionResult<TipoMaquinaDto>> Actualizar(long id, TipoMaquinaActualizarDto solicitud, CancellationToken cancelacion)
     {
-        try
-        {
-            var tipo = _tipoMaquinaDao.SeleccionarTipoMaquina(id);
-            if (tipo is null) return NotFound();
+        var tipo = await _tipoMaquinaDao.SeleccionarTipoMaquinaAsync(id, cancelacion);
+        if (tipo is null) return NotFound();
 
-            TipoMaquinaMapeador.AplicarCambios(tipo, solicitud);
-            _tipoMaquinaDao.ActualizarTipoMaquina(tipo);
+        TipoMaquinaMapeador.AplicarCambios(tipo, solicitud);
+        await _tipoMaquinaDao.ActualizarTipoMaquinaAsync(tipo, cancelacion);
 
-            return Ok(TipoMaquinaMapeador.ADto(tipo));
-        }
-        catch (DbUpdateException excepcion)
-            when (excepcion.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            return Conflict(new { mensaje = "Ya existe un tipo de máquina con ese nombre." });
-        }
+        return Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 
-    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [HttpPatch("{id:long}")]
+    [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<TipoMaquinaDto> Desactivar(long id, TipoMaquinaEstadoDto solicitud)
+    public async Task<ActionResult<TipoMaquinaDto>> Desactivar(long id, TipoMaquinaEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
 
-        if (!_tipoMaquinaDao.DarBajaLogicaTipoMaquina(id)) return NotFound();
+        if (!await _tipoMaquinaDao.DarBajaLogicaTipoMaquinaAsync(id, cancelacion)) return NotFound();
 
-        var tipo = _tipoMaquinaDao.SeleccionarTipoMaquina(id)!;
+        var tipo = (await _tipoMaquinaDao.SeleccionarTipoMaquinaAsync(id, cancelacion))!;
         return Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 }

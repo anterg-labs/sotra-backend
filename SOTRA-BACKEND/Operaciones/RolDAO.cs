@@ -17,10 +17,10 @@ public class RolDAO
         _contexto = contexto;
     }
 
-    public List<Rol> ListarTodo()
+    public async Task<List<Rol>> ListarTodoAsync(CancellationToken cancelacion)
     {
-        return _contexto.Rols
+        return await _contexto.Rols
             .OrderBy(rol => rol.IdRol)
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 }

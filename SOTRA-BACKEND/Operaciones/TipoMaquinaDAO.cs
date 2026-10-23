@@ -18,48 +18,68 @@ public class TipoMaquinaDAO
     }
 
 
-    public List<TipoMaquina> ListarTodo()
+    public async Task<List<TipoMaquina>> ListarTodoAsync(CancellationToken cancelacion)
     {
-        return _contexto.TipoMaquinas
+        return await _contexto.TipoMaquinas
             .OrderBy(tipo => tipo.IdTipoMaquina)
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 
-    public TipoMaquina? SeleccionarTipoMaquina(long id)
+    public async Task<(List<TipoMaquina> Elementos, int Total)> ListarPaginaAsync(
+        FiltroTiposMaquina filtro, int pagina, int tamanoPagina, CancellationToken cancelacion)
     {
-        return _contexto.TipoMaquinas
-            .FirstOrDefault(tipo => tipo.IdTipoMaquina == id);
+        var consulta = _contexto.TipoMaquinas.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(t => EF.Functions.ILike(t.Nombre, patron));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(t => t.Estado == estado);
+        }
+
+        return await ConsultasDeTexto.PaginarAsync(
+            consulta.OrderBy(t => t.IdTipoMaquina), pagina, tamanoPagina, cancelacion);
     }
 
-    public TipoMaquina InsertarTipoMaquina(TipoMaquina tipoMaquina)
+    public async Task<TipoMaquina?> SeleccionarTipoMaquinaAsync(long id, CancellationToken cancelacion)
+    {
+        return await _contexto.TipoMaquinas
+            .FirstOrDefaultAsync(tipo => tipo.IdTipoMaquina == id, cancelacion);
+    }
+
+    public async Task<TipoMaquina> InsertarTipoMaquinaAsync(TipoMaquina tipoMaquina, CancellationToken cancelacion)
     {
         _contexto.TipoMaquinas.Add(tipoMaquina);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return tipoMaquina;
     }
 
-    public bool ActualizarTipoMaquina(TipoMaquina tipoMaquina)
+    public async Task<bool> ActualizarTipoMaquinaAsync(TipoMaquina tipoMaquina, CancellationToken cancelacion)
     {
-        var tipoExistente = _contexto.TipoMaquinas
-            .FirstOrDefault(tipo => tipo.IdTipoMaquina == tipoMaquina.IdTipoMaquina);
+        var tipoExistente = await _contexto.TipoMaquinas
+            .FirstOrDefaultAsync(tipo => tipo.IdTipoMaquina == tipoMaquina.IdTipoMaquina, cancelacion);
         if (tipoExistente is null) return false;
 
         tipoExistente.Nombre = tipoMaquina.Nombre;
         tipoExistente.Estado = tipoMaquina.Estado;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool DarBajaLogicaTipoMaquina(long id)
+    public async Task<bool> DarBajaLogicaTipoMaquinaAsync(long id, CancellationToken cancelacion)
     {
-        var tipoExistente = _contexto.TipoMaquinas
-            .FirstOrDefault(tipo => tipo.IdTipoMaquina == id);
+        var tipoExistente = await _contexto.TipoMaquinas
+            .FirstOrDefaultAsync(tipo => tipo.IdTipoMaquina == id, cancelacion);
         if (tipoExistente is null) return false;
 
         if (!tipoExistente.Estado) return true;
 
         tipoExistente.Estado = false;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 }

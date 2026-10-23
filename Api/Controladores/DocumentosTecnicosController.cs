@@ -1,3 +1,5 @@
+using Api.Infraestructura;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
 using Api.DTOs.DocumentosTecnicos;
 using Api.Seguridad;
@@ -13,14 +15,17 @@ public class DocumentosTecnicosController : ControllerBase
 {
     private const int CincuentaMegabytesEnBytes = 50 * 1024 * 1024;
     private readonly ServicioDocumentosTecnicos _servicio;
+    private readonly ILogger<DocumentosTecnicosController> _logger;
 
-    public DocumentosTecnicosController(ServicioDocumentosTecnicos servicio)
+    public DocumentosTecnicosController(ServicioDocumentosTecnicos servicio,
+        ILogger<DocumentosTecnicosController> logger)
     {
         _servicio = servicio;
+        _logger = logger;
     }
 
-    [Authorize(Policy = Politicas.DocumentoConsultar)]
     [HttpGet]
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<ActionResult<PaginaDto<DocumentoTecnicoDto>>> ObtenerTodos(
         [FromQuery] FiltrosDocumentosTecnicosDto filtros, CancellationToken cancellationToken)
     {
@@ -29,53 +34,22 @@ public class DocumentosTecnicosController : ControllerBase
             return BadRequest(PaginaDto<DocumentoTecnicoDto>.ErrorDePaginacion());
         }
 
-        var textoBuscado = "";
-        if (!string.IsNullOrWhiteSpace(filtros.Buscar))
-        {
-            textoBuscado = filtros.Buscar.Trim().ToLower();
-        }
-
-        var respuesta = new List<DocumentoTecnicoDto>();
-        foreach (var documento in await _servicio.ListarAsync(cancellationToken))
-        {
-            if (textoBuscado != "")
-            {
-                var coincide = PaginaDto<DocumentoTecnicoDto>.Contiene(documento.NombreArchivo, textoBuscado)
-                               || PaginaDto<DocumentoTecnicoDto>.Contiene(documento.NombreActivo, textoBuscado);
-                if (!coincide)
-                {
-                    continue;
-                }
-            }
-
-            if (filtros.ActivoId is not null && documento.ActivoId != filtros.ActivoId)
-            {
-                continue;
-            }
-
-            respuesta.Add(documento);
-        }
-
-        return Ok(PaginaDto<DocumentoTecnicoDto>.Crear(respuesta, filtros.Pagina, filtros.TamanoPagina));
+        var (elementos, total) = await _servicio.ListarPaginaAsync(
+            filtros.Buscar, filtros.ActivoId, filtros.Pagina, filtros.TamanoPagina, cancellationToken);
+        return Ok(PaginaDto<DocumentoTecnicoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
-    [Authorize(Policy = Politicas.DocumentoConsultar)]
     [HttpGet("{id:long}")]
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<ActionResult<DocumentoTecnicoDto>> ObtenerPorId(long id, CancellationToken cancellationToken)
     {
-        foreach (var documento in await _servicio.ListarAsync(cancellationToken))
-        {
-            if (documento.Id == id)
-            {
-                return Ok(documento);
-            }
-        }
-
-        return NotFound();
+        var documento = await _servicio.ObtenerAsync(id, cancellationToken);
+        return documento is null ? NotFound() : Ok(documento);
     }
 
-    [Authorize(Policy = Politicas.DocumentoGestionar)]
     [HttpPost]
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
+    [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(CincuentaMegabytesEnBytes)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Crear(IFormFile archivo,
         [FromForm] bool usaSugerenciasIA, [FromForm] long? activoId,
@@ -105,16 +79,26 @@ public class DocumentosTecnicosController : ControllerBase
                 usaSugerenciasIA, contenido, cancellationToken);
             return CreatedAtAction(nameof(Descargar), new { id = documento.Id }, documento);
         }
-        catch (ArgumentException excepcion)
-        {
-            return BadRequest(new { codigo = "ACTIVO_NO_EXISTE", mensaje = excepcion.Message });
-        }
         catch (InvalidDataException excepcion)
         {
             return UnprocessableEntity(new { codigo = excepcion.Message, mensaje = "No se pudo leer el texto del PDF." });
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return StatusCode(499);
+        }
+        catch (Exception excepcion) when (excepcion is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogWarning(excepcion, "El servicio de IA (Ollama) no respondió al procesar un documento técnico");
+            return StatusCode(502, new
+            {
+                codigo = "SERVICIO_IA_NO_DISPONIBLE",
+                mensaje = "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde."
+            });
+        }
+        catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
+        {
+            _logger.LogError(excepcion, "Falló el procesamiento de un documento técnico");
             return StatusCode(502, new
             {
                 codigo = "PROCESAMIENTO_FALLIDO",
@@ -123,8 +107,8 @@ public class DocumentosTecnicosController : ControllerBase
         }
     }
 
-    [Authorize(Policy = Politicas.DocumentoConsultar)]
     [HttpGet("{id:long}/archivo")]
+    [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<IActionResult> Descargar(long id, CancellationToken cancellationToken)
     {
         var documento = await _servicio.ObtenerArchivoAsync(id, cancellationToken);
@@ -136,8 +120,8 @@ public class DocumentosTecnicosController : ControllerBase
         return File(documento.Contenido, "application/pdf", documento.NombreArchivo);
     }
 
-    [Authorize(Policy = Politicas.DocumentoGestionar)]
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
     public async Task<IActionResult> Eliminar(long id, CancellationToken cancellationToken)
     {
         try
@@ -149,8 +133,9 @@ public class DocumentosTecnicosController : ControllerBase
 
             return NoContent();
         }
-        catch (Exception)
+        catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
         {
+            _logger.LogError(excepcion, "Falló el borrado del documento técnico {DocumentoId}", id);
             return StatusCode(502, new
             {
                 codigo = "BORRADO_FALLIDO",

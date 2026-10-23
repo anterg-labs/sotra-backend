@@ -24,14 +24,15 @@ public static class AlcancePorRol
         return usuario.Identity?.IsAuthenticated != true || usuario.IsInRole(Roles.Administrador);
     }
 
-    public static bool PuedeVerOrden(this ClaimsPrincipal usuario, OrdenTrabajo orden, UsuarioActual usuarioActual)
+    public static async Task<bool> PuedeVerOrdenAsync(this ClaimsPrincipal usuario, OrdenTrabajo orden,
+        UsuarioActual usuarioActual, CancellationToken cancelacion)
     {
         if (!usuario.EsSoloTecnico())
         {
             return true;
         }
 
-        var idUsuario = usuarioActual.ObtenerIdUsuario();
+        var idUsuario = await usuarioActual.ObtenerIdUsuarioAsync(cancelacion);
         return idUsuario is not null && orden.IdUsuarioTecnico == idUsuario;
     }
 }

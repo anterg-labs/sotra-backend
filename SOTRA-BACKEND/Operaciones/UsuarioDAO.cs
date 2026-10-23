@@ -18,78 +18,109 @@ public class UsuarioDAO
         _contexto = contexto;
     }
 
-    public List<Usuario> ListarTodo()
+    public async Task<List<Usuario>> ListarTodoAsync(CancellationToken cancelacion)
     {
-        return _contexto.Usuarios
+        return await _contexto.Usuarios
             .Include(u => u.IdRols)
             .OrderBy(u => u.IdUsuario)
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 
-    public Usuario? SeleccionarUsuario(long id)
+    public async Task<(List<Usuario> Elementos, int Total)> ListarPaginaAsync(
+        FiltroUsuarios filtro, int pagina, int tamanoPagina, CancellationToken cancelacion)
     {
-        return _contexto.Usuarios
+        var consulta = _contexto.Usuarios.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(u => EF.Functions.ILike(u.Nombre + " " + u.Apellido, patron)
+                                           || EF.Functions.ILike(u.Mail, patron));
+        }
+
+        if (filtro.RolId is { } rolId)
+        {
+            consulta = consulta.Where(u => u.IdRols.Any(rol => rol.IdRol == rolId));
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(u => u.Estado == estado);
+        }
+
+        var ordenada = filtro.Descendente
+            ? consulta.OrderByDescending(u => u.IdUsuario)
+            : consulta.OrderBy(u => u.IdUsuario);
+
+        return await ConsultasDeTexto.PaginarAsync(ordenada.Include(u => u.IdRols), pagina, tamanoPagina, cancelacion);
+    }
+
+    public async Task<Usuario?> SeleccionarUsuarioAsync(long id, CancellationToken cancelacion)
+    {
+        return await _contexto.Usuarios
             .Include(u => u.IdRols)
-            .FirstOrDefault(u => u.IdUsuario == id);
+            .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
     }
 
     // Permite que el alta, la modificación y la baja confirmen la base solo si Keycloak
     // también aceptó el cambio.
-    public IDbContextTransaction IniciarTransaccion()
+    public async Task<IDbContextTransaction> IniciarTransaccionAsync(CancellationToken cancelacion)
     {
-        return _contexto.Database.BeginTransaction();
+        return await _contexto.Database.BeginTransactionAsync(cancelacion);
     }
 
-    public void GuardarIdKeycloak(long idUsuario, Guid idKeycloak)
+    public async Task GuardarIdKeycloakAsync(long idUsuario, Guid idKeycloak, CancellationToken cancelacion)
     {
-        var usuario = _contexto.Usuarios.First(u => u.IdUsuario == idUsuario);
+        var usuario = await _contexto.Usuarios.FirstAsync(u => u.IdUsuario == idUsuario, cancelacion);
         usuario.IdKeycloak = idKeycloak;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
     }
 
     // Busca el usuario de SOTRA vinculado a un usuario de Keycloak. Si todavía no hay
     // ninguno, vincula al usuario sin vincular que tenga el mismo correo.
-    public Usuario? SeleccionarOVincularPorKeycloak(Guid idKeycloak, string? correo)
+    public async Task<Usuario?> SeleccionarOVincularPorKeycloakAsync(
+        Guid idKeycloak, string? correo, CancellationToken cancelacion)
     {
-        var usuario = _contexto.Usuarios.FirstOrDefault(u => u.IdKeycloak == idKeycloak);
+        var usuario = await _contexto.Usuarios.FirstOrDefaultAsync(u => u.IdKeycloak == idKeycloak, cancelacion);
         if (usuario is not null || string.IsNullOrWhiteSpace(correo))
         {
             return usuario;
         }
 
         var correoNormalizado = correo.Trim().ToLower();
-        usuario = _contexto.Usuarios
-            .FirstOrDefault(u => u.IdKeycloak == null && u.Mail.ToLower() == correoNormalizado);
+        usuario = await _contexto.Usuarios
+            .FirstOrDefaultAsync(u => u.IdKeycloak == null && u.Mail.ToLower() == correoNormalizado, cancelacion);
         if (usuario is null)
         {
             return null;
         }
 
         usuario.IdKeycloak = idKeycloak;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return usuario;
     }
 
-    public Usuario InsertarUsuario(Usuario usuario, IEnumerable<long>? idsRol)
+    public async Task<Usuario> InsertarUsuarioAsync(Usuario usuario, IEnumerable<long>? idsRol, CancellationToken cancelacion)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
 
-        var rolesValidos = ObtenerRolesValidos(idsRolNormalizados);
+        var rolesValidos = await ObtenerRolesValidosAsync(idsRolNormalizados, cancelacion);
         usuario.IdRols = rolesValidos;
         _contexto.Usuarios.Add(usuario);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return usuario;
     }
 
-    public bool ActualizarUsuario(Usuario usuario, IEnumerable<long>? idsRol)
+    public async Task<bool> ActualizarUsuarioAsync(
+        Usuario usuario, IEnumerable<long>? idsRol, CancellationToken cancelacion)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
-        var usuarioExistente = _contexto.Usuarios.Include(u => u.IdRols)
-            .FirstOrDefault(u => u.IdUsuario == usuario.IdUsuario);
+        var usuarioExistente = await _contexto.Usuarios.Include(u => u.IdRols)
+            .FirstOrDefaultAsync(u => u.IdUsuario == usuario.IdUsuario, cancelacion);
         if (usuarioExistente is null) return false;
 
-        var rolesAAgregar = ObtenerRolesValidos(idsRolNormalizados
-            .Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList());
+        var rolesAAgregar = await ObtenerRolesValidosAsync(
+            idsRolNormalizados.Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList(), cancelacion);
         usuarioExistente.Nombre = usuario.Nombre;
         usuarioExistente.Apellido = usuario.Apellido;
         usuarioExistente.Mail = usuario.Mail;
@@ -100,14 +131,14 @@ public class UsuarioDAO
         foreach (var rol in usuarioExistente.IdRols.Where(r => !idsRolNormalizados.Contains(r.IdRol)).ToList())
             usuarioExistente.IdRols.Remove(rol);
         foreach (var rol in rolesAAgregar) usuarioExistente.IdRols.Add(rol);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool DarBajaLogicaUsuario(long id)
+    public async Task<bool> DarBajaLogicaUsuarioAsync(long id, CancellationToken cancelacion)
     {
-        var usuarioExistente = _contexto.Usuarios
-            .FirstOrDefault(u => u.IdUsuario == id);
+        var usuarioExistente = await _contexto.Usuarios
+            .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
 
         if (usuarioExistente is null)
         {
@@ -120,15 +151,15 @@ public class UsuarioDAO
         }
 
         usuarioExistente.Estado = false;
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
-    public bool EliminarUsuario(long id)
+    public async Task<bool> EliminarUsuarioAsync(long id, CancellationToken cancelacion)
     {
-        var usuarioExistente = _contexto.Usuarios
+        var usuarioExistente = await _contexto.Usuarios
             .Include(u => u.IdRols)
-            .FirstOrDefault(u => u.IdUsuario == id);
+            .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
 
         if (usuarioExistente is null)
         {
@@ -137,7 +168,7 @@ public class UsuarioDAO
 
         usuarioExistente.IdRols.Clear();
         _contexto.Usuarios.Remove(usuarioExistente);
-        _contexto.SaveChanges();
+        await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }
 
@@ -150,32 +181,32 @@ public class UsuarioDAO
 
         var ids = idsRol.ToList();
         if (ids.Any(id => id <= 0))
-            throw new ArgumentException("Los ids de rol deben ser positivos.");
+            throw new ValidacionDeNegocioException("Los ids de rol deben ser positivos.");
         return ids.Distinct().ToList();
     }
 
-    private List<Rol> ObtenerRolesValidos(IReadOnlyCollection<long> idsRol)
+    private async Task<List<Rol>> ObtenerRolesValidosAsync(IReadOnlyCollection<long> idsRol, CancellationToken cancelacion)
     {
         if (idsRol.Count == 0)
         {
             return new List<Rol>();
         }
 
-        var rolesEncontrados = _contexto.Rols
+        var rolesEncontrados = await _contexto.Rols
             .Where(r => idsRol.Contains(r.IdRol))
-            .ToList();
+            .ToListAsync(cancelacion);
 
         var idsEncontrados = rolesEncontrados.Select(r => r.IdRol).ToHashSet();
         var idsInexistentes = idsRol.Where(id => !idsEncontrados.Contains(id)).ToList();
         if (idsInexistentes.Count > 0)
         {
-            throw new ArgumentException($"Los siguientes roles no existen: {string.Join(", ", idsInexistentes)}");
+            throw new ValidacionDeNegocioException($"Los siguientes roles no existen: {string.Join(", ", idsInexistentes)}");
         }
 
         var idsInactivos = rolesEncontrados.Where(r => !r.Activo).Select(r => r.IdRol).ToList();
         if (idsInactivos.Count > 0)
         {
-            throw new ArgumentException($"Los siguientes roles estan inactivos: {string.Join(", ", idsInactivos)}");
+            throw new ValidacionDeNegocioException($"Los siguientes roles estan inactivos: {string.Join(", ", idsInactivos)}");
         }
 
         return rolesEncontrados;

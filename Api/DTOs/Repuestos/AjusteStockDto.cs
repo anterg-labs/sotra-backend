@@ -1,9 +1,14 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Api.DTOs.Repuestos;
 
 public class AjusteStockDto
 {
-    // Stock real contado en el depósito; el movimiento registra la diferencia con el stock anterior.
+    /// <summary>Stock real contado; el sistema calcula la diferencia con el stock registrado.</summary>
     public int CantidadReal { get; init; }
+
+    [MaxLength(200)]
     public string? Motivo { get; init; }
+
     public string? Observaciones { get; init; }
 }

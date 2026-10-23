@@ -7,12 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.20.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.0" />
     <PackageReference Include="PdfPig" Version="0.1.11" />
     <PackageReference Include="Pgvector" Version="0.3.2" />
     <PackageReference Include="QuestPDF" Version="2026.9.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
     <PackageReference Include="Tokenizers.DotNet" Version="1.4.1" />
     <PackageReference Include="Tokenizers.DotNet.runtime.linux-x64" Version="1.4.1" />
   </ItemGroup>
@@ -24,6 +31,7 @@
   <ItemGroup>
     <Content Remove="..\version.json" />
     <Content Include="..\version.json" Link="version.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Watch Include="..\version.json" />
   </ItemGroup>
 
 </Project>

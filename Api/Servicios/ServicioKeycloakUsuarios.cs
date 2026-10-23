@@ -18,6 +18,7 @@ public record DatosUsuarioKeycloak(string Correo, string Nombre, string Apellido
 // Gestiona los usuarios del realm sotra con la API de administración de Keycloak.
 // Se autentica como la cuenta de servicio de sotra-backend-admin, que solo puede
 // gestionar usuarios (manage-users y view-users de realm-management).
+// Los métodos son virtuales para que las pruebas de integración lo reemplacen sin Keycloak.
 public class ServicioKeycloakUsuarios
 {
     private const string AccionCambiarContrasena = "UPDATE_PASSWORD";
@@ -42,7 +43,7 @@ public class ServicioKeycloakUsuarios
 
     // Crea el usuario sin contraseña y marcado para que la elija en el primer ingreso.
     // Si ya existe un usuario con ese correo, devuelve el existente y Creado = false.
-    public async Task<(Guid Id, bool Creado)> CrearOObtenerAsync(DatosUsuarioKeycloak datos,
+    public virtual async Task<(Guid Id, bool Creado)> CrearOObtenerAsync(DatosUsuarioKeycloak datos,
         CancellationToken cancellationToken)
     {
         var existente = await BuscarPorCorreoAsync(datos.Correo, cancellationToken);
@@ -74,7 +75,7 @@ public class ServicioKeycloakUsuarios
         return (id, true);
     }
 
-    public async Task ActualizarAsync(Guid id, DatosUsuarioKeycloak datos, CancellationToken cancellationToken)
+    public virtual async Task ActualizarAsync(Guid id, DatosUsuarioKeycloak datos, CancellationToken cancellationToken)
     {
         // Con "email como usuario" el nombre de usuario debe seguir al correo.
         var cuerpo = new
@@ -92,7 +93,7 @@ public class ServicioKeycloakUsuarios
 
     // Deja en Keycloak exactamente estos roles de SOTRA. Los roles propios de Keycloak
     // (default-roles-sotra, etc.) no se tocan.
-    public async Task ReemplazarRolesAsync(Guid id, IEnumerable<string> rolesDeseados,
+    public virtual async Task ReemplazarRolesAsync(Guid id, IEnumerable<string> rolesDeseados,
         CancellationToken cancellationToken)
     {
         var deseados = rolesDeseados.Where(RolesDeSotra.Contains).ToHashSet();
@@ -133,7 +134,7 @@ public class ServicioKeycloakUsuarios
 
     // Envía el correo con el enlace para elegir una contraseña nueva. Al terminar, el
     // usuario vuelve al frontend.
-    public async Task EnviarCorreoParaElegirContrasenaAsync(Guid id, CancellationToken cancellationToken)
+    public virtual async Task EnviarCorreoParaElegirContrasenaAsync(Guid id, CancellationToken cancellationToken)
     {
         var parametros = $"lifespan={SegundosDeValidezDelCorreoDeContrasena}";
         var clienteFrontend = Environment.GetEnvironmentVariable("KEYCLOAK_CLIENTE_FRONTEND");
@@ -149,7 +150,7 @@ public class ServicioKeycloakUsuarios
         await VerificarAsync(respuesta, "enviar el correo para elegir la contraseña");
     }
 
-    public async Task CerrarSesionesAsync(Guid id, CancellationToken cancellationToken)
+    public virtual async Task CerrarSesionesAsync(Guid id, CancellationToken cancellationToken)
     {
         using var respuesta = await EnviarAsync(HttpMethod.Post, $"users/{id}/logout", null, cancellationToken);
         await VerificarAsync(respuesta, "cerrar las sesiones del usuario");
@@ -157,7 +158,7 @@ public class ServicioKeycloakUsuarios
 
     // Se usa para deshacer un alta cuando falla la base. No lanza excepción: si no se
     // puede borrar, lo deja registrado en el log.
-    public async Task EliminarSinErrorAsync(Guid id, CancellationToken cancellationToken)
+    public virtual async Task EliminarSinErrorAsync(Guid id, CancellationToken cancellationToken)
     {
         try
         {

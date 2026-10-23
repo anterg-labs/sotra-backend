@@ -6,19 +6,34 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-      KC_DB_USERNAME: ${KC_DB_USERNAME}
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
     ports:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./database/init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  db-datos:
+    image: pgvector/pgvector:pg18
+    container_name: sotra-db-datos
+    environment:
+      PGHOST: db
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: ${DB_NAME}
+      KC_DB_USERNAME: ${KC_DB_USERNAME}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+    volumes:
+      - ./database/init:/datos:ro
+    entrypoint: ["sh", "/datos/cargar-datos.sh"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
 
   backend:
     build:
@@ -55,8 +70,8 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      db-datos:
+        condition: service_completed_successfully
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4
@@ -87,10 +102,11 @@ services:
       - "${KC_PORT}:8080"
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      # db-datos crea el usuario y el esquema keycloak antes de que arranque.
+      db-datos:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q UP <&3"]
       interval: 10s
       timeout: 5s
       retries: 30

@@ -39,6 +39,8 @@ public static class Politicas
     public const string StockRegistrarMovimiento = "stock.registrar_movimiento";
 
     public const string ReporteConsultar = "reporte.consultar";
+
+    public const string TerminosAdministrar = "terminos.administrar";
 }
 
 // Roles del realm sotra de Keycloak.
@@ -111,7 +113,9 @@ public static class PoliticasDeAcceso
         [Politicas.RepuestoGestionar] = [Roles.Administrador, Roles.Panolero],
         [Politicas.StockRegistrarMovimiento] = [Roles.Administrador, Roles.Panolero],
 
-        [Politicas.ReporteConsultar] = [Roles.Administrador, Roles.JefeMantenimiento]
+        [Politicas.ReporteConsultar] = [Roles.Administrador, Roles.JefeMantenimiento],
+
+        [Politicas.TerminosAdministrar] = [Roles.Administrador]
     };
 
     // Con AUTH_OBLIGATORIA=false la API no exige token en los endpoints con política,

@@ -37,6 +37,10 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<EvidenciaOt> EvidenciasOt { get; set; }
 
+    public virtual DbSet<TerminosCondiciones> TerminosCondiciones { get; set; }
+
+    public virtual DbSet<AceptacionTerminos> AceptacionesTerminos { get; set; }
+
 
     public virtual DbSet<OrdenTrabajo> OrdenTrabajos { get; set; }
 
@@ -305,6 +309,35 @@ public partial class SotraContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("tipo_contenido");
             entity.Property(e => e.Archivo).HasColumnName("archivo");
+        });
+
+        modelBuilder.Entity<TerminosCondiciones>(entity =>
+        {
+            entity.HasKey(e => e.IdTerminos);
+
+            entity.ToTable("terminos_condiciones", EsquemaOperativo,
+                tabla => tabla.HasCheckConstraint("CK_TERMINOS_SIEMPRE_VIGENTE", "vigente"));
+
+            entity.Property(e => e.IdTerminos).ValueGeneratedOnAdd().HasColumnName("id_terminos");
+            entity.Property(e => e.Version).HasColumnName("version");
+            entity.Property(e => e.Titulo).HasMaxLength(200).HasColumnName("titulo");
+            entity.Property(e => e.Texto).HasColumnName("texto");
+            entity.Property(e => e.DatosAlmacenados).HasColumnName("datos_almacenados");
+            entity.Property(e => e.Vigente).HasColumnName("vigente");
+            entity.Property(e => e.CreadoEn).HasDefaultValueSql("now()").HasColumnName("creado_en");
+            entity.Property(e => e.IdUsuarioAutor).HasColumnName("id_usuario_autor");
+        });
+
+        modelBuilder.Entity<AceptacionTerminos>(entity =>
+        {
+            entity.HasKey(e => e.IdAceptacion);
+
+            entity.ToTable("aceptacion_terminos", EsquemaOperativo);
+
+            entity.Property(e => e.IdAceptacion).ValueGeneratedOnAdd().HasColumnName("id_aceptacion");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.IdTerminos).HasColumnName("id_terminos");
+            entity.Property(e => e.AceptadoEn).HasDefaultValueSql("now()").HasColumnName("aceptado_en");
         });
 
         modelBuilder.Entity<MovimientoStock>(entity =>

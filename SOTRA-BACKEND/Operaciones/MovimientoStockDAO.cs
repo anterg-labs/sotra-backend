@@ -13,76 +13,176 @@ public class MovimientoStockDAO
         _contexto = contexto;
     }
 
-    public List<MovimientoStock> ListarTodo()
+    public async Task<List<MovimientoStock>> ListarTodoAsync(CancellationToken cancelacion)
     {
-        return _contexto.MovimientoStocks
+        return await _contexto.MovimientoStocks
             .AsNoTracking()
             .Include(movimiento => movimiento.IdRepuestoNavigation)
             .Include(movimiento => movimiento.IdUsuarioNavigation)
             .OrderByDescending(movimiento => movimiento.Fecha)
             .ThenByDescending(movimiento => movimiento.IdMovimiento)
-            .ToList();
+            .ToListAsync(cancelacion);
     }
 
-    public MovimientoStock? Seleccionar(long id)
+    public async Task<(List<MovimientoStock> Elementos, int Total)> ListarPaginaAsync(
+        FiltroMovimientosStock filtro, int pagina, int tamanoPagina, CancellationToken cancelacion)
     {
-        return _contexto.MovimientoStocks
+        var consulta = _contexto.MovimientoStocks.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro.Buscar))
+        {
+            var patron = ConsultasDeTexto.PatronContiene(filtro.Buscar);
+            consulta = consulta.Where(m => EF.Functions.ILike(m.IdRepuestoNavigation.Codigo, patron)
+                                           || EF.Functions.ILike(m.IdRepuestoNavigation.Nombre, patron)
+                                           || (m.Motivo != null && EF.Functions.ILike(m.Motivo, patron)));
+        }
+
+        if (filtro.RepuestoId is { } repuestoId)
+        {
+            consulta = consulta.Where(m => m.IdRepuesto == repuestoId);
+        }
+
+        if (!string.IsNullOrEmpty(filtro.Tipo))
+        {
+            consulta = consulta.Where(m => m.Tipo == filtro.Tipo);
+        }
+
+        if (filtro.FechaDesde is { } desde)
+        {
+            var inicio = desde.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            consulta = consulta.Where(m => m.Fecha >= inicio);
+        }
+
+        if (filtro.FechaHasta is { } hasta)
+        {
+            var finExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            consulta = consulta.Where(m => m.Fecha < finExclusivo);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Ubicacion))
+        {
+            var patronUbicacion = ConsultasDeTexto.PatronContiene(filtro.Ubicacion);
+            consulta = consulta.Where(m => m.Ubicacion != null && EF.Functions.ILike(m.Ubicacion, patronUbicacion));
+        }
+
+        if (filtro.UsuarioId is { } usuarioId)
+        {
+            consulta = consulta.Where(m => m.IdUsuario == usuarioId);
+        }
+
+        var ordenada = consulta
+            .Include(m => m.IdRepuestoNavigation)
+            .Include(m => m.IdUsuarioNavigation)
+            .OrderByDescending(m => m.Fecha)
+            .ThenByDescending(m => m.IdMovimiento);
+
+        return await ConsultasDeTexto.PaginarAsync(ordenada, pagina, tamanoPagina, cancelacion);
+    }
+
+    public async Task<MovimientoStock?> SeleccionarAsync(long id, CancellationToken cancelacion)
+    {
+        return await _contexto.MovimientoStocks
             .AsNoTracking()
             .Include(movimiento => movimiento.IdRepuestoNavigation)
             .Include(movimiento => movimiento.IdUsuarioNavigation)
-            .FirstOrDefault(movimiento => movimiento.IdMovimiento == id);
+            .FirstOrDefaultAsync(movimiento => movimiento.IdMovimiento == id, cancelacion);
     }
 
-    public MovimientoStock RegistrarIngreso(Repuesto repuesto, int cantidad, DateTime fecha, string motivo,
-        string ubicacion, string? observaciones, long? idUsuario)
+    /// <summary>
+    /// Aplica un movimiento de stock de forma atómica: bloquea la fila del repuesto, valida y registra el
+    /// movimiento con el stock anterior y posterior. El bloqueo evita que dos movimientos simultáneos se pisen.
+    /// </summary>
+    public async Task<ResultadoMovimientoStock> RegistrarAsync(SolicitudMovimientoStock solicitud, CancellationToken cancelacion)
     {
-        return Registrar(repuesto, "ingreso", cantidad, repuesto.Cantidad + cantidad, fecha, motivo, ubicacion,
-            observaciones, idUsuario);
-    }
+        await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
 
-    // El controlador ya verificó que la cantidad no supera el stock disponible.
-    public MovimientoStock RegistrarEgreso(Repuesto repuesto, int cantidad, DateTime fecha, string motivo,
-        string ubicacion, string? observaciones, long? idUsuario)
-    {
-        return Registrar(repuesto, "egreso", cantidad, repuesto.Cantidad - cantidad, fecha, motivo, ubicacion,
-            observaciones, idUsuario);
-    }
+        var repuesto = await _contexto.Repuestos
+            .FromSqlInterpolated($"SELECT * FROM operativo.repuesto WHERE id_repuesto = {solicitud.RepuestoId} FOR UPDATE")
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancelacion);
 
-    // El ajuste fija el stock real contado; la cantidad del movimiento es la diferencia (en valor absoluto).
-    public MovimientoStock RegistrarAjuste(Repuesto repuesto, int cantidadReal, DateTime fecha, string motivo,
-        string ubicacion, string? observaciones, long? idUsuario)
-    {
-        return Registrar(repuesto, "ajuste", Math.Abs(cantidadReal - repuesto.Cantidad), cantidadReal, fecha, motivo,
-            ubicacion, observaciones, idUsuario);
-    }
+        if (repuesto is null)
+        {
+            return ResultadoMovimientoStock.Fallo(EstadoMovimientoStock.RepuestoNoEncontrado);
+        }
 
-    private MovimientoStock Registrar(Repuesto repuesto, string tipo, int cantidad, int stockPosterior, DateTime fecha,
-        string motivo, string ubicacion, string? observaciones, long? idUsuario)
-    {
-        using var transaccion = _contexto.Database.BeginTransaction();
+        if (!repuesto.Estado)
+        {
+            return ResultadoMovimientoStock.Fallo(EstadoMovimientoStock.RepuestoInactivo);
+        }
 
         var stockAnterior = repuesto.Cantidad;
-        repuesto.Cantidad = stockPosterior;
+        var stockPosterior = solicitud.Tipo switch
+        {
+            TiposMovimientoStock.Ingreso => (long)stockAnterior + solicitud.Cantidad,
+            TiposMovimientoStock.Egreso => (long)stockAnterior - solicitud.Cantidad,
+            _ => solicitud.Cantidad,
+        };
+
+        if (stockPosterior < 0)
+        {
+            return ResultadoMovimientoStock.Fallo(EstadoMovimientoStock.StockInsuficiente);
+        }
+
+        if (stockPosterior > int.MaxValue)
+        {
+            return ResultadoMovimientoStock.Fallo(EstadoMovimientoStock.StockExcedido);
+        }
+
+        await _contexto.Repuestos
+            .Where(r => r.IdRepuesto == solicitud.RepuestoId)
+            .ExecuteUpdateAsync(cambios => cambios.SetProperty(r => r.Cantidad, (int)stockPosterior), cancelacion);
 
         var movimiento = new MovimientoStock
         {
             Estado = true,
-            Tipo = tipo,
-            Fecha = fecha,
-            Cantidad = cantidad,
-            IdRepuesto = repuesto.IdRepuesto,
-            IdUsuario = idUsuario,
-            Motivo = motivo,
-            Ubicacion = ubicacion,
-            Observaciones = observaciones,
+            Tipo = solicitud.Tipo,
+            Fecha = solicitud.Fecha,
+            Cantidad = solicitud.Tipo == TiposMovimientoStock.Ajuste
+                ? (int)stockPosterior - stockAnterior
+                : solicitud.Cantidad,
+            IdRepuesto = solicitud.RepuestoId,
+            IdUsuario = solicitud.IdUsuario,
+            Motivo = solicitud.Motivo,
+            Ubicacion = solicitud.Ubicacion ?? repuesto.Ubicacion,
+            Observaciones = solicitud.Observaciones,
             StockAnterior = stockAnterior,
-            StockPosterior = stockPosterior
+            StockPosterior = (int)stockPosterior,
         };
 
         _contexto.MovimientoStocks.Add(movimiento);
-        _contexto.SaveChanges();
-        transaccion.Commit();
+        await _contexto.SaveChangesAsync(cancelacion);
+        await transaccion.CommitAsync(cancelacion);
 
-        return Seleccionar(movimiento.IdMovimiento)!;
+        return ResultadoMovimientoStock.Exito((await SeleccionarAsync(movimiento.IdMovimiento, cancelacion))!);
     }
+}
+
+public static class TiposMovimientoStock
+{
+    public const string Ingreso = "ingreso";
+    public const string Egreso = "egreso";
+    public const string Ajuste = "ajuste";
+}
+
+/// <param name="Cantidad">Unidades a sumar o restar; en un ajuste es el stock real contado.</param>
+/// <param name="IdUsuario">Quién registra el movimiento; null si el pedido no trae token (AUTH_OBLIGATORIA=false).</param>
+public sealed record SolicitudMovimientoStock(
+    long RepuestoId, string Tipo, int Cantidad, DateTime Fecha, string Motivo, string? Ubicacion, string? Observaciones,
+    long? IdUsuario = null);
+
+public enum EstadoMovimientoStock
+{
+    Registrado,
+    RepuestoNoEncontrado,
+    RepuestoInactivo,
+    StockInsuficiente,
+    StockExcedido,
+}
+
+public sealed record ResultadoMovimientoStock(EstadoMovimientoStock Estado, MovimientoStock? Movimiento)
+{
+    public static ResultadoMovimientoStock Exito(MovimientoStock movimiento) => new(EstadoMovimientoStock.Registrado, movimiento);
+
+    public static ResultadoMovimientoStock Fallo(EstadoMovimientoStock estado) => new(estado, null);
 }
