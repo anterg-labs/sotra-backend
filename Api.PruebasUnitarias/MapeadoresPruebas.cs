@@ -152,30 +152,22 @@ public class MapeadoresPruebas
     }
 
     [Test]
-    public void Activo_AplicarCambios_SinCamposNoTocaNada()
+    public void Activo_AplicarCambios_SinCamposObligatoriosLanzaArgumentException()
     {
         var activo = ActivoBase();
 
-        ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto());
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(activo.IdCliente, Is.EqualTo(2));
-            Assert.That(activo.NumSerie, Is.EqualTo("SN-1"));
-            Assert.That(activo.Nombre, Is.EqualTo("Torno"));
-            Assert.That(activo.Estado, Is.True);
-        });
+        Assert.Throws<ArgumentException>(() => ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto()));
     }
 
     [Test]
-    public void Activo_AplicarCambios_IgnoraTextosEnBlancoYAplicaLosDemas()
+    public void Activo_AplicarCambios_ReemplazaLosCamposCompletos()
     {
         var activo = ActivoBase();
 
         ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto
         {
             ClienteId = 20,
-            NumSerie = "  ",
+            NumSerie = "SN-2",
             Nombre = "Fresa",
             ModeloMaquinaId = 30,
             AnioFabricacion = 2024,
@@ -185,7 +177,7 @@ public class MapeadoresPruebas
         Assert.Multiple(() =>
         {
             Assert.That(activo.IdCliente, Is.EqualTo(20));
-            Assert.That(activo.NumSerie, Is.EqualTo("SN-1"));
+            Assert.That(activo.NumSerie, Is.EqualTo("SN-2"));
             Assert.That(activo.Nombre, Is.EqualTo("Fresa"));
             Assert.That(activo.IdModeloMaquina, Is.EqualTo(30));
             Assert.That(activo.AnioFabricacion, Is.EqualTo((short)2024));
@@ -199,7 +191,13 @@ public class MapeadoresPruebas
         var activo = ActivoBase();
         activo.Estado = false;
 
-        ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto { Estado = "activo" });
+        ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto
+        {
+            ClienteId = activo.IdCliente,
+            NumSerie = activo.NumSerie,
+            ModeloMaquinaId = activo.IdModeloMaquina,
+            Estado = "activo",
+        });
 
         Assert.That(activo.Estado, Is.True);
     }

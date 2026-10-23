@@ -135,7 +135,7 @@ public class ClientesPruebas : PruebaBase
     {
         var cliente = await DatosDePrueba.CrearClienteAsync(Cliente);
         var id = cliente.GetProperty("id").GetInt64();
-        var datos = new { razonSocial = "Renombrada " + DatosDePrueba.Sufijo(), nombreContacto = "Otro contacto" };
+        var datos = DatosDePrueba.ClienteNuevo(razonSocial: "Renombrada " + DatosDePrueba.Sufijo(), nombreContacto: "Otro contacto");
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/clientes/" + id, datos);
 
@@ -147,7 +147,7 @@ public class ClientesPruebas : PruebaBase
     [Test]
     public async Task ActualizarClienteInexistenteResponde404()
     {
-        var datos = new { razonSocial = "X " + DatosDePrueba.Sufijo(), nombreContacto = "Y" };
+        var datos = DatosDePrueba.ClienteNuevo(razonSocial: "X " + DatosDePrueba.Sufijo(), nombreContacto: "Y");
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/clientes/999999999", datos);
 
@@ -159,11 +159,7 @@ public class ClientesPruebas : PruebaBase
     {
         var primero = await DatosDePrueba.CrearClienteAsync(Cliente);
         var segundo = await DatosDePrueba.CrearClienteAsync(Cliente);
-        var datos = new
-        {
-            razonSocial = primero.GetProperty("razonSocial").GetString(),
-            nombreContacto = "Contacto",
-        };
+        var datos = DatosDePrueba.ClienteNuevo(razonSocial: primero.GetProperty("razonSocial").GetString(), nombreContacto: "Contacto");
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/clientes/" + segundo.GetProperty("id").GetInt64(), datos);
 

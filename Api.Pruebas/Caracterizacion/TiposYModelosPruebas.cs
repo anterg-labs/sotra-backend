@@ -84,7 +84,7 @@ public class TiposYModelosPruebas : PruebaBase
         var id = tipo.GetProperty("id").GetInt64();
         var nuevoNombre = "Renombrado " + DatosDePrueba.Sufijo();
 
-        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/tipos-maquina/" + id, new { nombre = nuevoNombre });
+        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/tipos-maquina/" + id, new { nombre = nuevoNombre, estado = "activo" });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That((await respuesta.LeerJsonAsync()).GetProperty("nombre").GetString(), Is.EqualTo(nuevoNombre));
@@ -93,7 +93,7 @@ public class TiposYModelosPruebas : PruebaBase
     [Test]
     public async Task ActualizarTipoInexistenteResponde404()
     {
-        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/tipos-maquina/999999999", new { nombre = "X" });
+        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/tipos-maquina/999999999", new { nombre = "X", estado = "activo" });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
@@ -201,7 +201,7 @@ public class TiposYModelosPruebas : PruebaBase
         var tipo = await DatosDePrueba.CrearTipoMaquinaAsync(Cliente);
         var tipoId = tipo.GetProperty("id").GetInt64();
         var modelo = await DatosDePrueba.CrearModeloMaquinaAsync(Cliente, tipoId);
-        var datos = new { nombre = "Nuevo " + DatosDePrueba.Sufijo(), tipoMaquinaId = tipoId, descripcion = "Otra descripción" };
+        var datos = new { nombre = "Nuevo " + DatosDePrueba.Sufijo(), tipoMaquinaId = tipoId, descripcion = "Otra descripción", estado = "activo" };
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/modelos-maquina/" + modelo.GetProperty("id").GetInt64(), datos);
 
@@ -212,7 +212,7 @@ public class TiposYModelosPruebas : PruebaBase
     [Test]
     public async Task ActualizarModeloInexistenteResponde404()
     {
-        var datos = new { nombre = "X", tipoMaquinaId = 1L };
+        var datos = new { nombre = "X", tipoMaquinaId = 1L, descripcion = (string?)null, estado = "activo" };
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/modelos-maquina/999999999", datos);
 

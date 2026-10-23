@@ -322,6 +322,9 @@ public class StockPruebas : PruebaBase
             nombre = "Nombre nuevo",
             cantidad = 999,
             cantidadMinima = 4,
+            descripcion = (string?)null,
+            marca = (string?)null,
+            ubicacion = (string?)null,
         });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
