@@ -124,12 +124,13 @@ public class UsuariosController : ControllerBase
             await _usuarioDao.GuardarIdKeycloakAsync(usuarioCreado.IdUsuario, idKeycloak, cancelacion);
             await transaccion.CommitAsync(cancelacion);
 
+            bool? correoEnviado = null;
             if (creado)
             {
-                await EnviarCorreoDeContrasenaSinErrorAsync(idKeycloak, cancelacion);
+                correoEnviado = await EnviarCorreoDeContrasenaAsync(idKeycloak, cancelacion);
             }
 
-            var respuesta = UsuarioMapeador.AListadoDto(usuarioCreado);
+            var respuesta = UsuarioMapeador.AListadoDto(usuarioCreado, 0, correoEnviado);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = usuarioCreado.IdUsuario }, respuesta);
         }
         catch (ExcepcionKeycloak excepcion)
@@ -256,6 +257,15 @@ public class UsuariosController : ControllerBase
             await _keycloak.EnviarCorreoParaElegirContrasenaAsync(idKeycloak, cancelacion);
             return NoContent();
         }
+        catch (ExcepcionCorreoNoEnviado excepcion)
+        {
+            _registro.LogError(excepcion, "No se pudo enviar el correo para modificar la contraseña de {IdKeycloak}.", idKeycloak);
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                codigo = "CORREO_NO_ENVIADO",
+                mensaje = "No se pudo enviar el correo. Revisá la configuración del correo (SMTP) de Keycloak."
+            });
+        }
         catch (ExcepcionKeycloak excepcion)
         {
             return ErrorDeKeycloak(excepcion);
@@ -281,11 +291,12 @@ public class UsuariosController : ControllerBase
         }
     }
 
-    private async Task EnviarCorreoDeContrasenaSinErrorAsync(Guid idKeycloak, CancellationToken cancelacion)
+    private async Task<bool> EnviarCorreoDeContrasenaAsync(Guid idKeycloak, CancellationToken cancelacion)
     {
         try
         {
             await _keycloak.EnviarCorreoParaElegirContrasenaAsync(idKeycloak, cancelacion);
+            return true;
         }
         catch (ExcepcionKeycloak excepcion)
         {
@@ -293,6 +304,7 @@ public class UsuariosController : ControllerBase
             // POST /usuarios/{id}/restablecer-contrasena.
             _registro.LogWarning(excepcion, "No se pudo enviar el correo para elegir la contraseña a {IdKeycloak}.",
                 idKeycloak);
+            return false;
         }
     }
 

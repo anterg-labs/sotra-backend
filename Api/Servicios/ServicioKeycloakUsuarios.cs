@@ -12,6 +12,14 @@ public class ExcepcionKeycloak : Exception
     }
 }
 
+/// <summary>Keycloak no pudo enviar el correo (servidor SMTP sin configurar, credenciales rechazadas, etc.).</summary>
+public class ExcepcionCorreoNoEnviado : ExcepcionKeycloak
+{
+    public ExcepcionCorreoNoEnviado(string mensaje) : base(mensaje)
+    {
+    }
+}
+
 // Datos de un usuario que SOTRA copia a Keycloak para el login.
 public record DatosUsuarioKeycloak(string Correo, string Nombre, string Apellido, bool Habilitado);
 
@@ -147,7 +155,14 @@ public class ServicioKeycloakUsuarios
 
         using var respuesta = await EnviarAsync(HttpMethod.Put, $"users/{id}/execute-actions-email?{parametros}",
             new[] { AccionCambiarContrasena }, cancellationToken);
-        await VerificarAsync(respuesta, "enviar el correo para elegir la contraseña");
+        try
+        {
+            await VerificarAsync(respuesta, "enviar el correo para elegir la contraseña");
+        }
+        catch (ExcepcionKeycloak excepcion)
+        {
+            throw new ExcepcionCorreoNoEnviado(excepcion.Message);
+        }
     }
 
     public virtual async Task CerrarSesionesAsync(Guid id, CancellationToken cancellationToken)

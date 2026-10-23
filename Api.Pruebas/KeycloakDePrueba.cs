@@ -24,9 +24,14 @@ public class KeycloakDePrueba() : ServicioKeycloakUsuarios(NullLogger<ServicioKe
         return Task.CompletedTask;
     }
 
+    /// <summary>Simula un SMTP sin configurar: Keycloak crea el usuario pero no puede mandar el correo.</summary>
+    public bool FallaElCorreo { get; set; }
+
     public override Task EnviarCorreoParaElegirContrasenaAsync(Guid id, CancellationToken cancellationToken)
     {
-        return Task.CompletedTask;
+        return FallaElCorreo
+            ? Task.FromException(new ExcepcionCorreoNoEnviado("Keycloak no pudo enviar el correo (500): Failed to send execute actions email"))
+            : Task.CompletedTask;
     }
 
     public override Task CerrarSesionesAsync(Guid id, CancellationToken cancellationToken)

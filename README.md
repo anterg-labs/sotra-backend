@@ -17,6 +17,8 @@
 
 El alta y la modificación aceptan 8 dígitos, o 9 si empiezan con cero (`99123456` y `099123456`). `TelefonoAttribute` valida el formato y `UsuarioMapeador` usa `NumerosDeTelefono.Normalizar` antes de persistir: ambos ejemplos se guardan y devuelven como `99123456`, y la unicidad impide registrar el mismo número con otra escritura. Se rechazan letras, espacios, prefijos internacionales, 7 dígitos, 9 sin cero inicial y 10 o más. No requiere cambios de esquema ni se aplicaron operaciones sobre bases existentes. El requisito y los casos de Bugasura se alinean con la decisión de Nicolás del 23/10/2026.
 
+El alta informa `correoDeContrasenaEnviado` (`true`, `false` o ausente cuando no correspondía enviarlo). Si falla el reenvío, `POST /api/v1/usuarios/{id}/restablecer-contrasena` responde 502 con `codigo: CORREO_NO_ENVIADO`.
+
 ### Linux
 
 Docker Engine con el plugin `docker compose`. El usuario debe pertenecer al grupo `docker` (`sudo usermod -aG docker $USER` y volver a iniciar sesión).
