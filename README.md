@@ -1,5 +1,7 @@
 # Backend de SOTRA
 
+En 1.0.56, los DTO de actualización requieren que todos los campos del formulario estén presentes; los textos opcionales aceptan `null` y se normalizan antes de persistir. Los cuerpos incompletos y los valores obligatorios nulos se rechazan. Esta rama continúa el reparto tras el PR de usuarios #54.
+
 ## Corrección de integración con Keycloak
 
 La versión 1.0.53 conserva el contrato de validación (`codigo`, `mensaje` y errores por campo) independientemente del orden de registro de MVC. Las variables ya definidas en el entorno tienen prioridad sobre `.env`, para no reemplazar la conexión y configuración del contenedor por valores locales. El corpus de evaluación se busca en el repositorio hermano `sotra-test-automation/herramientas-previas/ia/corpus`; se omite si no está disponible. El ejecutor de regresión selecciona explícitamente el mapeador de usuarios. Se conserva la autenticación y los controles de CI de qa. Estas correcciones no incorporan funcionalidades pendientes de la rama de trabajo.

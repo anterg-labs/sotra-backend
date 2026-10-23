@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
 namespace Api.DTOs.ModelosMaquina;
@@ -10,7 +11,10 @@ public class ModeloMaquinaActualizarDto
     [Range(1, long.MaxValue, ErrorMessage = "Debe seleccionar un tipo de máquina.")]
     public required long TipoMaquinaId { get; init; }
 
+    [JsonRequired]
     public string? Descripcion { get; init; }
 
+    [JsonRequired]
+    [Required]
     public string? Estado { get; init; }
 }

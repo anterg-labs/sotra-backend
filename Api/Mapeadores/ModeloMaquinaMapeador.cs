@@ -11,7 +11,7 @@ public static class ModeloMaquinaMapeador
         {
             Nombre = modelo.Nombre,
             IdTipoMaquina = modelo.TipoMaquinaId,
-            Descripcion = modelo.Descripcion,
+            Descripcion = TextoOpcional.Normalizar(modelo.Descripcion),
             Activo = true
         };
     }
