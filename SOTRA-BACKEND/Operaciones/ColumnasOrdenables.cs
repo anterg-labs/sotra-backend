@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore;
 
 namespace SOTRA_BACKEND.Operaciones;
 
@@ -8,6 +9,10 @@ namespace SOTRA_BACKEND.Operaciones;
 /// </summary>
 public sealed class ColumnasOrdenables<T>
 {
+    private const string IntercalacionTexto = "es-UY-x-icu";
+    private static readonly Expression<Func<string, string>> TransformarTexto =
+        texto => EF.Functions.Collate(texto.ToLower(), IntercalacionTexto);
+
     private readonly Dictionary<string, Expression<Func<T, object?>>> _columnas;
     private readonly Expression<Func<T, object?>> _desempate;
 
@@ -33,7 +38,28 @@ public sealed class ColumnasOrdenables<T>
             return descendente ? consulta.OrderByDescending(_desempate) : consulta.OrderBy(_desempate);
         }
 
+        var cuerpo = columna.Body is UnaryExpression { NodeType: ExpressionType.Convert } conversion
+            ? conversion.Operand
+            : columna.Body;
+        if (cuerpo.Type == typeof(string))
+        {
+            var nulo = Expression.Lambda<Func<T, bool>>(
+                Expression.Equal(cuerpo, Expression.Constant(null, typeof(string))), columna.Parameters);
+            var texto = Expression.Lambda<Func<T, string>>(
+                new ReemplazarParametro(TransformarTexto.Parameters[0], cuerpo).Visit(TransformarTexto.Body)!,
+                columna.Parameters);
+            var primero = consulta.OrderBy(nulo);
+            var alfabetico = descendente ? primero.ThenByDescending(texto) : primero.ThenBy(texto);
+            return descendente ? alfabetico.ThenByDescending(_desempate) : alfabetico.ThenBy(_desempate);
+        }
+
         var ordenada = descendente ? consulta.OrderByDescending(columna) : consulta.OrderBy(columna);
         return descendente ? ordenada.ThenByDescending(_desempate) : ordenada.ThenBy(_desempate);
+    }
+
+    private sealed class ReemplazarParametro(ParameterExpression origen, Expression destino) : ExpressionVisitor
+    {
+        protected override Expression VisitParameter(ParameterExpression parametro)
+            => parametro == origen ? destino : base.VisitParameter(parametro);
     }
 }

@@ -103,6 +103,25 @@ public class DocumentosTecnicosPruebas : PruebaBase
     }
 
     [Test]
+    public async Task OrdenarDocumentosPorTituloUsaAlfabetoEspanol()
+    {
+        var prefijo = "manual-" + DatosDePrueba.Sufijo() + "-";
+        foreach (var nombre in new[] { "Zorro", "Árbol", "Beto", "abeja" })
+        {
+            var respuesta = await SubirAsync(Pdf, prefijo + nombre + ".pdf");
+            respuesta.EnsureSuccessStatusCode();
+        }
+
+        var ruta = "/api/v1/documentos-tecnicos?buscar=" + Uri.EscapeDataString(prefijo)
+            + "&ordenarPor=titulo&direccionOrden=asc&tamanoPagina=10";
+        var pagina = await (await Cliente.GetAsync(ruta)).LeerJsonAsync();
+        var nombres = pagina.GetProperty("elementos").EnumerateArray()
+            .Select(documento => documento.GetProperty("nombreArchivo").GetString()![prefijo.Length..]).ToArray();
+
+        Assert.That(nombres, Is.EqualTo(new[] { "abeja.pdf", "Árbol.pdf", "Beto.pdf", "Zorro.pdf" }));
+    }
+
+    [Test]
     public async Task LosComodinesDeLaBusquedaSeTratanComoTexto()
     {
         var pagina = await (await Cliente.GetAsync("/api/v1/documentos-tecnicos?buscar=%25_%25")).LeerJsonAsync();

@@ -47,6 +47,33 @@ public class ClientesPruebas : PruebaBase
     }
 
     [Test]
+    public async Task OrdenarClientesPorRazonSocialUsaAlfabetoEspanolAntesDePaginar()
+    {
+        var prefijo = "Orden " + DatosDePrueba.Sufijo() + " ";
+        foreach (var nombre in new[] { "Zorro", "Árbol", "Beto", "abeja" })
+        {
+            await DatosDePrueba.CrearClienteAsync(Cliente,
+                DatosDePrueba.ClienteNuevo(razonSocial: prefijo + nombre));
+        }
+
+        async Task<string[]> Pagina(int pagina, string direccion)
+        {
+            var ruta = "/api/v1/clientes?buscar=" + Uri.EscapeDataString(prefijo)
+                + "&ordenarPor=razonSocial&direccionOrden=" + direccion
+                + "&pagina=" + pagina + "&tamanoPagina=2";
+            var respuesta = await Cliente.GetAsync(ruta);
+            respuesta.EnsureSuccessStatusCode();
+            var datos = await respuesta.LeerJsonAsync();
+            return datos.GetProperty("elementos").EnumerateArray()
+                .Select(cliente => cliente.GetProperty("razonSocial").GetString()![prefijo.Length..]).ToArray();
+        }
+
+        Assert.That(await Pagina(1, "asc"), Is.EqualTo(new[] { "abeja", "Árbol" }));
+        Assert.That(await Pagina(2, "asc"), Is.EqualTo(new[] { "Beto", "Zorro" }));
+        Assert.That(await Pagina(1, "desc"), Is.EqualTo(new[] { "Zorro", "Beto" }));
+    }
+
+    [Test]
     public async Task ListarClientesFiltraPorEstado()
     {
         var cliente = await DatosDePrueba.CrearClienteAsync(Cliente);

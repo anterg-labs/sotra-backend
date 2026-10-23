@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Version 1.0.68 (2026-10-23)
+
+- Listados: el texto se ordena con intercalación española sin distinguir mayúsculas, antes de paginar; documentos técnicos aplica el mismo criterio.
+- Base de datos: los volúmenes PostgreSQL nuevos se inicializan con ICU `es-UY`; se documenta la migración sin pérdida de datos de las bases existentes.
+
 ## Version 1.0.67 (2026-10-23)
 
 - Integración: se reúnen las correcciones de usuarios, incluida su reactivación, los contratos de actualización y los errores uniformes con los cambios de listados, stock, documentos, reportes y analítica.

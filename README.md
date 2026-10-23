@@ -37,6 +37,7 @@ Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattribute
 | Variable | Uso |
 |---|---|
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Base de datos que crea el contenedor `sotra-db` la primera vez. |
+| `POSTGRES_INITDB_ARGS` | `compose.yml` fija ICU `es-UY` para ordenar en español al crear un volumen nuevo. No cambia una base existente. |
 | `DB_HOST`, `DB_PORT` | Conexión desde la máquina (pgAdmin, `dotnet run`). `DB_PORT` es también el puerto que publica `sotra-db`. Dentro de Docker, el backend y Keycloak usan `db:5432`. |
 | `API_PORT` | Puerto donde se publica la API (`8081`). |
 | `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi`. |
@@ -46,6 +47,8 @@ Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattribute
 | `KC_*` | Keycloak (ver "Keycloak"). |
 | `AUTH_OBLIGATORIA` | `true` exige token de Keycloak en los endpoints protegidos; `false` los deja abiertos mientras el frontend integra el login. |
 | `PROXIES_CONFIANZA` | Direcciones o redes CIDR de los proxies que reenvían `X-Forwarded-For` (por ejemplo Nginx), para que el límite de solicitudes use la IP de cada persona. |
+
+Los listados ordenan las columnas de texto sin distinguir mayúsculas y con intercalación española `es-UY-x-icu`, antes de paginar. El orden numérico y de fechas conserva sus tipos. La base local creada antes de esta corrección sigue con su locale original aunque `compose.yml` cambie; el procedimiento para migrarla sin borrar datos está en [Migración del locale de PostgreSQL](database/MIGRACION-LOCALE-ES-UY.md).
 
 ## Ejecutar directamente en el equipo
 
@@ -317,7 +320,7 @@ Si se cambia la configuración del realm desde la consola, hay que volver a expo
 
 ## Contratos de modificación
 
-Desde 1.0.48, asignar mediante `PATCH /api/v1/ordenes-trabajo/{id}/tecnico` al técnico actual responde `409 TECNICO_YA_ASIGNADO` sin agregar historial, también ante solicitudes concurrentes. Se permite X → Y → X. Usuarios incorpora `cantidadOrdenesAsignadas` y Clientes `cantidadOrdenesAsociadas`, de solo lectura, incluidos todos los estados y ordenables antes de paginar. Se calculan mediante consultas agrupadas por los identificadores de la página, sin cargar las órdenes. No requiere cambios de estructura ni SQL. El historial de verificaciones vive en `../sotra-test-automation/Estado de las pruebas locales.md`; las pruebas pendientes se centralizan en `../PRUEBAS-PENDIENTES.md`, fuera del backend.
+Desde 1.0.48, asignar mediante `PATCH /api/v1/ordenes-trabajo/{id}/tecnico` al técnico actual responde `409 TECNICO_YA_ASIGNADO` sin agregar historial, también ante solicitudes concurrentes. Se permite X → Y → X. Usuarios incorpora `cantidadOrdenesAsignadas` y Clientes `cantidadOrdenesAsociadas`, de solo lectura, que excluyen órdenes cerradas y canceladas y son ordenables antes de paginar. Se calculan mediante consultas agrupadas por los identificadores de la página, sin cargar las órdenes. No requiere cambios de estructura ni SQL. El historial de verificaciones vive en `../sotra-test-automation/Estado de las pruebas locales.md`; las pruebas pendientes se centralizan en `../PRUEBAS-PENDIENTES.md`, fuera del backend.
 
 La versión de aplicación 1.0.39 corresponde a la corrección del selector de clientes y activos del frontend en órdenes de trabajo. Conserva los contratos de consulta y la estructura de la base de datos; el comportamiento y sus verificaciones están en `../sotra-documentation/Flujo de datos SOTRA.md` y `sotra-test-automation/Estado de las pruebas locales.md`.
 
