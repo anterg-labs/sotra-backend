@@ -23,7 +23,7 @@ public class UsuariosPruebas : PruebaBase
         var propiedades = primero.EnumerateObject().Select(propiedad => propiedad.Name).ToList();
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
-            "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "roles",
+            "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "cantidadOrdenesAsignadas", "roles",
         }));
     }
 
@@ -100,15 +100,15 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
-    public async Task CrearUsuarioSinRolesLoCreaSinRoles()
+    public async Task CrearUsuarioSinRolesSeRechazaPorqueElRolEsObligatorio()
     {
         var datos = DatosDePrueba.UsuarioNuevo(idsRol: Array.Empty<long>());
 
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
 
-        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
-        var usuario = await respuesta.LeerJsonAsync();
-        Assert.That(usuario.GetProperty("roles").GetArrayLength(), Is.EqualTo(0));
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That((await respuesta.LeerJsonAsync()).GetProperty("errors").GetProperty("IdsRol")[0].GetString(),
+            Is.EqualTo("El usuario debe tener al menos un rol."));
     }
 
     [Test]
