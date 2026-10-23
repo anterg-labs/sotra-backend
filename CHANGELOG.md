@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.63 (2026-10-23)
+
+- IA: las consultas a Ollama reintentan fallos transitorios y responden más rápido cuando el servicio permanece caído.
+
 ## Version 1.0.62 (2026-10-23)
 
 - Reportes: los PDF muestran la identidad visual de CVM y avisan cuando el listado de órdenes supera el máximo exportable.

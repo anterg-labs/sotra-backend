@@ -55,7 +55,7 @@ builder.Services.AddOptions<OpcionesDeAlertasDeMaquinaria>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddScoped<EvidenciaOtDAO>();
-builder.Services.AddScoped<ServicioOllama>();
+builder.Services.AgregarClienteOllama();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();

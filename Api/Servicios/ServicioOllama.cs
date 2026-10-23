@@ -1,5 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace Api.Servicios;
 
@@ -8,34 +10,33 @@ public class ServicioOllama
     private const string ModeloDeEmbeddings = "bge-m3";
     private const string ModeloDeGeneracion = "qwen2.5:7b";
     private const int DimensionesDelEmbedding = 1024;
-    private const int MinutosMaximosDeEspera = 10;
-    private const int SegundosMaximosParaConectar = 5;
     private const string TiempoQueElModeloQuedaCargado = "1h";
     private const int TamanoDeContextoDeQwen = 4096;
     private const int TokensMaximosDeRespuesta = 250;
 
     private readonly HttpClient _cliente;
 
-    public ServicioOllama()
+    public ServicioOllama(HttpClient cliente)
     {
-        var url = Environment.GetEnvironmentVariable("OLLAMA_BASE_URL");
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            throw new InvalidOperationException("Falta la variable OLLAMA_BASE_URL.");
-        }
+        _cliente = cliente;
+    }
 
-        var manejador = new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(SegundosMaximosParaConectar) };
-        _cliente = new HttpClient(manejador)
+    private async Task<HttpResponseMessage> PostAsync<T>(string ruta, T cuerpo, CancellationToken cancellationToken)
+    {
+        try
         {
-            BaseAddress = new Uri(url),
-            Timeout = TimeSpan.FromMinutes(MinutosMaximosDeEspera)
-        };
+            return await _cliente.PostAsJsonAsync(ruta, cuerpo, cancellationToken);
+        }
+        catch (Exception ex) when (ex is BrokenCircuitException or TimeoutRejectedException)
+        {
+            throw new HttpRequestException("Ollama no está disponible por ahora.", ex);
+        }
     }
 
     public async Task<List<float[]>> CrearEmbeddingsAsync(List<string> textos,
         CancellationToken cancellationToken)
     {
-        using var respuesta = await _cliente.PostAsJsonAsync("/api/embed", new
+        using var respuesta = await PostAsync("/api/embed", new
         {
             model = ModeloDeEmbeddings,
             input = textos,
@@ -75,7 +76,7 @@ public class ServicioOllama
     public async Task<string> GenerarTextoAsync(string instrucciones, string mensaje,
         CancellationToken cancellationToken)
     {
-        using var respuesta = await _cliente.PostAsJsonAsync("/api/chat", new
+        using var respuesta = await PostAsync("/api/chat", new
         {
             model = ModeloDeGeneracion,
             stream = false,
