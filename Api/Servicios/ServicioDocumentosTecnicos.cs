@@ -26,10 +26,10 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> ColumnasOrdenables = new Dictionary<string, string>
     {
-        ["titulo"] = "COALESCE(documento.titulo, documento.nombre_archivo)",
-        ["tipo"] = "documento.tipo",
+        ["titulo"] = "lower(COALESCE(documento.titulo, documento.nombre_archivo)) COLLATE \"es-UY-x-icu\"",
+        ["tipo"] = "lower(documento.tipo) COLLATE \"es-UY-x-icu\"",
         ["vigente"] = "documento.vigente",
-        ["nombreAsociado"] = "COALESCE(activo.nombre, activo.num_serie, modelo.nombre)",
+        ["nombreAsociado"] = "lower(COALESCE(activo.nombre, activo.num_serie, modelo.nombre)) COLLATE \"es-UY-x-icu\"",
         ["usaSugerenciasIA"] = "documento.usa_sugerencias_ia",
         ["creadoEn"] = "documento.creado_en",
     };

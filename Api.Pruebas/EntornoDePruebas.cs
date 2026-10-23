@@ -30,6 +30,7 @@ public class EntornoDePruebas
             .WithDatabase(NombreBase)
             .WithUsername(UsuarioBase)
             .WithPassword(ContrasenaBase)
+            .WithEnvironment("POSTGRES_INITDB_ARGS", "--locale=C.utf8 --locale-provider=icu --icu-locale=es-UY")
             .WithResourceMapping(await File.ReadAllBytesAsync(scriptOperativo), "/docker-entrypoint-initdb.d/01-init.sql")
             .WithResourceMapping(await File.ReadAllBytesAsync(scriptVectorial), "/docker-entrypoint-initdb.d/02-vectorial.sql")
             .Build();
