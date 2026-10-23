@@ -377,3 +377,17 @@ body.sotra-cuerpo {
   font-size: 14px;
   text-align: center;
 }
+
+/* Aviso general del formulario de ingreso: ocupa siempre el mismo lugar, arriba del primer campo. */
+.sotra-aviso-formulario {
+  margin: 0 0 16px;
+}
+
+.sotra-aviso-formulario[hidden] {
+  display: none;
+}
+
+.sotra-boton-primario[disabled] {
+  opacity: 0.7;
+  cursor: progress;
+}

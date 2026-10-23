@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.65 (2026-10-23)
+
+- Acceso: el formulario de Keycloak informa los campos obligatorios, muestra un estado al ingresar y evita envíos duplicados.
+
 ## Version 1.0.64 (2026-10-23)
 
 - Base de datos: la carga inicial conserva los datos existentes y aplica los cambios SQL pendientes una sola vez. Se agregan los servicios opcionales de IA al entorno de desarrollo.
