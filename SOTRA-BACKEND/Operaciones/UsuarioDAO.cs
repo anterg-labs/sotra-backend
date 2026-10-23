@@ -176,6 +176,26 @@ public class UsuarioDAO
         return true;
     }
 
+    public async Task<bool> ReactivarUsuarioAsync(long id, CancellationToken cancelacion)
+    {
+        var usuarioExistente = await _contexto.Usuarios
+            .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
+
+        if (usuarioExistente is null)
+        {
+            return false;
+        }
+
+        if (usuarioExistente.Estado)
+        {
+            return true;
+        }
+
+        usuarioExistente.Estado = true;
+        await _contexto.SaveChangesAsync(cancelacion);
+        return true;
+    }
+
     public async Task<bool> EliminarUsuarioAsync(long id, CancellationToken cancelacion)
     {
         var usuarioExistente = await _contexto.Usuarios

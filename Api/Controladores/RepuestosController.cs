@@ -46,11 +46,7 @@ public class RepuestosController : ControllerBase
 
         if (filtros.EstadoStock is not null && !EstadosStock.Validos.Contains(filtros.EstadoStock))
         {
-            return BadRequest(new
-            {
-                codigo = "ESTADO_STOCK_INVALIDO",
-                mensaje = "El estado de stock debe ser normal, bajo o sin_stock."
-            });
+            return this.RespuestaDeError(400, "ESTADO_STOCK_INVALIDO", "El estado de stock debe ser normal, bajo o sin_stock.");
         }
 
         var filtro = new FiltroRepuestos(filtros.Buscar, estado, filtros.Ubicacion, filtros.BajoStock,
@@ -76,11 +72,7 @@ public class RepuestosController : ControllerBase
     {
         if (solicitud.Cantidad <= 0)
         {
-            return BadRequest(new
-            {
-                codigo = "CANTIDAD_INVALIDA",
-                mensaje = "La cantidad a ingresar debe ser mayor a cero."
-            });
+            return this.RespuestaDeError(400, "CANTIDAD_INVALIDA", "La cantidad a ingresar debe ser mayor a cero.");
         }
 
         return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Ingreso, solicitud.Cantidad,
@@ -94,21 +86,13 @@ public class RepuestosController : ControllerBase
     {
         if (solicitud.Cantidad <= 0)
         {
-            return BadRequest(new
-            {
-                codigo = "CANTIDAD_INVALIDA",
-                mensaje = "La cantidad a retirar debe ser mayor a cero."
-            });
+            return this.RespuestaDeError(400, "CANTIDAD_INVALIDA", "La cantidad a retirar debe ser mayor a cero.");
         }
 
         var motivo = solicitud.Motivo?.Trim() ?? "";
         if (motivo == "")
         {
-            return BadRequest(new
-            {
-                codigo = "DATOS_OBLIGATORIOS",
-                mensaje = "El motivo del egreso es obligatorio."
-            });
+            return this.RespuestaDeError(400, "DATOS_OBLIGATORIOS", "El motivo del egreso es obligatorio.");
         }
 
         return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Egreso, solicitud.Cantidad,
@@ -122,21 +106,13 @@ public class RepuestosController : ControllerBase
     {
         if (solicitud.CantidadReal < 0)
         {
-            return BadRequest(new
-            {
-                codigo = "CANTIDAD_INVALIDA",
-                mensaje = "El stock real no puede ser negativo."
-            });
+            return this.RespuestaDeError(400, "CANTIDAD_INVALIDA", "El stock real no puede ser negativo.");
         }
 
         var motivo = solicitud.Motivo?.Trim() ?? "";
         if (motivo == "")
         {
-            return BadRequest(new
-            {
-                codigo = "DATOS_OBLIGATORIOS",
-                mensaje = "El motivo del ajuste es obligatorio."
-            });
+            return this.RespuestaDeError(400, "DATOS_OBLIGATORIOS", "El motivo del ajuste es obligatorio.");
         }
 
         return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Ajuste, solicitud.CantidadReal,
@@ -166,21 +142,9 @@ public class RepuestosController : ControllerBase
             EstadoMovimientoStock.Registrado => CreatedAtAction(nameof(ObtenerPorId), new { id = solicitud.RepuestoId },
                 MovimientoStockMapeador.ADto(resultado.Movimiento!)),
             EstadoMovimientoStock.RepuestoNoEncontrado => NotFound(),
-            EstadoMovimientoStock.RepuestoInactivo => Conflict(new
-            {
-                codigo = "REPUESTO_INACTIVO",
-                mensaje = "No se puede mover el stock de un repuesto dado de baja."
-            }),
-            EstadoMovimientoStock.StockInsuficiente => Conflict(new
-            {
-                codigo = "STOCK_INSUFICIENTE",
-                mensaje = "No hay stock suficiente para retirar esa cantidad."
-            }),
-            _ => Conflict(new
-            {
-                codigo = "STOCK_EXCEDIDO",
-                mensaje = "La cantidad resultante supera el máximo permitido."
-            }),
+            EstadoMovimientoStock.RepuestoInactivo => this.RespuestaDeError(409, "REPUESTO_INACTIVO", "No se puede mover el stock de un repuesto dado de baja."),
+            EstadoMovimientoStock.StockInsuficiente => this.RespuestaDeError(409, "STOCK_INSUFICIENTE", "No hay stock suficiente para retirar esa cantidad."),
+            _ => this.RespuestaDeError(409, "STOCK_EXCEDIDO", "La cantidad resultante supera el máximo permitido."),
         };
     }
 
@@ -241,7 +205,7 @@ public class RepuestosController : ControllerBase
         }
         else
         {
-            return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "El estado debe ser 'activo' o 'inactivo'.");
         }
 
         if (!encontrado)

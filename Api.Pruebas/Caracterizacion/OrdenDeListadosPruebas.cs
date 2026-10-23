@@ -116,6 +116,12 @@ public class OrdenDeListadosPruebas : PruebaBase
     [TestCase("ordenes-trabajo", "estado")]
     [TestCase("ordenes-trabajo", "creadoEn")]
     [TestCase("ordenes-trabajo", "fechaPrevistaEjecucion")]
+    [TestCase("documentos-tecnicos", "titulo")]
+    [TestCase("documentos-tecnicos", "tipo")]
+    [TestCase("documentos-tecnicos", "vigente")]
+    [TestCase("documentos-tecnicos", "nombreAsociado")]
+    [TestCase("documentos-tecnicos", "usaSugerenciasIA")]
+    [TestCase("documentos-tecnicos", "creadoEn")]
     public async Task CadaListadoAceptaSusColumnasOrdenablesEnAmbosSentidos(string recurso, string columna)
     {
         foreach (var sentido in new[] { "asc", "desc" })
@@ -134,6 +140,7 @@ public class OrdenDeListadosPruebas : PruebaBase
     [TestCase("repuestos")]
     [TestCase("movimientos-stock")]
     [TestCase("ordenes-trabajo")]
+    [TestCase("documentos-tecnicos")]
     public async Task CadaListadoRechazaUnaColumnaQueNoEstaEnSuLista(string recurso)
     {
         var respuesta = await Cliente.GetAsync($"/api/v1/{recurso}?ordenarPor=contrasena");
@@ -148,6 +155,7 @@ public class OrdenDeListadosPruebas : PruebaBase
     [TestCase("repuestos")]
     [TestCase("movimientos-stock")]
     [TestCase("ordenes-trabajo")]
+    [TestCase("documentos-tecnicos")]
     public async Task UnTextoConSqlComoColumnaSeRechazaSinLlegarALaBase(string recurso)
     {
         var respuesta = await Cliente.GetAsync($"/api/v1/{recurso}?ordenarPor=" + Uri.EscapeDataString("id; DROP TABLE x"));

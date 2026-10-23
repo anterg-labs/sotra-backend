@@ -92,7 +92,7 @@ public class ActivosController : ControllerBase
     public async Task<ActionResult<ActivoDto>> Desactivar(long id, ActivoEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "Este endpoint solo acepta el estado 'inactivo'.");
 
         if (!await _activoDao.DarBajaLogicaActivoAsync(id, cancelacion)) return NotFound();
 

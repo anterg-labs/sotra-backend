@@ -32,11 +32,7 @@ public class MovimientosStockController : ControllerBase
         if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
             && filtros.FechaDesde > filtros.FechaHasta)
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO", "La fecha desde no puede ser posterior a la fecha hasta.");
         }
 
         if (!MovimientoStockDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))

@@ -1,6 +1,6 @@
-using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.Usuarios;
+using Api.Infraestructura;
 using Api.Mapeadores;
 using Api.Seguridad;
 using Api.Servicios;
@@ -189,19 +189,23 @@ public class UsuariosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult<UsuarioListadoDto>> Desactivar(long id, UsuarioEstadoDto solicitud, CancellationToken cancelacion)
+    public async Task<ActionResult<UsuarioListadoDto>> CambiarEstado(long id, UsuarioEstadoDto solicitud, CancellationToken cancelacion)
     {
-        if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
+        var baja = string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase);
+        if (!baja && !string.Equals(solicitud.Estado, "activo", StringComparison.OrdinalIgnoreCase))
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "El estado debe ser 'activo' o 'inactivo'.");
 
-        var usuarioABajar = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
-        if (usuarioABajar is null) return NotFound();
-        if (!User.PuedeGestionarAdministradores() && EsAdministrador(usuarioABajar)) return SoloAdministrador();
+        var usuarioACambiar = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
+        if (usuarioACambiar is null) return NotFound();
+        if (!User.PuedeGestionarAdministradores() && EsAdministrador(usuarioACambiar)) return SoloAdministrador();
 
         try
         {
             await using var transaccion = await _usuarioDao.IniciarTransaccionAsync(cancelacion);
-            if (!await _usuarioDao.DarBajaLogicaUsuarioAsync(id, cancelacion)) return NotFound();
+            var encontrado = baja
+                ? await _usuarioDao.DarBajaLogicaUsuarioAsync(id, cancelacion)
+                : await _usuarioDao.ReactivarUsuarioAsync(id, cancelacion);
+            if (!encontrado) return NotFound();
 
             var usuario = (await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion))!;
             await SincronizarConKeycloakAsync(usuario, cancelacion);
@@ -291,6 +295,8 @@ public class UsuariosController : ControllerBase
         }
     }
 
+    // Devuelve si el correo salió de verdad. Si no, el usuario ya quedó creado y la respuesta lo informa
+    // (<c>correoDeContrasenaEnviado = false</c>): se puede reenviar con POST /usuarios/{id}/restablecer-contrasena.
     private async Task<bool> EnviarCorreoDeContrasenaAsync(Guid idKeycloak, CancellationToken cancelacion)
     {
         try
@@ -300,8 +306,6 @@ public class UsuariosController : ControllerBase
         }
         catch (ExcepcionKeycloak excepcion)
         {
-            // El usuario ya quedó creado: el administrador puede reenviar el correo con
-            // POST /usuarios/{id}/restablecer-contrasena.
             _registro.LogWarning(excepcion, "No se pudo enviar el correo para elegir la contraseña a {IdKeycloak}.",
                 idKeycloak);
             return false;

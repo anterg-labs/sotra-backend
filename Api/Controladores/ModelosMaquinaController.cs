@@ -93,7 +93,7 @@ public class ModelosMaquinaController : ControllerBase
     public async Task<ActionResult<ModeloMaquinaDto>> Desactivar(long id, ModeloMaquinaEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "Este endpoint solo acepta el estado 'inactivo'.");
 
         if (!await _modeloMaquinaDao.DarBajaLogicaModeloMaquinaAsync(id, cancelacion)) return NotFound();
 

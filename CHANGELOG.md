@@ -2,7 +2,7 @@
 
 ## Version 1.0.67 (2026-10-23)
 
-- Integración: se reúnen las correcciones de usuarios y los contratos de actualización con los cambios de listados, stock, documentos, reportes y analítica.
+- Integración: se reúnen las correcciones de usuarios, incluida su reactivación, los contratos de actualización y los errores uniformes con los cambios de listados, stock, documentos, reportes y analítica.
 
 ## Version 1.0.66 (2026-10-23)
 

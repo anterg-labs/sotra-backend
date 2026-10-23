@@ -103,7 +103,7 @@ public class ClientesController : ControllerBase
         }
         else
         {
-            return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "El estado debe ser 'activo' o 'inactivo'.");
         }
 
         var cliente = (await _clienteDao.SeleccionarClienteAsync(id, cancelacion))!;

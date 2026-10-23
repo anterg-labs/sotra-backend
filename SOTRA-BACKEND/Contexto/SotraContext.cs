@@ -60,7 +60,7 @@ public partial class SotraContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            DotNetEnv.Env.TraversePath().Load();
+            DotNetEnv.Env.NoClobber().TraversePath().Load();
 
             var host = Environment.GetEnvironmentVariable("DB_HOST");
             var port = Environment.GetEnvironmentVariable("DB_PORT");
