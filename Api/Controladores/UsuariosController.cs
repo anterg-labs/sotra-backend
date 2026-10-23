@@ -76,7 +76,8 @@ public class UsuariosController : ControllerBase
 
         var filtro = new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor);
         var (usuarios, total) = await _usuarioDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
-        var elementos = usuarios.Select(UsuarioMapeador.AListadoDto).ToList();
+        var cantidades = await _usuarioDao.ContarOrdenesAsignadasAsync(usuarios.Select(u => u.IdUsuario), cancelacion);
+        var elementos = usuarios.Select(u => UsuarioMapeador.AListadoDto(u, cantidades.GetValueOrDefault(u.IdUsuario))).ToList();
         return Ok(PaginaDto<UsuarioListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
@@ -87,7 +88,7 @@ public class UsuariosController : ControllerBase
     public async Task<ActionResult<UsuarioListadoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
         var usuario = await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion);
-        return usuario is null ? NotFound() : Ok(UsuarioMapeador.AListadoDto(usuario));
+        return usuario is null ? NotFound() : Ok(await CrearRespuestaAsync(usuario, cancelacion));
     }
 
     // Crea el usuario en la base y en Keycloak. En Keycloak queda sin contraseña: le llega
@@ -173,7 +174,7 @@ public class UsuariosController : ControllerBase
             var usuarioActualizado = (await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion))!;
             await SincronizarConKeycloakAsync(usuarioActualizado, cancelacion);
             await transaccion.CommitAsync(cancelacion);
-            return Ok(UsuarioMapeador.AListadoDto(usuarioActualizado));
+            return Ok(await CrearRespuestaAsync(usuarioActualizado, cancelacion));
         }
         catch (ExcepcionKeycloak excepcion)
         {
@@ -204,12 +205,18 @@ public class UsuariosController : ControllerBase
             var usuario = (await _usuarioDao.SeleccionarUsuarioAsync(id, cancelacion))!;
             await SincronizarConKeycloakAsync(usuario, cancelacion);
             await transaccion.CommitAsync(cancelacion);
-            return Ok(UsuarioMapeador.AListadoDto(usuario));
+            return Ok(await CrearRespuestaAsync(usuario, cancelacion));
         }
         catch (ExcepcionKeycloak excepcion)
         {
             return ErrorDeKeycloak(excepcion);
         }
+    }
+
+    private async Task<UsuarioListadoDto> CrearRespuestaAsync(Usuario usuario, CancellationToken cancelacion)
+    {
+        var cantidades = await _usuarioDao.ContarOrdenesAsignadasAsync([usuario.IdUsuario], cancelacion);
+        return UsuarioMapeador.AListadoDto(usuario, cantidades.GetValueOrDefault(usuario.IdUsuario));
     }
 
     // El administrador (o el jefe, si el usuario no es administrador) le envía al usuario un correo

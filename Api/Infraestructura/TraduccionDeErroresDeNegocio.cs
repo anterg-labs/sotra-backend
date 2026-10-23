@@ -48,6 +48,8 @@ public static class TraduccionDeErroresDeNegocio
             "La orden no puede pasar a ese estado desde su estado actual."),
         [ErrorDeOrdenException.TecnicoObligatorio] = new(StatusCodes.Status400BadRequest, ErrorDeOrdenException.TecnicoObligatorio,
             "Asigná un técnico antes de pasar la orden a ese estado."),
+        [ErrorDeOrdenException.TecnicoYaAsignado] = new(StatusCodes.Status409Conflict, ErrorDeOrdenException.TecnicoYaAsignado,
+            "El técnico ya está asignado a esta orden de trabajo."),
         [ErrorDeOrdenException.MotivoObligatorio] = new(StatusCodes.Status400BadRequest, ErrorDeOrdenException.MotivoObligatorio,
             "Indicá el motivo u observación del cambio de estado."),
     };

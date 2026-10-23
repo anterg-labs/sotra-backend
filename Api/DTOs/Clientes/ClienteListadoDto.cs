@@ -10,6 +10,7 @@ public class ClienteListadoDto
     public string? Direccion { get; init; }
     public string? Observaciones { get; init; }
     public int CantidadActivosAsociados { get; init; }
+    public int CantidadOrdenesAsociadas { get; init; }
     public required string Estado { get; init; }
     public DateOnly CreadoEn { get; init; }
 }

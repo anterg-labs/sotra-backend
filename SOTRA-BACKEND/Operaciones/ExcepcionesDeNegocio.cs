@@ -26,6 +26,7 @@ public sealed class ErrorDeOrdenException(string codigo) : InvalidOperationExcep
     public const string OrdenInexistente = "ORDEN_INEXISTENTE";
     public const string TransicionInvalida = "TRANSICION_INVALIDA";
     public const string TecnicoObligatorio = "TECNICO_OBLIGATORIO";
+    public const string TecnicoYaAsignado = "TECNICO_YA_ASIGNADO";
     public const string MotivoObligatorio = "MOTIVO_OBLIGATORIO";
 
     public string Codigo { get; } = codigo;

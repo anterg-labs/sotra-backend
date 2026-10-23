@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Version 1.0.59 (2026-10-23)
+
+- Órdenes de trabajo: se evita duplicar una asignación al mismo técnico y se informa el conflicto.
+- Listados: usuarios y clientes muestran la cantidad de órdenes activas asociadas y permiten ordenar por ese valor.
+
 ## Version 1.0.58 (2026-10-23)
 
 - Listados: se pueden ordenar por columnas permitidas en los listados de usuarios, clientes, máquinas, órdenes, repuestos y movimientos, con paginación estable.

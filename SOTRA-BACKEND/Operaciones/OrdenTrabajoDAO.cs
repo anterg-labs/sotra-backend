@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
@@ -36,6 +37,13 @@ public class OrdenTrabajoDAO
                 .OrderBy(h => h.FechaHora).ThenBy(h => h.IdHEstadoOt)
                 .Select(h => h.Observacion).FirstOrDefault()),
         ]);
+
+    private static readonly string[] EstadosTerminales = ["cerrada", "cancelada"];
+
+    public static readonly Expression<Func<OrdenTrabajo, bool>> EsActiva = orden =>
+        !EstadosTerminales.Contains(
+            orden.HistorialEstadoOts.OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada");
 
 
     private static readonly string[] EstadosValidos =
@@ -327,6 +335,11 @@ public class OrdenTrabajoDAO
         if (estadoActual == "cerrada" || estadoActual == "cancelada")
         {
             throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenNoModificable);
+        }
+
+        if (orden.IdUsuarioTecnico == tecnicoId)
+        {
+            throw new ErrorDeOrdenException(ErrorDeOrdenException.TecnicoYaAsignado);
         }
 
         var tecnico = await ValidarTecnicoAsync(tecnicoId, cancelacion);

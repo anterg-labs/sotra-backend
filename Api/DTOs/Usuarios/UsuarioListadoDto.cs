@@ -16,6 +16,7 @@ public class UsuarioListadoDto
     public required string Estado { get; init; }
 
     public DateOnly FechaIngreso { get; init; }
+    public int CantidadOrdenesAsignadas { get; init; }
 
     public List<RolUsuarioDto> Roles { get; init; } = [];
 }

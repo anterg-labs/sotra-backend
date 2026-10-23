@@ -14,6 +14,7 @@ public class ClienteDAO
             new("correo", c => c.Correo),
             new("telefono", c => c.Telefono),
             new("cantidadActivosAsociados", c => c.Activos.Count),
+            new("cantidadOrdenesAsociadas", c => c.OrdenTrabajos.AsQueryable().Count(OrdenTrabajoDAO.EsActiva)),
             new("estado", c => c.Estado),
             new("creadoEn", c => c.FechaIngreso),
         ]);
@@ -67,6 +68,18 @@ public class ClienteDAO
         return await _contexto.Clientes
             .Include(cliente => cliente.Activos)
             .FirstOrDefaultAsync(cliente => cliente.IdCliente == id, cancelacion);
+    }
+
+    public async Task<Dictionary<long, int>> ContarOrdenesAsociadasAsync(IEnumerable<long> clientes, CancellationToken cancelacion)
+    {
+        var ids = clientes.ToArray();
+        if (ids.Length == 0) return [];
+        return await _contexto.OrdenTrabajos.AsNoTracking()
+            .Where(o => ids.Contains(o.IdCliente))
+            .Where(OrdenTrabajoDAO.EsActiva)
+            .GroupBy(o => o.IdCliente)
+            .Select(grupo => new { Id = grupo.Key, Cantidad = grupo.Count() })
+            .ToDictionaryAsync(grupo => grupo.Id, grupo => grupo.Cantidad, cancelacion);
     }
 
     public async Task<Cliente> InsertarClienteAsync(Cliente cliente, CancellationToken cancelacion)

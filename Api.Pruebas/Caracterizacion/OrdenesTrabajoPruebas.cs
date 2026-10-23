@@ -412,4 +412,110 @@ public class OrdenesTrabajoPruebas : PruebaBase
             .Count(h => h.GetProperty("estado").GetString() == "en_ejecucion");
         Assert.That(enEjecucion, Is.EqualTo(1));
     }
+
+    [TestCase("en_ejecucion")]
+    public async Task RepetirElTecnicoActualResponde409SinCambiarLaOrdenNiElHistorial(string estado)
+    {
+        var tecnicoId = await CrearTecnicoAsync();
+        var inicial = await CrearOrdenAsync(tecnicoId);
+        var id = inicial.GetProperty("id").GetInt64();
+        if (estado != "creada") (await CambiarEstadoAsync(id, "asignada")).EnsureSuccessStatusCode();
+        if (estado == "en_ejecucion") (await CambiarEstadoAsync(id, estado)).EnsureSuccessStatusCode();
+        var antes = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{id}")).LeerJsonAsync();
+
+        var respuesta = await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{id}/tecnico", new { tecnicoId });
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That(await LeerCodigoAsync(respuesta), Is.EqualTo("TECNICO_YA_ASIGNADO"));
+        var despues = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{id}")).LeerJsonAsync();
+        Assert.That(despues.GetRawText(), Is.EqualTo(antes.GetRawText()));
+    }
+
+    [Test]
+    public async Task SePuedeVolverAUnTecnicoAnteriorDespuesDeAsignarAOtro()
+    {
+        var primero = await CrearTecnicoAsync();
+        var segundo = await CrearTecnicoAsync();
+        var inicial = await CrearOrdenAsync();
+        var id = inicial.GetProperty("id").GetInt64();
+        var historialInicial = inicial.GetProperty("historialEstados").GetArrayLength();
+        foreach (var tecnicoId in new[] { primero, segundo, primero })
+        {
+            var respuesta = await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{id}/tecnico", new { tecnicoId });
+            respuesta.EnsureSuccessStatusCode();
+        }
+
+        var final = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{id}")).LeerJsonAsync();
+        Assert.That(final.GetProperty("tecnicoId").GetInt64(), Is.EqualTo(primero));
+        Assert.That(final.GetProperty("historialEstados").GetArrayLength(), Is.EqualTo(historialInicial + 3));
+    }
+
+    [Test]
+    public async Task AsignacionesSimultaneasDelMismoTecnicoSoloAgreganUnHistorial()
+    {
+        var tecnicoId = await CrearTecnicoAsync();
+        var inicial = await CrearOrdenAsync();
+        var id = inicial.GetProperty("id").GetInt64();
+        var respuestas = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ =>
+            Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{id}/tecnico", new { tecnicoId })));
+
+        Assert.That(respuestas.Count(r => r.StatusCode == HttpStatusCode.OK), Is.EqualTo(1));
+        Assert.That(respuestas.Count(r => r.StatusCode == HttpStatusCode.Conflict), Is.EqualTo(4));
+        foreach (var rechazada in respuestas.Where(r => r.StatusCode == HttpStatusCode.Conflict))
+            Assert.That(await LeerCodigoAsync(rechazada), Is.EqualTo("TECNICO_YA_ASIGNADO"));
+        var final = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{id}")).LeerJsonAsync();
+        Assert.That(final.GetProperty("historialEstados").GetArrayLength(),
+            Is.EqualTo(inicial.GetProperty("historialEstados").GetArrayLength() + 1));
+    }
+
+    [Test]
+    public async Task LosConteosDeUsuariosYClientesCuentanSoloOrdenesActivasYReflejanLaReasignacion()
+    {
+        var primero = await CrearTecnicoAsync();
+        var segundo = await CrearTecnicoAsync();
+        var sinOrdenes = await DatosDePrueba.CrearClienteAsync(Cliente);
+        var inicial = await CrearOrdenAsync(primero);
+        var id = inicial.GetProperty("id").GetInt64();
+        var clienteId = inicial.GetProperty("clienteId").GetInt64();
+        var otra = await Cliente.PostAsJsonAsync("/api/v1/ordenes-trabajo", new
+        {
+            clienteId,
+            activoId = inicial.GetProperty("activoId").GetInt64(),
+            tecnicoId = primero,
+            tipo = "correctivo",
+            prioridad = "media",
+            descripcion = "Otra orden del mismo cliente",
+            fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1))
+        });
+        otra.EnsureSuccessStatusCode();
+        var otraOrden = await otra.LeerJsonAsync();
+        (await CambiarEstadoAsync(otraOrden.GetProperty("id").GetInt64(), "cancelada", "Prueba de conteo histórico"))
+            .EnsureSuccessStatusCode();
+
+        async Task<int> Cantidad(string modulo, long recursoId, string campo)
+            => (await (await Cliente.GetAsync($"/api/v1/{modulo}/{recursoId}")).LeerJsonAsync()).GetProperty(campo).GetInt32();
+
+        // La orden cancelada no cuenta: solo las activas (no cerradas ni canceladas).
+        Assert.That(await Cantidad("usuarios", primero, "cantidadOrdenesAsignadas"), Is.EqualTo(1));
+        Assert.That(await Cantidad("usuarios", segundo, "cantidadOrdenesAsignadas"), Is.Zero);
+        Assert.That(await Cantidad("clientes", clienteId, "cantidadOrdenesAsociadas"), Is.EqualTo(1));
+        Assert.That(await Cantidad("clientes", sinOrdenes.GetProperty("id").GetInt64(), "cantidadOrdenesAsociadas"), Is.Zero);
+        (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{id}/tecnico", new { tecnicoId = segundo })).EnsureSuccessStatusCode();
+        Assert.That(await Cantidad("usuarios", primero, "cantidadOrdenesAsignadas"), Is.Zero);
+        Assert.That(await Cantidad("usuarios", segundo, "cantidadOrdenesAsignadas"), Is.EqualTo(1));
+        Assert.That(await Cantidad("clientes", clienteId, "cantidadOrdenesAsociadas"), Is.EqualTo(1));
+
+        foreach (var (modulo, campo) in new[] { ("usuarios", "cantidadOrdenesAsignadas"), ("clientes", "cantidadOrdenesAsociadas") })
+        {
+            foreach (var direccion in new[] { "asc", "desc" })
+            {
+                var pagina = await (await Cliente.GetAsync($"/api/v1/{modulo}?ordenarPor={campo}&direccionOrden={direccion}&tamanoPagina=3")).LeerJsonAsync();
+                var elementos = pagina.GetProperty("elementos").EnumerateArray().ToArray();
+                var cantidades = elementos.Select(e => e.GetProperty(campo).GetInt32()).ToArray();
+                Assert.That(cantidades, direccion == "asc" ? Is.Ordered.Ascending : Is.Ordered.Descending);
+                foreach (var elemento in elementos)
+                    Assert.That(elemento.GetProperty(campo).GetInt32(), Is.EqualTo(await Cantidad(modulo, elemento.GetProperty("id").GetInt64(), campo)));
+            }
+        }
+    }
 }

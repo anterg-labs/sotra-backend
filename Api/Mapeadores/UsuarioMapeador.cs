@@ -40,7 +40,7 @@ public static class UsuarioMapeador
         }
     }
 
-    public static UsuarioListadoDto AListadoDto(Usuario usuario)
+    public static UsuarioListadoDto AListadoDto(Usuario usuario, int cantidadOrdenesAsignadas = 0)
     {
         return new UsuarioListadoDto
         {
@@ -51,6 +51,7 @@ public static class UsuarioMapeador
             Telefono = usuario.Telefono,
             Estado = usuario.Estado ? "activo" : "inactivo",
             FechaIngreso = usuario.FechaIngreso,
+            CantidadOrdenesAsignadas = cantidadOrdenesAsignadas,
             Roles = usuario.IdRols.OrderBy(rol => rol.IdRol).Select(rol => new RolUsuarioDto
             {
                 Id = rol.IdRol,

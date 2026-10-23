@@ -23,7 +23,7 @@ public class UsuariosPruebas : PruebaBase
         var propiedades = primero.EnumerateObject().Select(propiedad => propiedad.Name).ToList();
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
-            "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "roles",
+            "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "roles", "cantidadOrdenesAsignadas",
         }));
     }
 

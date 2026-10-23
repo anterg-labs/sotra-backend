@@ -20,7 +20,7 @@ public class ClientesPruebas : PruebaBase
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
             "id", "razonSocial", "nombreContacto", "correo", "telefono", "direccion",
-            "observaciones", "cantidadActivosAsociados", "estado", "creadoEn",
+            "observaciones", "cantidadActivosAsociados", "cantidadOrdenesAsociadas", "estado", "creadoEn",
         }));
     }
 

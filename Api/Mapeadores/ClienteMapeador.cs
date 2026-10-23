@@ -74,7 +74,7 @@ public static class ClienteMapeador
         }
     }
 
-    public static ClienteListadoDto AListadoDto(Cliente cliente)
+    public static ClienteListadoDto AListadoDto(Cliente cliente, int cantidadOrdenesAsociadas = 0)
     {
         return new ClienteListadoDto
         {
@@ -86,6 +86,7 @@ public static class ClienteMapeador
             Direccion = cliente.Direccion,
             Observaciones = cliente.Observaciones,
             CantidadActivosAsociados = cliente.Activos.Count,
+            CantidadOrdenesAsociadas = cantidadOrdenesAsociadas,
             Estado = cliente.Estado ? "activo" : "inactivo",
             CreadoEn = cliente.FechaIngreso
         };
