@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.67 (2026-10-23)
+
+- Integración: se reúnen las correcciones de usuarios y los contratos de actualización con los cambios de listados, stock, documentos, reportes y analítica.
+
 ## Version 1.0.66 (2026-10-23)
 
 - Analítica: las consultas repetidas con los mismos filtros reutilizan su resultado durante un plazo configurable y comparten el cálculo cuando llegan a la vez.
