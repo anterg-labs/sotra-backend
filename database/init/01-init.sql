@@ -703,12 +703,12 @@ ALTER TABLE ONLY operativo.usuario ALTER COLUMN id_usuario SET DEFAULT nextval('
 --
 
 COPY operativo.cliente (id_cliente, razon_social, nombre, correo, telefono, direccion, observaciones, estado, fecha_ingreso) FROM stdin;
-1	Construcciones del Este S.A.	Marcelo Ibarra	marcelo.ibarra@construccionesdeleste.example.com	+598 4443 5006	Ruta 8 km 132, Treinta y Tres	Cliente con contrato de mantenimiento anual.	t	2026-09-12
-2	Vial Norte S.R.L.	Patricia Acosta	patricia.acosta@vialnorte.example.com	+598 4622 1180	Av. Artigas 1450, Tacuarembó	Obras viales en el norte del país.	t	2026-09-12
-3	Hormigones del Litoral S.A.	Gonzalo Techera	gonzalo.techera@hormigoneslitoral.example.com	+598 2292 7741	Camino Maldonado km 21, Canelones	Coordinar visitas por la mañana.	t	2026-09-13
-4	Cantera Sierra Chica	Ricardo Olivera	ricardo.olivera@sierrachica.example.com	+598 4562 3390	Ruta 55 km 18, Colonia		t	2026-09-13
-5	Agro Servicios Rocha	Natalia Cabrera	natalia.cabrera@agrorocha.example.com	+598 4472 8815	Ruta 9 km 215, Rocha	Maquinaria en establecimientos rurales.	t	2026-09-14
-6	Transportes Oriental Ltda.	Federico Barrios	federico.barrios@transportesoriental.example.com	+598 2487 6620	Bulevar Artigas 2210, Montevideo	Cuenta suspendida a pedido del cliente.	f	2026-09-14
+1	Construcciones del Este S.A.	Marcelo Ibarra	marcelo.ibarra@construccionesdeleste.example.com	44435006	Ruta 8 km 132, Treinta y Tres	Cliente con contrato de mantenimiento anual.	t	2026-09-12
+2	Vial Norte S.R.L.	Patricia Acosta	patricia.acosta@vialnorte.example.com	46221180	Av. Artigas 1450, Tacuarembó	Obras viales en el norte del país.	t	2026-09-12
+3	Hormigones del Litoral S.A.	Gonzalo Techera	gonzalo.techera@hormigoneslitoral.example.com	22927741	Camino Maldonado km 21, Canelones	Coordinar visitas por la mañana.	t	2026-09-13
+4	Cantera Sierra Chica	Ricardo Olivera	ricardo.olivera@sierrachica.example.com	45623390	Ruta 55 km 18, Colonia		t	2026-09-13
+5	Agro Servicios Rocha	Natalia Cabrera	natalia.cabrera@agrorocha.example.com	44728815	Ruta 9 km 215, Rocha	Maquinaria en establecimientos rurales.	t	2026-09-14
+6	Transportes Oriental Ltda.	Federico Barrios	federico.barrios@transportesoriental.example.com	24876620	Bulevar Artigas 2210, Montevideo	Cuenta suspendida a pedido del cliente.	f	2026-09-14
 \.
 
 
@@ -798,20 +798,20 @@ COPY operativo.historial_recomendaciones_ia (id_recomendacion_ia, recomendacion,
 --
 
 COPY operativo.usuario (id_usuario, nombre, apellido, mail, telefono, estado, fecha_ingreso) FROM stdin;
-1	Kevin	Moreira	kmoreira@gmail.com	099583488	t	2026-09-12
-3	Nicolas	Diaz	nicodiaz@gmail.com	099568742	t	2026-09-12
-4	Cris	Romero	crisrome@gmail.com	099653147	t	2026-09-12
-5	Martín	Silva	martin.silva@example.com	099111205	t	2026-09-14
-6	Laura	Gómez	laura.gomez@example.com	099222316	t	2026-09-14
-7	Roberto	Pérez	roberto.perez@example.com	099333427	t	2026-09-15
-8	Diego	Fernández	diego.fernandez@example.com	099444538	t	2026-09-15
-9	Lucía	Méndez	lucia.mendez@example.com	099555649	t	2026-09-16
-10	Andrés	Rodríguez	andres.rodriguez@example.com	099666750	t	2026-09-16
-11	Camila	Ferreira	camila.ferreira@example.com	099777861	f	2026-09-17
-12	Admin	Prueba	admin.prueba@sotra.test	099900101	t	2026-10-17
-13	Jefe	Prueba	jefe.prueba@sotra.test	099900102	t	2026-10-17
-14	Técnico	Prueba	tecnico.prueba@sotra.test	099900103	t	2026-10-17
-15	Pañolero	Prueba	panolero.prueba@sotra.test	099900104	t	2026-10-17
+1	Kevin	Moreira	kmoreira@gmail.com	99583488	t	2026-09-12
+3	Nicolas	Diaz	nicodiaz@gmail.com	99568742	t	2026-09-12
+4	Cris	Romero	crisrome@gmail.com	99653147	t	2026-09-12
+5	Martín	Silva	martin.silva@example.com	99111205	t	2026-09-14
+6	Laura	Gómez	laura.gomez@example.com	99222316	t	2026-09-14
+7	Roberto	Pérez	roberto.perez@example.com	99333427	t	2026-09-15
+8	Diego	Fernández	diego.fernandez@example.com	99444538	t	2026-09-15
+9	Lucía	Méndez	lucia.mendez@example.com	99555649	t	2026-09-16
+10	Andrés	Rodríguez	andres.rodriguez@example.com	99666750	t	2026-09-16
+11	Camila	Ferreira	camila.ferreira@example.com	99777861	f	2026-09-17
+12	Admin	Prueba	admin.prueba@sotra.test	99900101	t	2026-10-17
+13	Jefe	Prueba	jefe.prueba@sotra.test	99900102	t	2026-10-17
+14	Técnico	Prueba	tecnico.prueba@sotra.test	99900103	t	2026-10-17
+15	Pañolero	Prueba	panolero.prueba@sotra.test	99900104	t	2026-10-17
 \.
 
 
@@ -1751,6 +1751,8 @@ SELECT 1,
        || E'Uso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, '
        || E'asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se '
        || E'usan para publicidad ni para fines ajenos al mantenimiento.\n\n'
+       || E'Marco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales '
+       || E'de Uruguay.\n\n'
        || E'Tus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial '
        || E'de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\n'
        || E'Seguridad: el acceso es personal; no compartas tus credenciales.',
@@ -1791,3 +1793,35 @@ SELECT u.id_usuario, t.id_terminos
 FROM operativo.usuario u, operativo.terminos_condiciones t
 WHERE t.vigente AND u.id_usuario IN (1, 3, 4, 5, 6)
   AND NOT EXISTS (SELECT 1 FROM operativo.aceptacion_terminos a WHERE a.id_usuario = u.id_usuario AND a.id_terminos = t.id_terminos);
+
+
+-- Ejecutar manualmente, previa revisión de datos. No elimina ni corrige registros.
+-- Si hay textos obligatorios vacíos, VALIDATE falla y revierte todo este bloque.
+-- Los NULL ya están impedidos por los NOT NULL existentes.
+DO $validacion$
+DECLARE
+    regla record;
+BEGIN
+    FOR regla IN
+        SELECT * FROM (VALUES
+            ('activo', 'CK_ACTIVO_TEXTO_OBLIGATORIO', 'num_serie ~ ''[^[:space:]]'''),
+            ('cliente', 'CK_CLIENTE_TEXTOS_OBLIGATORIOS', 'razon_social ~ ''[^[:space:]]'' AND nombre ~ ''[^[:space:]]'''),
+            ('modelo_maquina', 'CK_MODELO_NOMBRE_OBLIGATORIO', 'nombre ~ ''[^[:space:]]'''),
+            ('tipo_maquina', 'CK_TIPO_NOMBRE_OBLIGATORIO', 'nombre ~ ''[^[:space:]]'''),
+            ('repuesto', 'CK_REPUESTO_TEXTOS_OBLIGATORIOS', 'codigo ~ ''[^[:space:]]'' AND nombre ~ ''[^[:space:]]'''),
+            ('orden_trabajo', 'CK_ORDEN_DESCRIPCION_OBLIGATORIA', 'descripcion ~ ''[^[:space:]]'''),
+            ('usuario', 'CK_USUARIO_TEXTOS_OBLIGATORIOS', 'nombre ~ ''[^[:space:]]'' AND apellido ~ ''[^[:space:]]'' AND mail ~ ''[^[:space:]]'' AND telefono ~ ''[^[:space:]]''')
+        ) AS reglas(tabla, nombre, expresion)
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = format('operativo.%I', regla.tabla)::regclass
+              AND conname = regla.nombre
+        ) THEN
+            EXECUTE format('ALTER TABLE operativo.%I ADD CONSTRAINT %I CHECK (%s) NOT VALID',
+                regla.tabla, regla.nombre, regla.expresion);
+        END IF;
+        EXECUTE format('ALTER TABLE operativo.%I VALIDATE CONSTRAINT %I', regla.tabla, regla.nombre);
+    END LOOP;
+END
+$validacion$;

@@ -29,6 +29,7 @@ services:
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
     volumes:
       - ./database/init:/datos:ro
+      - ./database/cambios:/cambios:ro
     entrypoint: ["sh", "/datos/cargar-datos.sh"]
     restart: "no"
     depends_on:

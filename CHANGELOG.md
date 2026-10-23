@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.64 (2026-10-23)
+
+- Base de datos: la carga inicial conserva los datos existentes y aplica los cambios SQL pendientes una sola vez. Se agregan los servicios opcionales de IA al entorno de desarrollo.
+
 ## Version 1.0.63 (2026-10-23)
 
 - IA: las consultas a Ollama reintentan fallos transitorios y responden más rápido cuando el servicio permanece caído.

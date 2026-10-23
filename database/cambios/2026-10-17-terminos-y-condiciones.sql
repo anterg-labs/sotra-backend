@@ -47,6 +47,8 @@ SELECT 1,
        || E'Uso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, '
        || E'asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se '
        || E'usan para publicidad ni para fines ajenos al mantenimiento.\n\n'
+       || E'Marco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales '
+       || E'de Uruguay.\n\n'
        || E'Tus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial '
        || E'de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\n'
        || E'Seguridad: el acceso es personal; no compartas tus credenciales.',

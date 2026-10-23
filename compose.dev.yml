@@ -1,0 +1,19 @@
+# Desarrollo con recarga en caliente. Es una capa sobre compose.yml: todo lo demás (base, datos, Keycloak,
+# variables) es idéntico y compose.yml no cambia.
+# Uso: docker compose -f compose.yml -f compose.dev.yml up -d --build
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: sotra-backend:dev-local
+    volumes:
+      - .:/src
+      - paquetes_nuget:/root/.nuget/packages
+      - /src/Api/bin
+      - /src/Api/obj
+      - /src/SOTRA-BACKEND/bin
+      - /src/SOTRA-BACKEND/obj
+
+volumes:
+  paquetes_nuget:

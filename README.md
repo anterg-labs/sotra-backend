@@ -1,10 +1,21 @@
 # Backend de SOTRA
 
-## Corrección de integración con Keycloak
-
-La versión 1.0.53 conserva el contrato de validación (`codigo`, `mensaje` y errores por campo) independientemente del orden de registro de MVC. Las variables ya definidas en el entorno tienen prioridad sobre `.env`, para no reemplazar la conexión y configuración del contenedor por valores locales. El corpus de evaluación se busca en el repositorio hermano `sotra-test-automation/herramientas-previas/ia/corpus`; se omite si no está disponible. El ejecutor de regresión selecciona explícitamente el mapeador de usuarios. Se conserva la autenticación y los controles de CI de qa. Estas correcciones no incorporan funcionalidades pendientes de la rama de trabajo.
+> ## ⚠️ Leer antes del próximo despliegue a staging
+>
+> El cargador de la base (`database/init/cargar-datos.sh`) **cambió**: ya no recrea una base que existe, aplica los cambios pendientes de `database/cambios/`. Antes de desplegar:
+>
+> 1. **Editar `compose.staging.yml` en el VPS** (no está en este repositorio) y agregar al servicio `db-datos` el volumen `./database/cambios:/cambios:ro`. Sin eso, el cargador avisa «no existe /cambios» y no aplica nada, y la base de staging conserva la columna `movimiento_stock.estado` que el backend nuevo ya no usa (los movimientos de stock fallarían).
+> 2. **Saber qué hará la primera ejecución:** en una base creada con el cargador anterior (sin la tabla `public.cambios_aplicados`) aplica **los 8 archivos de `database/cambios/` una sola vez**. Uno de ellos, `2026-10-17-terminos-documento-unico.sql`, **borra el historial antiguo de términos y condiciones y sus aceptaciones**, conservando el texto vigente. Si no se quiere, registrarlo antes como aplicado: `INSERT INTO public.cambios_aplicados (archivo) VALUES ('2026-10-17-terminos-documento-unico.sql');`.
+> 3. **Si un cambio falla**, el servicio `db-datos` termina con error y el backend no arranca hasta resolverlo (ver `docker compose logs db-datos`).
+> 4. **Para recrear la base a propósito** (borra los datos): `RECREAR_BASE=1`.
+>
+> Detalle en [Carga automática de datos](#carga-automática-de-datos). Este aviso se retira cuando staging ya esté desplegado con el nuevo cargador.
 
 ## Requisitos
+
+### Teléfonos de usuarios
+
+El alta y la modificación aceptan 8 dígitos, o 9 si empiezan con cero (`99123456` y `099123456`). `TelefonoAttribute` valida el formato y `UsuarioMapeador` usa `NumerosDeTelefono.Normalizar` antes de persistir: ambos ejemplos se guardan y devuelven como `99123456`, y la unicidad impide registrar el mismo número con otra escritura. Se rechazan letras, espacios, prefijos internacionales, 7 dígitos, 9 sin cero inicial y 10 o más. No requiere cambios de esquema ni se aplicaron operaciones sobre bases existentes. El requisito y los casos de Bugasura se alinean con la decisión de Nicolás del 23/10/2026.
 
 ### Linux
 
@@ -69,19 +80,30 @@ docker compose up -d --build
 
 La API queda en `http://localhost:8081` y la consola de Keycloak en `http://localhost:9080/admin`. El backend y Keycloak esperan a que `db-datos` termine. El backend llega a Ollama por `host.docker.internal`, que `compose.yml` define también para Linux (`host-gateway`).
 
-El backend se ejecuta compilado, sin recarga automática: después de cambiar código hay que reconstruirlo con `docker compose up -d --build backend`. El `Dockerfile` restaura los paquetes NuGet en una capa aparte, así que la reconstrucción no los vuelve a descargar mientras no cambien las dependencias.
+El backend de `compose.yml` se ejecuta compilado, sin recarga automática: después de cambiar código hay que reconstruirlo con `docker compose up -d --build backend`.
+
+**Desarrollo con recarga en caliente (lo que se usa a diario):** `compose.dev.yml` es una capa sobre `compose.yml` que solo cambia el servicio `backend` (`Dockerfile.dev`, código montado y `dotnet watch`); base, datos, Keycloak y variables son los mismos. `compose.ia.yml` es otra capa opcional que agrega Ollama, el modelo de embeddings y el reranker en contenedores.
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml -f compose.ia.yml up -d --build
+```
+
+Sin la IA en contenedores, omitir `-f compose.ia.yml` (la API usa `OLLAMA_BASE_URL` y `RERANKER_CARPETA` del `.env`). Después de cambiar código no hace falta reconstruir. Si Keycloak recién se importó, hay que copiar el secreto de `sotra-backend-admin` a `KEYCLOAK_ADMIN_SECRETO` (ver la sección de Keycloak). Las variables del entorno del contenedor tienen prioridad sobre el `.env` del repositorio. El `Dockerfile` restaura los paquetes NuGet en una capa aparte, así que la reconstrucción no los vuelve a descargar salvo que cambien.
 
 #### Carga automática de datos
 
-Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `db-datos` (`database/init/cargar-datos.sh`), que compara el SHA-256 de `database/init/01-init.sql` con el último que cargó, guardado en la tabla `public.carga_datos`.
+Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `db-datos` (`database/init/cargar-datos.sh`), que decide según el estado de la base:
 
-- **Sin diferencias:** no hace nada.
-- **Con diferencias o primera vez:** borra y recrea el esquema `operativo` con la estructura y los datos de `01-init.sql` (clientes, activos, usuarios, roles, permisos, órdenes, repuestos, etc.). Los cambios hechos a mano en `operativo` se pierden.
+- **Base nueva (el esquema `operativo` no tiene tablas):** carga `01-init.sql` completo (estructura y datos iniciales) y registra como aplicados todos los archivos de `database/cambios/`, porque el init ya los incluye.
+- **Base existente:** **no la recrea ni borra datos.** Aplica, en orden alfabético, los archivos de `database/cambios/` que falten según la tabla `public.cambios_aplicados` y los registra. Cada archivo es idempotente. Si uno falla (por ejemplo, filas que incumplen una restricción nueva), el servicio termina con error y el backend no arranca hasta resolverlo. En una base creada con la versión anterior del cargador, que no tiene esa tabla, la primera ejecución aplica todos los cambios una vez.
+- **Recrear a propósito:** con la variable `RECREAR_BASE=1` borra y recrea `operativo` con `01-init.sql`; los datos actuales se pierden. Solo para ambientes de prueba.
 - **Esquema `vectorial`:** `02-vectorial.sql` crea solo su estructura vacía, y únicamente si el esquema no existe. Si ya existe, no se toca. Los PDF, fragmentos y embeddings no vienen en el SQL; se generan con la asistencia documental.
+
+Los cambios de estructura nuevos se entregan en dos lugares a la vez: se incorporan a `01-init.sql` (bases nuevas) y se agrega un archivo idempotente en `database/cambios/` (bases existentes). El contenedor necesita `database/cambios` montado en `/cambios`; `compose.yml` ya lo hace y el flujo de staging copia esos archivos al servidor.
 
 **Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 14 personas usuarias con los 4 roles (entre ellas `admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`, que coinciden con los usuarios de prueba del realm de Keycloak), 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Los usuarios no tienen contraseña en SOTRA: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
 
-Para actualizar los datos, editar `01-init.sql` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
+Para agregar un cambio: editar `01-init.sql`, crear el SQL en `database/cambios/` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
 
 La imagen de la base está fijada en la variante `trixie` (Debian 13). PostgreSQL ordena el texto con la glibc del sistema: si un volumen creado con una variante se abre con otra (por ejemplo `pg18`, que es Debian 12), PostgreSQL no permite crear bases nuevas. No hay que cambiar la variante sobre un volumen existente.
 
@@ -166,6 +188,16 @@ Gmail no acepta la contraseña normal de la cuenta, sino una contraseña de apli
 3. Copiar los 16 caracteres, sin espacios, en `KC_SMTP_PASSWORD`. `KC_SMTP_FROM` y `KC_SMTP_USER` deben ser la misma dirección de Gmail.
 
 Gmail permite unos 500 correos por día.
+
+> **Estado en el entorno de desarrollo actual (2026-10-23): el envío de correos NO está configurado.** `KC_SMTP_USER` y `KC_SMTP_PASSWORD` están vacíos en el `.env` porque la contraseña de aplicación de Google es de una persona y no se guarda ni se versiona; `KC_SMTP_HOST`, `KC_SMTP_PORT` y `KC_SMTP_FROM` ya tienen sus valores. Mientras tanto no funcionan:
+>
+> - el correo para elegir la contraseña al **crear un usuario** (el alta igual responde `201`; la API registra una advertencia y el usuario queda sin contraseña);
+> - el botón **«Restablecer contraseña»** (`POST /usuarios/{id}/restablecer-contrasena`);
+> - **«¿Olvidaste tu contraseña?»** del login.
+>
+> Para poder iniciar sesión sin correo, definir la contraseña a mano en la consola de Keycloak (`http://localhost:9080/admin`, realm `sotra` → Users → el usuario → Credentials → Set password, con *Temporary* desactivado). Los 4 usuarios de prueba (`admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`) ya existen en el Keycloak local con una contraseña definida de este modo.
+>
+> Para habilitar los correos: generar la contraseña de aplicación como se explica arriba, completar `KC_SMTP_USER` (la misma dirección que `KC_SMTP_FROM`) y `KC_SMTP_PASSWORD` en el `.env`, y recrear Keycloak (`docker compose -f compose.yml -f compose.dev.yml -f compose.ia.yml up -d --force-recreate keycloak`). Si el realm ya existía, la configuración de correo importada no se vuelve a aplicar: cambiarla también en la consola (Realm settings → Email).
 
 Para probarlo: crear en el realm `sotra` un usuario con un correo real, abrir `http://localhost:9080/realms/sotra/account`, elegir **¿Has olvidado tu contraseña?**, escribir ese correo y abrir el enlace que llega (puede caer en spam). El enlace vence a los 5 minutos.
 
@@ -283,15 +315,19 @@ Si se cambia la configuración del realm desde la consola, hay que volver a expo
 
 ## Contratos de modificación
 
-Los endpoints `PUT` reciben todos los campos editables del recurso. No funcionan como modificaciones parciales.
+Desde 1.0.48, asignar mediante `PATCH /api/v1/ordenes-trabajo/{id}/tecnico` al técnico actual responde `409 TECNICO_YA_ASIGNADO` sin agregar historial, también ante solicitudes concurrentes. Se permite X → Y → X. Usuarios incorpora `cantidadOrdenesAsignadas` y Clientes `cantidadOrdenesAsociadas`, de solo lectura, incluidos todos los estados y ordenables antes de paginar. Se calculan mediante consultas agrupadas por los identificadores de la página, sin cargar las órdenes. No requiere cambios de estructura ni SQL. El historial de verificaciones vive en `../sotra-test-automation/Estado de las pruebas locales.md`; las pruebas pendientes se centralizan en `../PRUEBAS-PENDIENTES.md`, fuera del backend.
+
+La versión de aplicación 1.0.39 corresponde a la corrección del selector de clientes y activos del frontend en órdenes de trabajo. Conserva los contratos de consulta y la estructura de la base de datos; el comportamiento y sus verificaciones están en `../sotra-documentation/Flujo de datos SOTRA.md` y `sotra-test-automation/Estado de las pruebas locales.md`.
+
+Los endpoints `PUT` exigen todos los campos editables, incluidos los opcionales con valor o `null`. Omitir uno responde `400` sin escribir; vaciar un opcional lo guarda como `NULL`; los obligatorios nulos o blancos se rechazan. Las acciones puntuales usan `PATCH` y conservan los demás datos. Un `PATCH` vacío no aplica `0` ni `false` por defecto. Contratos y excepciones: `../sotra-documentation/Actualizacion de formularios y tratamiento de nulos.md` (1.0.38). Las bases nuevas incorporan CHECK contra obligatorios vacíos. El incremental `database/cambios/2026-10-21-textos-obligatorios-no-vacios.sql` se aplicó a la base local por autorización del usuario del 2026-10-21: siete restricciones validadas, sin filas inválidas ni cambios de recuentos; no se aplicó a servidores. La suite de integración final pasa 380 de 380 sobre PostgreSQL descartable.
 
 En usuarios son obligatorios `nombre`, `apellido`, `correo`, `telefono`, `idsRol`, `estado` y `fechaIngreso`. La API no recibe contraseñas: la contraseña vive solo en Keycloak (ver "Gestión de usuarios con Keycloak").
 
-En activos, `estado` es opcional y acepta `activo` o `inactivo`. Si se omite, el estado no cambia; cualquier otro valor responde `400`. Permite reactivar un activo dado de baja. El cliente y el modelo de máquina deben estar activos.
+En activos se envían los ocho campos editables. Cliente, modelo, serie y estado son obligatorios; descripción, año, nombre y ubicación admiten `null` explícito para vaciarlos. Cliente y modelo deben estar activos.
 
-En tipos de máquina, `nombre` es obligatorio. En modelos de máquina son obligatorios `nombre` y `tipoMaquinaId`; `descripcion` acepta texto o `null`. En los dos, `estado` es opcional y acepta `activo` o `inactivo`: si se omite, el estado no cambia, y cualquier otro valor responde `400`. Así se puede reactivar un tipo o un modelo dado de baja.
+En tipos se envían nombre y estado, ambos obligatorios. En modelos se envían nombre, tipoMaquinaId, descripción y estado; solo descripción admite `null`. `PUT` no acepta un cuerpo incompleto.
 
-`PATCH /api/v1/clientes/{id}` y `PATCH /api/v1/repuestos/{id}` aceptan `{ "estado": "inactivo" }` para la baja lógica y `{ "estado": "activo" }` para reactivar (`ClienteDAO.ReactivarCliente` y `RepuestoDAO.Reactivar`). Los `PATCH` de tipos, modelos, activos y usuarios siguen aceptando solamente `inactivo`. `PUT /api/v1/repuestos/{id}` ignora `cantidad`: el stock solo cambia con ingresos, egresos y ajustes.
+Los `PATCH` de estado de clientes, repuestos, tipos, modelos, activos y usuarios aceptan `activo` o `inactivo` y conservan los demás datos. `PUT` de repuestos no cambia cantidad: el stock solo cambia mediante movimientos.
 
 ### Campos opcionales de clientes
 
@@ -327,13 +363,33 @@ La aceptación por persona exige `{ usuarioId, terminosId, version, acepta: true
 
 No se agregan tablas. Las bases nuevas exigen un único registro mediante `CHECK (vigente)` y el índice único parcial. Para bases existentes se entrega `database/cambios/2026-10-17-terminos-documento-unico.sql`, que elimina el historial antiguo y conserva el texto vigente. **No aplicado a la base local ni al VPS: requiere ejecución manual autorizada.** No se reutilizan las columnas heredadas de título, datos separados o autor en el contrato. Detalles en `Documentacion/Flujo de datos SOTRA.md`, sección 15 bis.
 
+## Modelos de IA y base de datos local
+
+Todo lo que necesita el backend vive dentro de `sotra-backend/`; no hay carpetas auxiliares en la raíz del trabajo.
+
+- **Base de datos:** `docker compose up -d db` (o `docker compose up -d` para base, datos iniciales y API) usa `compose.yml`, el esquema de `database/init/` y las variables del `.env`. Los cambios incrementales están en `database/cambios/` y se aplican a mano.
+- **Modelos de IA:** `compose.ia.yml` define el volumen `sotra_modelos_reranker` (reranker ONNX y tokenizador, ~560 MB) y `sotra_modelos_ollama` (modelos de Ollama). El servicio `reranker-modelo` los descarga la primera vez, el backend los monta en `/modelos` (solo lectura) y `.env.example` ya apunta a `RERANKER_MODELO_RUTA=/modelos/model_quantized.onnx`.
+- Para ver o reponer el volumen: `docker volume inspect sotra_modelos_reranker`; si se borra, `docker compose -f compose.yml -f compose.ia.yml up -d` lo vuelve a llenar.
+
+## Orden de los listados
+
+Cada listado paginado define su lista cerrada de columnas ordenables: `ColumnasOrdenables<T>` (`SOTRA-BACKEND/Operaciones/ColumnasOrdenables.cs`) en cada DAO de EF Core y un diccionario de expresiones SQL fijas en `ServicioDocumentosTecnicos`. `ordenarPor` y `direccionOrden` solo se buscan en esa lista; lo que no está responde `400 ORDEN_INVALIDO` y nunca llega a la consulta. Siempre se desempata por el identificador. Pruebas: `Api.Pruebas/Caracterizacion/OrdenDeListadosPruebas.cs` (cada columna en ambos sentidos, columna inválida, texto con SQL y paginación estable).
+
+## Formato de los errores
+
+Los errores explícitos de los controladores se crean con `this.RespuestaDeError(estado, codigo, mensaje)` (`Api/Infraestructura/RespuestasDeError.cs`): `ProblemDetails` con `codigo` estable, `mensaje` e `idCorrelacion`, igual que el manejo global. No se devuelven objetos anónimos como error. Prueba: `Api.Pruebas/Caracterizacion/FormatoDeErroresPruebas.cs`.
+
+## Resiliencia de Ollama
+
+`ServicioOllama` recibe un `HttpClient` de `IHttpClientFactory` (`Api/Infraestructura/ConfiguracionDeOllama.cs`) con `Microsoft.Extensions.Http.Resilience` 10.11.0 (MIT, mantenido por Microsoft; agrega Polly 8 como dependencia). Reintenta hasta 2 veces con retroceso exponencial solo los fallos transitorios (error de conexión, 408, 429 y 5xx; un 4xx no se reintenta), tiene un límite de 5 minutos por intento y 10 en total, y corta el circuito 30 segundos cuando fallan la mitad de las solicitudes de una muestra de al menos 5. Con el circuito abierto la API responde `502 SERVICIO_IA_NO_DISPONIBLE` de inmediato en vez de esperar. `ServicioReranker` no usa HTTP (ONNX local), así que no lleva esta política. Pruebas: `Api.PruebasUnitarias/ClienteOllamaPruebas.cs`.
+
 ## Observabilidad (OpenTelemetry)
 
 Trazas y métricas con OpenTelemetry, **apagadas por defecto**: no cambian nada hasta definir un destino. Se activan con `OTEL_EXPORTER_OTLP_ENDPOINT` (por ejemplo el receptor OTLP de Grafana Alloy del VPS, `http://127.0.0.1:4318` con `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`) o con `Observabilidad__Habilitada=true`; se apagan con `Observabilidad__Habilitada=false`. El destino, los encabezados de autenticación, el muestreo y el nombre del servicio (`OTEL_SERVICE_NAME`, por defecto `sotra-api`) usan las variables estándar `OTEL_*`. Código en `Api/Infraestructura/Observabilidad.cs`.
 
 - **Trazas:** cada solicitud HTTP entrante (sin `/health`), las llamadas salientes (`HttpClient`, Ollama) y cada comando a PostgreSQL (fuente `Npgsql`).
 - **Métricas estándar:** ASP.NET Core (solicitudes, duración, errores), `HttpClient`, tiempo de ejecución .NET (GC, hilos, memoria), Npgsql (conexiones, comandos) y EF Core.
-- **Métricas de SOTRA** (medidor `Sotra.Api`): `sotra.acciones` (altas, modificaciones, bajas, movimientos y cambios de estado, por recurso, acción y clase de resultado), `sotra.sugerencias_ia.duracion` (histograma en segundos, por resultado `ok`, `sin_contexto`, `no_disponible` o `error`), `sotra.reportes_generados` (por tipo y formato) y `sotra.entradas_rechazadas`.
+- **Métricas de SOTRA** (medidor `Sotra.Api`): `sotra.acciones` (altas, modificaciones, bajas, movimientos y cambios de estado, por recurso, acción y clase de resultado), `sotra.sugerencias_ia.duracion` (histograma en segundos, por resultado `ok`, `sin_contexto`, `no_disponible` o `error`), `sotra.reportes_generados` (por tipo y formato) y `sotra.entradas_rechazadas`. Además, `RecolectorDeMetricasDeNegocio` (solo si la observabilidad está habilitada) mide cada 60 segundos, con un límite de 10 segundos, medidores observables: `sotra.ordenes.por_estado` (etiqueta `estado`), `sotra.ordenes.horas_hasta_el_cierre` (promedio de los últimos 7 días, en horas), `sotra.repuestos.con_stock_bajo` y `sotra.repuestos.sin_stock`. Si una medición falla, conserva la anterior y registra una advertencia. Prueba: `Api.Pruebas/Caracterizacion/MetricasDeNegocioPruebas.cs`.
 - **Logs:** cada línea lleva `IdCorrelacion` y `TraceId`, para pasar de un log a su traza.
 - Se comprobó contra un colector OTLP local: llegan trazas con spans HTTP y de base de datos, y métricas con `sotra.acciones`. Las pruebas unitarias están en `Api.PruebasUnitarias/ObservabilidadPruebas.cs`.
 
@@ -347,7 +403,7 @@ La API implementa los módulos restantes que consume el frontend:
 
 - `/api/v1/repuestos`: `GET`, `GET /alertas-stock`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}`, `PATCH /{id}/stock-minimo` y `POST /{id}/ingresos`, `/egresos` y `/ajustes`.
 - `/api/v1/ordenes-trabajo`: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}/estado`, `PATCH /{id}/tecnico` y `POST /sugerencia`. El `GET` es paginado y acepta búsqueda y filtros (ver "Listados paginados").
-- `/api/v1/documentos-tecnicos`: `GET`, `POST`, `GET /{id}/archivo` y `DELETE /{id}`.
+- `/api/v1/documentos-tecnicos`: `GET`, `POST`, `PUT /{id}`, `PATCH /{id}/vigencia`, `GET /{id}/archivo` y `DELETE /{id}`.
 - `/api/v1/reportes/indicadores`: `GET`.
 
 Las órdenes usan las tablas existentes del esquema `operativo`. La fecha prevista se conserva en la observación del primer registro de `historial_estado_ot`, y las sugerencias se guardan en `historial_recomendaciones_ia`. El responsable (`id_usuario_responsable`) es el usuario que crea la orden (ver "Usuario actual"). Si el pedido no trae token (con `AUTH_OBLIGATORIA=false`) o el usuario de Keycloak no está registrado en SOTRA, `OrdenTrabajoDAO.Crear` asigna el primer usuario activo con el rol activo "Jefe de mantenimiento" y responde `400` si no hay ninguno. `Actualizar` conserva el responsable de la orden.
@@ -383,7 +439,7 @@ Listados paginados hasta ahora:
 - `GET /api/v1/modelos-maquina` (`FiltrosModelosMaquinaDto`): `buscar` (nombre o descripción), `tipoMaquinaId` y `estado`.
 Los listados y detalles paginados de activos incluyen `nombreCliente` y `nombreModeloMaquina`; los de modelos incluyen `nombreTipoMaquina`. Se obtienen con relaciones en la misma consulta, para que el frontend no recorra todas las páginas de los catálogos al mostrar las tablas. Tras un alta o una modificación estos nombres pueden ser `null` hasta volver a consultar el recurso.
 - `GET /api/v1/tipos-maquina` (`FiltrosTiposMaquinaDto`): `buscar` (nombre) y `estado`.
-- `GET /api/v1/documentos-tecnicos` (`FiltrosDocumentosTecnicosDto`): `buscar` (nombre del archivo o del activo) y `activoId`. Además existe `GET /api/v1/documentos-tecnicos/{id}`, que devuelve un documento sin el archivo (`404` si no existe).
+- `GET /api/v1/documentos-tecnicos` (`FiltrosDocumentosTecnicosDto`): `buscar` (título, descripción, nombre del archivo o del activo), `activoId`, `modeloMaquinaId`, `tipo` (`normativa`, `procedimiento_interno`, `manual_tecnico`, `politica_seguridad` u `otro`) y `vigente`. Los documentos obsoletos (`vigente = false`) no se usan para las sugerencias de IA. Los campos nuevos (`titulo`, `tipo`, `descripcion`, `vigente` y `modelo_maquina_id`) se agregan a una base existente aplicando a mano `database/cambios/2026-10-20-documentos-datos-generales.sql`; las bases nuevas ya los traen en `database/init/02-vectorial.sql`. Además existe `GET /api/v1/documentos-tecnicos/{id}`, que devuelve un documento sin el archivo (`404` si no existe).
 
 - `GET /api/v1/usuarios` (`FiltrosUsuariosDto`): `buscar` (nombre, apellido o correo), `rolId`, `estado` y `direccionOrden` (`desc` invierte el orden, para ver primero los más nuevos).
 - `GET /api/v1/clientes` (`FiltrosClientesDto`): `buscar` (razón social, contacto o correo), `estado` y `direccionOrden`.
@@ -471,7 +527,7 @@ Los filtros se aplican a todos los indicadores de órdenes. `repuestosBajoStock`
 
 ### Descarga de reportes en PDF y CSV (`GET /api/v1/reportes/{tipoReporte}/pdf` y `/csv`)
 
-RF007-02. Devuelve un archivo `application/pdf` llamado `reporte-{tipoReporte}.pdf`, generado con la librería QuestPDF (licencia Community, configurada al inicio de `Program.cs`). El diseño del documento está en `Api/Servicios/GeneradorReportesPdf.cs`: título, fecha de generación (hora de Uruguay), criterios aplicados, tablas y número de página. `GET /api/v1/reportes/{tipoReporte}/csv` devuelve las mismas tablas (se arman una sola vez en `ReportesController.ArmarReporte`) como `text/csv` UTF-8 con BOM y separador `;`; `Api/Servicios/GeneradorReportesCsv.cs` aplica las comillas de RFC 4180 y antepone `'` a las celdas que empiezan con `=`, `+`, `-`, `@`, tabulación o retorno de carro (inyección de fórmulas).
+RF007-02. Devuelve un archivo `application/pdf` llamado `reporte-{tipoReporte}.pdf`, generado con la librería QuestPDF (el encabezado lleva el logo de CVM incrustado desde `Api/Recursos/logo-cvm.png` y los tonos provisorios de la marca; licencia Community, configurada al inicio de `Program.cs`). El diseño del documento está en `Api/Servicios/GeneradorReportesPdf.cs`: título, fecha de generación (hora de Uruguay), criterios aplicados, tablas y número de página. `GET /api/v1/reportes/{tipoReporte}/csv` devuelve las mismas tablas (se arman una sola vez en `ReportesController.ArmarReporte`) como `text/csv` UTF-8 con BOM y separador `;`; `Api/Servicios/GeneradorReportesCsv.cs` aplica las comillas de RFC 4180 y antepone `'` a las celdas que empiezan con `=`, `+`, `-`, `@`, tabulación o retorno de carro (inyección de fórmulas).
 
 Tipos de reporte (`tipoReporte`):
 
@@ -614,7 +670,13 @@ Proyecto NUnit aparte de `Api.Pruebas` (las de integración levantan Testcontain
 dotnet test Api.PruebasUnitarias
 ```
 
-Hoy son 271 pruebas, por módulo: validaciones (contraseña, nombre de persona, teléfono), mapeadores (incluida la `Version` de la orden: determinista y sensible al contenido), `EstadosStock`, transiciones y reglas de motivo/técnico de las órdenes, `GeneradorReportesCsv` (RFC 4180 e inyección de fórmulas), `GeneradorReportesPdf` (bytes `%PDF`), `HoraUruguay`, servicios de manuales (`DocumentoPdf`, `TextoDelManual`, `AdvertenciasDelManual`, `SeccionesCandidatas`, `RedaccionDeSugerencia`), `EntradaSinCaracteresNulos` (convertidor JSON y middleware), `CabecerasDeSeguridadMiddleware`, opciones de límite de solicitudes y de alertas, y `PaginaDto`.
+En la ejecución local 1.0.38 pasan las 363 pruebas de la selección sin `CorpusDeEvaluacionIaPruebas` (sus dos pruebas buscan la carpeta antigua `herramientas-plan`). Incluye 27 regresiones nuevas de contratos PUT/PATCH, además de validaciones, mapeadores, stock, órdenes, reportes, manuales, infraestructura, resiliencia y observabilidad. Resultados y limitaciones en `../sotra-test-automation/Estado de las pruebas locales.md`.
+
+Clientes tiene 12 pruebas nuevas de validación de sus DTO (obligatorios, límites de longitud, opcionales, correo y teléfono de 8 dígitos, también al modificar), además de las 5 pruebas de mapeo existentes. Las 17 pasan. Ejecutar solo esta selección:
+
+```bash
+dotnet test Api.PruebasUnitarias --filter "FullyQualifiedName~Api.PruebasUnitarias.ClientesPruebas|FullyQualifiedName~MapeadoresPruebas.Cliente_"
+```
 
 ## Pruebas de seguridad, de casos y de carga locales
 
@@ -629,6 +691,8 @@ Rendimiento: `OrdenTrabajoDAO.Filtrar` es la base compartida del listado y de lo
 ## Dashboard analítico
 
 `AnaliticaController` expone `GET /api/v1/reportes/tendencias`, `/tiempos` (con duración, tiempo por etapa y cumplimiento de fechas previstas), `/reincidencias`, `/repuestos-usados` y `/alertas-maquinaria` (contratos en `Documentacion/Flujo de datos SOTRA.md`, sección 16). Todo se calcula en la base con `GROUP BY`, `percentile_cont` y funciones de ventana (`LAG` y `LEAD`) en `AnaliticaDAO`, con consultas SQL constantes y parámetros tipados (`@desde`, `@clienteId`, etc.): no se arma SQL con texto de la persona. Los umbrales de las alertas y los días de reincidencia se configuran con la sección `AlertasMaquinaria` (variables `AlertasMaquinaria__SinAsignarHoras`, `__AsignadaSinIniciarHoras`, `__PausadaHoras`, `__MaquinaDetenidaAltaHoras`, `__MaquinaDetenidaMediaHoras`, `__MaquinaDetenidaBajaHoras` y `__ReincidenciaDias`), validada al iniciar (`OpcionesDeAlertasDeMaquinaria`). Los valores por defecto son provisionales hasta acordarlos con el área de postventa.
+
+**Caché corta.** Las cinco consultas (`tendencias`, `tiempos`, `repuestos-usados`, `reincidencias` y `alertas-maquinaria`) reutilizan el resultado 30 segundos para los mismos filtros (`CacheAnalitica__Segundos`, de 0 a 600; con 0 queda apagada), así que un dato nuevo puede tardar hasta ese tiempo en verse. Las solicitudes simultáneas con los mismos filtros comparten un único cálculo, un error no se guarda y cancelar una solicitud no interrumpe el cálculo de las demás. Código en `Api/Infraestructura/CacheDeAnalitica.cs`; pruebas en `Api.PruebasUnitarias/CacheDeAnaliticaPruebas.cs`.
 
 ## Auditoría de acciones
 
