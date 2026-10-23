@@ -83,35 +83,8 @@ public class RepuestosController : ControllerBase
             });
         }
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        if (solicitud.Fecha == default || solicitud.Fecha > hoy.AddDays(1))
-        {
-            return BadRequest(new
-            {
-                codigo = "FECHA_INVALIDA",
-                mensaje = "Indicá una fecha de ingreso válida que no sea futura."
-            });
-        }
-
-        var motivo = solicitud.Motivo?.Trim() ?? "";
-        var ubicacion = solicitud.Ubicacion?.Trim() ?? "";
-        if (motivo == "" || ubicacion == "")
-        {
-            return BadRequest(new
-            {
-                codigo = "DATOS_OBLIGATORIOS",
-                mensaje = "El motivo y la ubicación del ingreso son obligatorios."
-            });
-        }
-
-        var fechaMovimiento = DateTime.UtcNow;
-        if (solicitud.Fecha != hoy)
-        {
-            fechaMovimiento = solicitud.Fecha.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc);
-        }
-
         return await RegistrarMovimiento(new SolicitudMovimientoStock(id, TiposMovimientoStock.Ingreso, solicitud.Cantidad,
-            fechaMovimiento, motivo, ubicacion, ObservacionesONulo(solicitud.Observaciones)), cancelacion);
+            DateTime.UtcNow, null, null, ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
     [HttpPost("{id:long}/egresos")]

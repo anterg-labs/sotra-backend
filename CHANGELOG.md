@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.60 (2026-10-23)
+
+- Stock: el ingreso requiere solo la cantidad; la fecha y la ubicación se toman del sistema y del repuesto. Los movimientos dejan de guardar un estado sin uso.
+
 ## Version 1.0.59 (2026-10-23)
 
 - Órdenes de trabajo: se evita duplicar una asignación al mismo técnico y se informa el conflicto.

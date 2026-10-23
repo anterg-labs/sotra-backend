@@ -298,7 +298,6 @@ ALTER SEQUENCE operativo."SEC_MOTIVO_ESTADO_OT_ID" OWNED BY operativo.motivo_est
 
 CREATE TABLE operativo.movimiento_stock (
     id_movimiento bigint NOT NULL,
-    estado boolean NOT NULL,
     fecha timestamp with time zone NOT NULL,
     cantidad integer NOT NULL,
     id_repuesto bigint NOT NULL,
@@ -934,33 +933,33 @@ LUZ-TRA-LED	Faro de trabajo LED	Descontinuado.	0	f	Depósito D-2	Hella	14	2
 -- Data for Name: movimiento_stock; Type: TABLE DATA; Schema: operativo; Owner: postgres
 --
 
-COPY operativo.movimiento_stock (id_movimiento, estado, fecha, cantidad, id_repuesto, id_usuario, tipo, motivo, ubicacion, observaciones, stock_anterior, stock_posterior) FROM stdin;
-1	t	2026-09-12 10:05:00+00	4	5	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	4
-2	t	2026-09-12 10:10:00+00	10	10	9	ingreso	Compra a proveedor	Depósito A-3	\N	0	10
-3	t	2026-09-13 10:01:00+00	20	1	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	20
-4	t	2026-09-13 10:06:00+00	9	6	9	ingreso	Compra a proveedor	Depósito C-3	\N	0	9
-5	t	2026-09-13 10:11:00+00	6	11	9	ingreso	Compra a proveedor	Depósito C-4	\N	0	6
-6	t	2026-09-14 10:02:00+00	5	2	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	5
-7	t	2026-09-14 10:07:00+00	3	7	9	ingreso	Compra a proveedor	Depósito C-1	\N	0	3
-8	t	2026-09-14 10:12:00+00	8	12	9	ingreso	Compra a proveedor	Depósito C-5	\N	0	8
-9	t	2026-09-15 10:03:00+00	13	3	9	ingreso	Compra a proveedor	Depósito A-2	\N	0	13
-10	t	2026-09-15 10:08:00+00	68	8	9	ingreso	Compra a proveedor	Depósito C-2	\N	0	68
-11	t	2026-09-15 10:13:00+00	52	13	9	ingreso	Compra a proveedor	Depósito B-2	\N	0	52
-12	t	2026-09-16 09:30:00+00	1	1	9	egreso	Consumo en la orden de trabajo #1	Depósito A-1	\N	20	19
-13	t	2026-09-16 10:04:00+00	10	4	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	10
-14	t	2026-09-16 10:09:00+00	2	9	9	ingreso	Compra a proveedor	Depósito D-1	\N	0	2
-15	t	2026-09-16 10:30:00+00	1	3	9	egreso	Consumo en la orden de trabajo #1	Depósito A-2	\N	13	12
-16	t	2026-09-16 11:30:00+00	2	5	9	egreso	Consumo en la orden de trabajo #1	Depósito B-1	\N	4	2
-17	t	2026-09-22 10:00:00+00	1	11	9	egreso	Consumo en la orden de trabajo #2	Depósito C-4	\N	6	5
-18	t	2026-09-22 11:00:00+00	1	4	9	egreso	Consumo en la orden de trabajo #2	Depósito B-1	\N	10	9
-19	t	2026-09-22 12:00:00+00	1	6	9	egreso	Consumo en la orden de trabajo #2	Depósito C-3	\N	9	8
-20	t	2026-09-27 09:00:00+00	2	12	9	egreso	Consumo en la orden de trabajo #3	Depósito C-5	\N	8	6
-21	t	2026-09-27 10:00:00+00	8	8	9	egreso	Consumo en la orden de trabajo #3	Depósito C-2	\N	68	60
-22	t	2026-10-02 09:00:00+00	4	13	9	egreso	Consumo en la orden de trabajo #4	Depósito B-2	\N	52	48
-23	t	2026-10-05 09:15:00+00	1	6	9	egreso	Consumo en la orden de trabajo #5	Depósito C-3	\N	8	7
-24	t	2026-10-14 09:00:00+00	1	1	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	19	18
-25	t	2026-10-14 10:00:00+00	2	5	9	egreso	Consumo en la orden de trabajo #11	Depósito B-1	\N	2	0
-26	t	2026-10-14 11:00:00+00	1	2	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	5	4
+COPY operativo.movimiento_stock (id_movimiento, fecha, cantidad, id_repuesto, id_usuario, tipo, motivo, ubicacion, observaciones, stock_anterior, stock_posterior) FROM stdin;
+1	2026-09-12 10:05:00+00	4	5	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	4
+2	2026-09-12 10:10:00+00	10	10	9	ingreso	Compra a proveedor	Depósito A-3	\N	0	10
+3	2026-09-13 10:01:00+00	20	1	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	20
+4	2026-09-13 10:06:00+00	9	6	9	ingreso	Compra a proveedor	Depósito C-3	\N	0	9
+5	2026-09-13 10:11:00+00	6	11	9	ingreso	Compra a proveedor	Depósito C-4	\N	0	6
+6	2026-09-14 10:02:00+00	5	2	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	5
+7	2026-09-14 10:07:00+00	3	7	9	ingreso	Compra a proveedor	Depósito C-1	\N	0	3
+8	2026-09-14 10:12:00+00	8	12	9	ingreso	Compra a proveedor	Depósito C-5	\N	0	8
+9	2026-09-15 10:03:00+00	13	3	9	ingreso	Compra a proveedor	Depósito A-2	\N	0	13
+10	2026-09-15 10:08:00+00	68	8	9	ingreso	Compra a proveedor	Depósito C-2	\N	0	68
+11	2026-09-15 10:13:00+00	52	13	9	ingreso	Compra a proveedor	Depósito B-2	\N	0	52
+12	2026-09-16 09:30:00+00	1	1	9	egreso	Consumo en la orden de trabajo #1	Depósito A-1	\N	20	19
+13	2026-09-16 10:04:00+00	10	4	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	10
+14	2026-09-16 10:09:00+00	2	9	9	ingreso	Compra a proveedor	Depósito D-1	\N	0	2
+15	2026-09-16 10:30:00+00	1	3	9	egreso	Consumo en la orden de trabajo #1	Depósito A-2	\N	13	12
+16	2026-09-16 11:30:00+00	2	5	9	egreso	Consumo en la orden de trabajo #1	Depósito B-1	\N	4	2
+17	2026-09-22 10:00:00+00	1	11	9	egreso	Consumo en la orden de trabajo #2	Depósito C-4	\N	6	5
+18	2026-09-22 11:00:00+00	1	4	9	egreso	Consumo en la orden de trabajo #2	Depósito B-1	\N	10	9
+19	2026-09-22 12:00:00+00	1	6	9	egreso	Consumo en la orden de trabajo #2	Depósito C-3	\N	9	8
+20	2026-09-27 09:00:00+00	2	12	9	egreso	Consumo en la orden de trabajo #3	Depósito C-5	\N	8	6
+21	2026-09-27 10:00:00+00	8	8	9	egreso	Consumo en la orden de trabajo #3	Depósito C-2	\N	68	60
+22	2026-10-02 09:00:00+00	4	13	9	egreso	Consumo en la orden de trabajo #4	Depósito B-2	\N	52	48
+23	2026-10-05 09:15:00+00	1	6	9	egreso	Consumo en la orden de trabajo #5	Depósito C-3	\N	8	7
+24	2026-10-14 09:00:00+00	1	1	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	19	18
+25	2026-10-14 10:00:00+00	2	5	9	egreso	Consumo en la orden de trabajo #11	Depósito B-1	\N	2	0
+26	2026-10-14 11:00:00+00	1	2	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	5	4
 \.
 
 

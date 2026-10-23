@@ -149,7 +149,6 @@ public class MovimientoStockDAO
 
         var movimiento = new MovimientoStock
         {
-            Estado = true,
             Tipo = solicitud.Tipo,
             Fecha = solicitud.Fecha,
             Cantidad = solicitud.Tipo == TiposMovimientoStock.Ajuste
@@ -182,7 +181,7 @@ public static class TiposMovimientoStock
 /// <param name="Cantidad">Unidades a sumar o restar; en un ajuste es el stock real contado.</param>
 /// <param name="IdUsuario">Quién registra el movimiento; null si el pedido no trae token (AUTH_OBLIGATORIA=false).</param>
 public sealed record SolicitudMovimientoStock(
-    long RepuestoId, string Tipo, int Cantidad, DateTime Fecha, string Motivo, string? Ubicacion, string? Observaciones,
+    long RepuestoId, string Tipo, int Cantidad, DateTime Fecha, string? Motivo, string? Ubicacion, string? Observaciones,
     long? IdUsuario = null);
 
 public enum EstadoMovimientoStock

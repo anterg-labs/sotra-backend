@@ -7,8 +7,6 @@ public partial class MovimientoStock
 {
     public long IdMovimiento { get; set; }
 
-    public bool Estado { get; set; }
-
     public DateTime Fecha { get; set; }
 
     public int Cantidad { get; set; }
