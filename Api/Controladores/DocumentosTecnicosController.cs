@@ -34,8 +34,19 @@ public class DocumentosTecnicosController : ControllerBase
             return BadRequest(PaginaDto<DocumentoTecnicoDto>.ErrorDePaginacion());
         }
 
+        if (filtros.Tipo is not null && !TiposDeDocumento.EsValido(filtros.Tipo))
+        {
+            return this.RespuestaDeError(400, "TIPO_DOCUMENTO_INVALIDO", "El tipo de documento no es válido.");
+        }
+
+        if (filtros.OrdenarPor is { Length: > 0 } && !ServicioDocumentosTecnicos.ColumnasOrdenables.ContainsKey(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(ServicioDocumentosTecnicos.ColumnasOrdenables.Keys);
+        }
+
         var (elementos, total) = await _servicio.ListarPaginaAsync(
-            filtros.Buscar, filtros.ActivoId, filtros.Pagina, filtros.TamanoPagina, cancellationToken);
+            filtros.Buscar, filtros.ActivoId, filtros.Tipo, filtros.Vigente, filtros.ModeloMaquinaId,
+            filtros.Pagina, filtros.TamanoPagina, cancellationToken, filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         return Ok(PaginaDto<DocumentoTecnicoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
@@ -53,16 +64,17 @@ public class DocumentosTecnicosController : ControllerBase
     [RequestSizeLimit(CincuentaMegabytesEnBytes)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Crear(IFormFile archivo,
         [FromForm] bool usaSugerenciasIA, [FromForm] long? activoId,
-        CancellationToken cancellationToken)
+        [FromForm] string? titulo, [FromForm] string? tipo, [FromForm] string? descripcion,
+        [FromForm] long? modeloMaquinaId, CancellationToken cancellationToken)
     {
         if (archivo.Length == 0)
         {
-            return BadRequest(new { codigo = "ARCHIVO_NO_ES_PDF", mensaje = "El archivo está vacío." });
+            return this.RespuestaDeError(400, "ARCHIVO_NO_ES_PDF", "El archivo está vacío.");
         }
 
         if (archivo.Length > CincuentaMegabytesEnBytes)
         {
-            return StatusCode(413, new { codigo = "ARCHIVO_DEMASIADO_GRANDE", mensaje = "El archivo supera 50 MB." });
+            return this.RespuestaDeError(413, "ARCHIVO_DEMASIADO_GRANDE", "El archivo supera 50 MB.");
         }
 
         await using var memoria = new MemoryStream();
@@ -70,18 +82,20 @@ public class DocumentosTecnicosController : ControllerBase
         var contenido = memoria.ToArray();
         if (!EsPdf(contenido))
         {
-            return BadRequest(new { codigo = "ARCHIVO_NO_ES_PDF", mensaje = "El archivo no es un PDF válido." });
+            return this.RespuestaDeError(400, "ARCHIVO_NO_ES_PDF", "El archivo no es un PDF válido.");
         }
 
         try
         {
-            var documento = await _servicio.GuardarAsync(archivo.FileName, activoId,
+            var datos = new DatosDelDocumento(titulo, tipo ?? TiposDeDocumento.ManualTecnico,
+                descripcion, activoId, modeloMaquinaId);
+            var documento = await _servicio.GuardarAsync(archivo.FileName, datos,
                 usaSugerenciasIA, contenido, cancellationToken);
             return CreatedAtAction(nameof(Descargar), new { id = documento.Id }, documento);
         }
         catch (InvalidDataException excepcion)
         {
-            return UnprocessableEntity(new { codigo = excepcion.Message, mensaje = "No se pudo leer el texto del PDF." });
+            return this.RespuestaDeError(422, excepcion.Message, "No se pudo leer el texto del PDF.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -90,21 +104,31 @@ public class DocumentosTecnicosController : ControllerBase
         catch (Exception excepcion) when (excepcion is HttpRequestException or TaskCanceledException)
         {
             _logger.LogWarning(excepcion, "El servicio de IA (Ollama) no respondió al procesar un documento técnico");
-            return StatusCode(502, new
-            {
-                codigo = "SERVICIO_IA_NO_DISPONIBLE",
-                mensaje = "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde."
-            });
+            return this.RespuestaDeError(502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
         }
         catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
         {
             _logger.LogError(excepcion, "Falló el procesamiento de un documento técnico");
-            return StatusCode(502, new
-            {
-                codigo = "PROCESAMIENTO_FALLIDO",
-                mensaje = "No se pudo procesar el documento técnico."
-            });
+            return this.RespuestaDeError(502, "PROCESAMIENTO_FALLIDO", "No se pudo procesar el documento técnico.");
         }
+    }
+
+    [HttpPut("{id:long}")]
+    public async Task<ActionResult<DocumentoTecnicoDto>> Actualizar(long id,
+        DocumentoTecnicoActualizarDto solicitud, CancellationToken cancellationToken)
+    {
+        var datos = new DatosDelDocumento(solicitud.Titulo, solicitud.Tipo, solicitud.Descripcion,
+            solicitud.ActivoId, solicitud.ModeloMaquinaId);
+        var documento = await _servicio.ActualizarAsync(id, datos, cancellationToken);
+        return documento is null ? NotFound() : Ok(documento);
+    }
+
+    [HttpPatch("{id:long}/vigencia")]
+    public async Task<ActionResult<DocumentoTecnicoDto>> CambiarVigencia(long id,
+        DocumentoTecnicoVigenciaDto solicitud, CancellationToken cancellationToken)
+    {
+        var documento = await _servicio.CambiarVigenciaAsync(id, solicitud.Vigente, cancellationToken);
+        return documento is null ? NotFound() : Ok(documento);
     }
 
     [HttpGet("{id:long}/archivo")]
@@ -136,11 +160,7 @@ public class DocumentosTecnicosController : ControllerBase
         catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
         {
             _logger.LogError(excepcion, "Falló el borrado del documento técnico {DocumentoId}", id);
-            return StatusCode(502, new
-            {
-                codigo = "BORRADO_FALLIDO",
-                mensaje = "No se pudo eliminar el documento técnico."
-            });
+            return this.RespuestaDeError(502, "BORRADO_FALLIDO", "No se pudo eliminar el documento técnico.");
         }
     }
 

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.61 (2026-10-23)
+
+- Documentación técnica: se pueden registrar y modificar título, tipo, descripción y asociación, filtrar documentos y cambiar su vigencia. Los obsoletos dejan de alimentar las sugerencias.
+
 ## Version 1.0.60 (2026-10-23)
 
 - Stock: el ingreso requiere solo la cantidad; la fecha y la ubicación se toman del sistema y del repuesto. Los movimientos dejan de guardar un estado sin uso.

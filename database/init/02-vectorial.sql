@@ -31,7 +31,13 @@ CREATE TABLE vectorial.documento_tecnico (
     archivo bytea,
     texto text DEFAULT ''::text NOT NULL,
     creado_en timestamp with time zone NOT NULL,
-    documento_vectorial_id bigint
+    documento_vectorial_id bigint,
+    titulo character varying(200),
+    tipo character varying(30) DEFAULT 'manual_tecnico'::character varying NOT NULL,
+    descripcion text,
+    vigente boolean DEFAULT true NOT NULL,
+    modelo_maquina_id bigint,
+    CONSTRAINT "CK_DOCUMENTO_TECNICO_TIPO" CHECK (((tipo)::text = ANY (ARRAY[('normativa'::character varying)::text, ('procedimiento_interno'::character varying)::text, ('manual_tecnico'::character varying)::text, ('politica_seguridad'::character varying)::text, ('otro'::character varying)::text])))
 );
 
 

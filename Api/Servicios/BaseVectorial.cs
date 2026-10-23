@@ -63,7 +63,14 @@ public static class BaseVectorial
                 archivo BYTEA NOT NULL,
                 texto TEXT NOT NULL DEFAULT '',
                 creado_en TIMESTAMPTZ NOT NULL,
-                documento_vectorial_id BIGINT
+                documento_vectorial_id BIGINT,
+                titulo VARCHAR(200),
+                tipo VARCHAR(30) NOT NULL DEFAULT 'manual_tecnico',
+                descripcion TEXT,
+                vigente BOOLEAN NOT NULL DEFAULT TRUE,
+                modelo_maquina_id BIGINT,
+                CONSTRAINT "CK_DOCUMENTO_TECNICO_TIPO" CHECK (tipo IN
+                    ('normativa', 'procedimiento_interno', 'manual_tecnico', 'politica_seguridad', 'otro'))
             );
             ALTER TABLE vectorial.documento_tecnico
                 ADD COLUMN IF NOT EXISTS documento_vectorial_id BIGINT;
