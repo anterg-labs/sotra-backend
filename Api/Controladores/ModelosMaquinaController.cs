@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.ModelosMaquina;
 using Api.Mapeadores;
@@ -29,12 +30,17 @@ public class ModelosMaquinaController : ControllerBase
             return BadRequest(PaginaDto<ModeloMaquinaDto>.ErrorDePaginacion());
         }
 
+        if (!ModeloMaquinaDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(ModeloMaquinaDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<ModeloMaquinaDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroModelosMaquina(filtros.Buscar, filtros.TipoMaquinaId, estado);
+        var filtro = new FiltroModelosMaquina(filtros.Buscar, filtros.TipoMaquinaId, estado, filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _modeloMaquinaDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(ModeloMaquinaMapeador.ADto).ToList();
         return Ok(PaginaDto<ModeloMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));

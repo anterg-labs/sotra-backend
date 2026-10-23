@@ -6,6 +6,19 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class MovimientoStockDAO
 {
+    public static readonly ColumnasOrdenables<MovimientoStock> ColumnasOrdenables = new(
+        m => m.IdMovimiento,
+        [
+            new("fecha", m => m.Fecha),
+            new("codigoRepuesto", m => m.IdRepuestoNavigation.Codigo),
+            new("nombreRepuesto", m => m.IdRepuestoNavigation.Nombre),
+            new("tipo", m => m.Tipo),
+            new("cantidad", m => m.Cantidad),
+            new("ubicacion", m => m.Ubicacion),
+            new("nombreUsuario", m => m.IdUsuarioNavigation == null ? null : m.IdUsuarioNavigation.Nombre + " " + m.IdUsuarioNavigation.Apellido),
+            new("motivo", m => m.Motivo),
+        ]);
+
     private readonly SotraContext _contexto;
 
     public MovimientoStockDAO(SotraContext contexto)
@@ -70,11 +83,12 @@ public class MovimientoStockDAO
             consulta = consulta.Where(m => m.IdUsuario == usuarioId);
         }
 
-        var ordenada = consulta
+        var conRelaciones = consulta
             .Include(m => m.IdRepuestoNavigation)
-            .Include(m => m.IdUsuarioNavigation)
-            .OrderByDescending(m => m.Fecha)
-            .ThenByDescending(m => m.IdMovimiento);
+            .Include(m => m.IdUsuarioNavigation);
+        var ordenada = !string.IsNullOrEmpty(filtro.OrdenarPor)
+            ? ColumnasOrdenables.Aplicar(conRelaciones, filtro.OrdenarPor, filtro.Descendente)
+            : conRelaciones.OrderByDescending(m => m.Fecha).ThenByDescending(m => m.IdMovimiento);
 
         return await ConsultasDeTexto.PaginarAsync(ordenada, pagina, tamanoPagina, cancelacion);
     }

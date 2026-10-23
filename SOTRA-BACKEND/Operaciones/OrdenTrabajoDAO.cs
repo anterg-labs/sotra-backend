@@ -16,6 +16,27 @@ public sealed record RepuestoUsadoEnOrdenes(string Codigo, string Nombre, int Ca
 public class OrdenTrabajoDAO
 {
     private const string FormatoDeFecha = "yyyy-MM-dd";
+    public static readonly ColumnasOrdenables<OrdenTrabajo> ColumnasOrdenables = new(
+        o => o.IdOrden,
+        [
+            new("id", o => o.IdOrden),
+            new("nombreCliente", o => o.IdClienteNavigation.RazonSocial),
+            new("nombreActivo", o => o.IdActivoNavigation.Nombre ?? o.IdActivoNavigation.NumSerie),
+            new("tipo", o => o.Tipo),
+            new("prioridad", o => o.Prioridad),
+            new("nombreTecnico", o => o.IdUsuarioTecnicoNavigation == null
+                ? null
+                : o.IdUsuarioTecnicoNavigation.Nombre + " " + o.IdUsuarioTecnicoNavigation.Apellido),
+            new("estado", o => o.HistorialEstadoOts
+                .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada"),
+            new("creadoEn", o => o.FechaCreada),
+            // La fecha prevista se guarda como texto ISO (aaaa-mm-dd) en la observaciÃ³n del primer estado.
+            new("fechaPrevistaEjecucion", o => o.HistorialEstadoOts
+                .OrderBy(h => h.FechaHora).ThenBy(h => h.IdHEstadoOt)
+                .Select(h => h.Observacion).FirstOrDefault()),
+        ]);
+
 
     private static readonly string[] EstadosValidos =
     {
@@ -106,7 +127,11 @@ public class OrdenTrabajoDAO
         var consulta = Filtrar(filtro);
 
         IOrderedQueryable<OrdenTrabajo> ordenada;
-        if (filtro.OrdenarPorCreacion)
+        if (!string.IsNullOrEmpty(filtro.OrdenarPor))
+        {
+            ordenada = ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente);
+        }
+        else if (filtro.OrdenarPorCreacion)
         {
             ordenada = filtro.Descendente
                 ? consulta.OrderByDescending(o => o.FechaCreada).ThenByDescending(o => o.IdOrden)

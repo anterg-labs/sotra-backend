@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.DTOs.Repuestos;
@@ -33,6 +34,11 @@ public class RepuestosController : ControllerBase
             return BadRequest(PaginaDto<RepuestoDto>.ErrorDePaginacion());
         }
 
+        if (!RepuestoDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(RepuestoDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<RepuestoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
@@ -48,7 +54,8 @@ public class RepuestosController : ControllerBase
         }
 
         var filtro = new FiltroRepuestos(filtros.Buscar, estado, filtros.Ubicacion, filtros.BajoStock,
-            filtros.EstadoStock, string.Equals(filtros.Orden, "criticidad", StringComparison.OrdinalIgnoreCase));
+            filtros.EstadoStock, string.Equals(filtros.Orden, "criticidad", StringComparison.OrdinalIgnoreCase),
+            filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _repuestoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(RepuestoMapeador.ADto).ToList();
         return Ok(PaginaDto<RepuestoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));

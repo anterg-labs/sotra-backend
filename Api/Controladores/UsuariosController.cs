@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.Usuarios;
 using Api.Mapeadores;
@@ -63,12 +64,17 @@ public class UsuariosController : ControllerBase
             return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
         }
 
+        if (!UsuarioDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(UsuarioDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<UsuarioListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc");
+        var filtro = new FiltroUsuarios(filtros.Buscar, filtros.RolId, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor);
         var (usuarios, total) = await _usuarioDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = usuarios.Select(UsuarioMapeador.AListadoDto).ToList();
         return Ok(PaginaDto<UsuarioListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));

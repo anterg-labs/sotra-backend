@@ -50,11 +50,12 @@ public class OrdenesTrabajoController : ControllerBase
         if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
             && filtros.FechaDesde > filtros.FechaHasta)
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO", "La fecha desde no puede ser posterior a la fecha hasta.");
+        }
+
+        if (!OrdenTrabajoDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(OrdenTrabajoDAO.ColumnasOrdenables.Claves);
         }
 
         // El técnico solo ve las órdenes que tiene asignadas, aunque pida otro filtro.
@@ -74,7 +75,7 @@ public class OrdenesTrabajoController : ControllerBase
             filtros.Buscar, filtros.ClienteId, filtros.ActivoId, tecnicoId, filtros.Estado,
             filtros.Prioridad, filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo",
             filtros.FechaDesde, filtros.FechaHasta, filtros.ConSugerencias,
-            filtros.OrdenarPor == "creadoEn", filtros.DireccionOrden == "desc");
+            OrdenarPorCreacion: false, Descendente: filtros.DireccionOrden == "desc", OrdenarPor: filtros.OrdenarPor);
 
         if (filtros.Tipo is not (null or "" or "preventivo" or "correctivo"))
         {

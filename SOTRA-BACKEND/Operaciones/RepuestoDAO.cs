@@ -6,6 +6,18 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class RepuestoDAO
 {
+    public static readonly ColumnasOrdenables<Repuesto> ColumnasOrdenables = new(
+        r => r.IdRepuesto,
+        [
+            new("codigo", r => r.Codigo),
+            new("nombre", r => r.Nombre),
+            new("marca", r => r.Marca),
+            new("ubicacion", r => r.Ubicacion),
+            new("cantidad", r => r.Cantidad),
+            new("cantidadMinima", r => r.CantMin),
+            new("estado", r => r.Estado),
+        ]);
+
     private readonly SotraContext _contexto;
 
     public RepuestoDAO(SotraContext contexto)
@@ -59,10 +71,12 @@ public class RepuestoDAO
             _ => consulta,
         };
 
-        var ordenada = filtro.OrdenarPorCriticidad
-            ? consulta.OrderBy(r => r.Cantidad <= 0 ? 0 : (r.CantMin > 0 && r.Cantidad <= r.CantMin ? 1 : 2))
-                .ThenBy(r => r.IdRepuesto)
-            : consulta.OrderBy(r => r.IdRepuesto);
+        var ordenada = !string.IsNullOrEmpty(filtro.OrdenarPor)
+            ? ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente)
+            : filtro.OrdenarPorCriticidad
+                ? consulta.OrderBy(r => r.Cantidad <= 0 ? 0 : (r.CantMin > 0 && r.Cantidad <= r.CantMin ? 1 : 2))
+                    .ThenBy(r => r.IdRepuesto)
+                : consulta.OrderBy(r => r.IdRepuesto);
 
         return await ConsultasDeTexto.PaginarAsync(ordenada, pagina, tamanoPagina, cancelacion);
     }

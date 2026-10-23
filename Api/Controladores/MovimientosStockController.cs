@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.Mapeadores;
@@ -38,7 +39,13 @@ public class MovimientosStockController : ControllerBase
             });
         }
 
-        var filtro = new FiltroMovimientosStock(filtros.Buscar, filtros.RepuestoId, filtros.Tipo, filtros.FechaDesde, filtros.FechaHasta, filtros.Ubicacion, filtros.UsuarioId);
+        if (!MovimientoStockDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(MovimientoStockDAO.ColumnasOrdenables.Claves);
+        }
+
+        var filtro = new FiltroMovimientosStock(filtros.Buscar, filtros.RepuestoId, filtros.Tipo, filtros.FechaDesde, filtros.FechaHasta, filtros.Ubicacion, filtros.UsuarioId,
+            filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _movimientoStockDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(MovimientoStockMapeador.ADto).ToList();
         return Ok(PaginaDto<MovimientoStockDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));

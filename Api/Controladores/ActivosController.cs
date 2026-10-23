@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.Activos;
 using Api.Mapeadores;
@@ -29,12 +30,17 @@ public class ActivosController : ControllerBase
             return BadRequest(PaginaDto<ActivoDto>.ErrorDePaginacion());
         }
 
+        if (!ActivoDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(ActivoDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<ActivoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroActivos(filtros.Buscar, filtros.ClienteId, filtros.ModeloMaquinaId, estado);
+        var filtro = new FiltroActivos(filtros.Buscar, filtros.ClienteId, filtros.ModeloMaquinaId, estado, filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _activoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(ActivoMapeador.ADto).ToList();
         return Ok(PaginaDto<ActivoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));

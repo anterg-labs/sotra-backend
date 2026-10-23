@@ -6,6 +6,18 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class ClienteDAO
 {
+    public static readonly ColumnasOrdenables<Cliente> ColumnasOrdenables = new(
+        c => c.IdCliente,
+        [
+            new("razonSocial", c => c.RazonSocial),
+            new("nombreContacto", c => c.Nombre),
+            new("correo", c => c.Correo),
+            new("telefono", c => c.Telefono),
+            new("cantidadActivosAsociados", c => c.Activos.Count),
+            new("estado", c => c.Estado),
+            new("creadoEn", c => c.FechaIngreso),
+        ]);
+
     private readonly SotraContext _contexto;
 
     public ClienteDAO() : this(new SotraContext())
@@ -44,9 +56,7 @@ public class ClienteDAO
             consulta = consulta.Where(c => c.Estado == estado);
         }
 
-        var ordenada = filtro.Descendente
-            ? consulta.OrderByDescending(c => c.IdCliente)
-            : consulta.OrderBy(c => c.IdCliente);
+        var ordenada = ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente);
 
         return await ConsultasDeTexto.PaginarAsync(
             ordenada.Include(c => c.Activos), pagina, tamanoPagina, cancelacion);

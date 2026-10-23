@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.Clientes;
 using Api.Mapeadores;
@@ -29,12 +30,17 @@ public class ClientesController : ControllerBase
             return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
         }
 
+        if (!ClienteDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(ClienteDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc");
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor);
         var (entidades, total) = await _clienteDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(ClienteMapeador.AListadoDto).ToList();
         return Ok(PaginaDto<ClienteListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
