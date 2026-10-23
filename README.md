@@ -1,6 +1,6 @@
 # Backend de SOTRA
 
-En la versión 1.0.54, el teléfono de usuario admite ocho dígitos o nueve con cero inicial y se guarda sin ese cero. El alta informa `correoDeContrasenaEnviado` (`true`, `false` o ausente si no correspondía enviarlo). Si falla el reenvío, `POST /api/v1/usuarios/{id}/restablecer-contrasena` responde 502 con `codigo: CORREO_NO_ENVIADO`.
+Desde la versión 1.0.54, el teléfono de usuario admite ocho dígitos o nueve con cero inicial y se guarda sin ese cero. El alta informa `correoDeContrasenaEnviado` (`true`, `false` o ausente si no correspondía enviarlo). Si falla el reenvío, `POST /api/v1/usuarios/{id}/restablecer-contrasena` responde 502 con `codigo: CORREO_NO_ENVIADO`.
 
 ## Corrección de integración con Keycloak
 

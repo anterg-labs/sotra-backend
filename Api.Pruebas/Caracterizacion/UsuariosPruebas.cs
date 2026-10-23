@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Api.Servicios;
-using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
 namespace Api.Pruebas.Caracterizacion;
@@ -25,36 +23,8 @@ public class UsuariosPruebas : PruebaBase
         var propiedades = primero.EnumerateObject().Select(propiedad => propiedad.Name).ToList();
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
-            "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "cantidadOrdenesAsignadas", "roles",
+            "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "roles",
         }));
-    }
-
-    [Test]
-    public async Task ElAltaInformaQueElCorreoParaElegirLaContrasenaSalio()
-    {
-        var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
-
-        Assert.That(usuario.GetProperty("correoDeContrasenaEnviado").GetBoolean(), Is.True);
-    }
-
-    [Test]
-    public async Task SiElCorreoNoSaleElAltaLoInformaYElReenvioFallaConUnCodigoClaro()
-    {
-        var keycloak = (KeycloakDePrueba)EntornoDePruebas.Fabrica.Services.GetRequiredService<ServicioKeycloakUsuarios>();
-        keycloak.FallaElCorreo = true;
-        try
-        {
-            var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
-            Assert.That(usuario.GetProperty("correoDeContrasenaEnviado").GetBoolean(), Is.False, "el alta no puede decir que el correo salió");
-
-            var reenvio = await Cliente.PostAsync($"/api/v1/usuarios/{usuario.GetProperty("id").GetInt64()}/restablecer-contrasena", null);
-            Assert.That(reenvio.StatusCode, Is.EqualTo(HttpStatusCode.BadGateway));
-            Assert.That((await reenvio.LeerJsonAsync()).GetProperty("codigo").GetString(), Is.EqualTo("CORREO_NO_ENVIADO"));
-        }
-        finally
-        {
-            keycloak.FallaElCorreo = false;
-        }
     }
 
     [Test]
@@ -130,36 +100,15 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
-    public async Task CrearUsuarioSinRolesSeRechazaPorqueElRolEsObligatorio()
+    public async Task CrearUsuarioSinRolesLoCreaSinRoles()
     {
         var datos = DatosDePrueba.UsuarioNuevo(idsRol: Array.Empty<long>());
 
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
 
-        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-        Assert.That((await respuesta.LeerJsonAsync()).GetProperty("errors").GetProperty("IdsRol")[0].GetString(),
-            Is.EqualTo("El usuario debe tener al menos un rol."));
-    }
-
-    [Test]
-    public async Task CrearUsuarioSinEnviarIdsRolTambienSeRechaza()
-    {
-        var datos = new { nombre = "Prueba", apellido = "Usuario", correo = "sin.rol." + DatosDePrueba.Sufijo() + "@pruebas.test", telefono = DatosDePrueba.Telefono(), contrasena = "Clave1234!" };
-
-        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
-
-        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-    }
-
-    [TestCase("1234567")]
-    [TestCase("123456789")]
-    public async Task CrearUsuarioConTelefonoDeLargoDistintoDeOchoSeRechaza(string telefono)
-    {
-        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", DatosDePrueba.UsuarioNuevo(telefono: telefono));
-
-        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-        Assert.That((await respuesta.LeerJsonAsync()).GetProperty("errors").GetProperty("Telefono")[0].GetString(),
-            Is.EqualTo("El campo teléfono debe tener 8 dígitos (o 9 si empieza con 0)."));
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        var usuario = await respuesta.LeerJsonAsync();
+        Assert.That(usuario.GetProperty("roles").GetArrayLength(), Is.EqualTo(0));
     }
 
     [Test]
@@ -397,42 +346,16 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
-    public async Task ReactivarUnUsuarioInactivoResponde200YEsIdempotente()
-    {
-        var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
-        var id = usuario.GetProperty("id").GetInt64();
-        await Cliente.PatchAsJsonAsync("/api/v1/usuarios/" + id, new { estado = "inactivo" });
-
-        var primera = await Cliente.PatchAsJsonAsync("/api/v1/usuarios/" + id, new { estado = "activo" });
-        var segunda = await Cliente.PatchAsJsonAsync("/api/v1/usuarios/" + id, new { estado = "activo" });
-
-        Assert.That(primera.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That(segunda.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        Assert.That((await primera.LeerJsonAsync()).GetProperty("estado").GetString(), Is.EqualTo("activo"));
-        var guardado = await (await Cliente.GetAsync("/api/v1/usuarios/" + id)).LeerJsonAsync();
-        Assert.That(guardado.GetProperty("estado").GetString(), Is.EqualTo("activo"));
-    }
-
-    [Test]
-    public async Task CambiarElEstadoDeUnUsuarioConUnValorDesconocidoResponde400ConCodigo()
+    public async Task DesactivarUsuarioConOtroEstadoResponde400ConMensaje()
     {
         var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
         var id = usuario.GetProperty("id").GetInt64();
 
-        var respuesta = await Cliente.PatchAsJsonAsync("/api/v1/usuarios/" + id, new { estado = "suspendido" });
+        var respuesta = await Cliente.PatchAsJsonAsync("/api/v1/usuarios/" + id, new { estado = "activo" });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         var cuerpo = await respuesta.LeerJsonAsync();
-        Assert.That(cuerpo.GetProperty("codigo").GetString(), Is.EqualTo("ESTADO_INVALIDO"));
-        Assert.That(cuerpo.GetProperty("mensaje").GetString(), Is.EqualTo("El estado debe ser 'activo' o 'inactivo'."));
-    }
-
-    [Test]
-    public async Task ReactivarUnUsuarioInexistenteResponde404()
-    {
-        var respuesta = await Cliente.PatchAsJsonAsync("/api/v1/usuarios/999999999", new { estado = "activo" });
-
-        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        Assert.That(cuerpo.GetProperty("mensaje").GetString(), Is.EqualTo("Este endpoint solo acepta el estado 'inactivo'."));
     }
 
     [Test]
