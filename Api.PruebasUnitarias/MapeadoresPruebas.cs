@@ -152,15 +152,23 @@ public class MapeadoresPruebas
     }
 
     [Test]
-    public void Activo_AplicarCambios_SinCamposObligatoriosLanzaArgumentException()
+    public void Activo_AplicarCambios_SinObligatoriosRechazaSinModificar()
     {
         var activo = ActivoBase();
 
         Assert.Throws<ArgumentException>(() => ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto()));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(activo.IdCliente, Is.EqualTo(2));
+            Assert.That(activo.NumSerie, Is.EqualTo("SN-1"));
+            Assert.That(activo.Nombre, Is.EqualTo("Torno"));
+            Assert.That(activo.Estado, Is.True);
+        });
     }
 
     [Test]
-    public void Activo_AplicarCambios_ReemplazaLosCamposCompletos()
+    public void Activo_AplicarCambios_VaciaOpcionalesYAplicaLosDemas()
     {
         var activo = ActivoBase();
 
@@ -168,9 +176,11 @@ public class MapeadoresPruebas
         {
             ClienteId = 20,
             NumSerie = "SN-2",
-            Nombre = "Fresa",
+            Nombre = "  ",
+            Descripcion = null,
+            Ubicacion = "",
             ModeloMaquinaId = 30,
-            AnioFabricacion = 2024,
+            AnioFabricacion = null,
             Estado = "inactivo",
         });
 
@@ -178,9 +188,11 @@ public class MapeadoresPruebas
         {
             Assert.That(activo.IdCliente, Is.EqualTo(20));
             Assert.That(activo.NumSerie, Is.EqualTo("SN-2"));
-            Assert.That(activo.Nombre, Is.EqualTo("Fresa"));
+            Assert.That(activo.Nombre, Is.Null);
+            Assert.That(activo.Descripcion, Is.Null);
+            Assert.That(activo.Ubicacion, Is.Null);
             Assert.That(activo.IdModeloMaquina, Is.EqualTo(30));
-            Assert.That(activo.AnioFabricacion, Is.EqualTo((short)2024));
+            Assert.That(activo.AnioFabricacion, Is.Null);
             Assert.That(activo.Estado, Is.False);
         });
     }
@@ -193,9 +205,9 @@ public class MapeadoresPruebas
 
         ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto
         {
-            ClienteId = activo.IdCliente,
-            NumSerie = activo.NumSerie,
-            ModeloMaquinaId = activo.IdModeloMaquina,
+            ClienteId = 2,
+            ModeloMaquinaId = 3,
+            NumSerie = "SN-1",
             Estado = "activo",
         });
 

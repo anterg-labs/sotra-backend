@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Api.DTOs.Activos;
 using Api.DTOs.Clientes;
+using Api.DTOs.DocumentosTecnicos;
 using Api.DTOs.ModelosMaquina;
 using Api.DTOs.OrdenesTrabajo;
 using Api.DTOs.Repuestos;
@@ -23,6 +24,7 @@ public class ContratosDeActualizacionPruebas
         yield return new(typeof(TipoMaquinaActualizarDto), """{"nombre":"Tipo","estado":"activo"}""");
         yield return new(typeof(UsuarioActualizarDto), """{"nombre":"Ana","apellido":"Pérez","correo":"ana@example.com","telefono":"99123456","idsRol":[1],"estado":"activo","fechaIngreso":"2026-10-21"}""");
         yield return new(typeof(RepuestoActualizarDto), """{"codigo":"REP-1","nombre":"Filtro","descripcion":null,"marca":null,"ubicacion":null,"cantidadMinima":0}""");
+        yield return new(typeof(DocumentoTecnicoActualizarDto), """{"titulo":null,"tipo":"manual_tecnico","descripcion":null,"activoId":null,"modeloMaquinaId":null}""");
         yield return new(typeof(OrdenTrabajoActualizarDto), """{"clienteId":1,"activoId":1,"tecnicoId":null,"tipo":"correctivo","prioridad":"media","descripcion":"Revisar motor","observaciones":null,"fechaPrevistaEjecucion":"2026-10-21","sugerencias":[],"repuestosIds":[],"estado":"creada"}""");
     }
 
@@ -69,6 +71,7 @@ public class ContratosDeActualizacionPruebas
     }
 
     [TestCase(typeof(StockMinimoDto))]
+    [TestCase(typeof(DocumentoTecnicoVigenciaDto))]
     [TestCase(typeof(AsignacionTecnicoDto))]
     public void PatchSinValorNoAplicaCeroNiFalsePorDefecto(Type tipo)
     {
