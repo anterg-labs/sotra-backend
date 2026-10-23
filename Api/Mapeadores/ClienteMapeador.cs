@@ -1,3 +1,4 @@
+using Api.Validaciones;
 using Api.DTOs.Clientes;
 using SOTRA_BACKEND.Modelos;
 
@@ -17,6 +18,10 @@ public static class ClienteMapeador
         if (string.IsNullOrWhiteSpace(telefono))
         {
             telefono = null;
+        }
+        else
+        {
+            telefono = NumerosDeTelefono.Normalizar(telefono);
         }
 
         string? direccion = cliente.Direccion;
@@ -55,11 +60,7 @@ public static class ClienteMapeador
             destino.Correo = null;
         }
 
-        destino.Telefono = cambios.Telefono;
-        if (string.IsNullOrWhiteSpace(destino.Telefono))
-        {
-            destino.Telefono = null;
-        }
+        destino.Telefono = string.IsNullOrWhiteSpace(cambios.Telefono) ? null : NumerosDeTelefono.Normalizar(cambios.Telefono);
 
         destino.Direccion = cambios.Direccion;
         if (string.IsNullOrWhiteSpace(destino.Direccion))
@@ -75,6 +76,9 @@ public static class ClienteMapeador
     }
 
     public static ClienteListadoDto AListadoDto(Cliente cliente)
+        => AListadoDto(cliente, 0);
+
+    public static ClienteListadoDto AListadoDto(Cliente cliente, int cantidadOrdenesAsociadas)
     {
         return new ClienteListadoDto
         {
@@ -86,6 +90,7 @@ public static class ClienteMapeador
             Direccion = cliente.Direccion,
             Observaciones = cliente.Observaciones,
             CantidadActivosAsociados = cliente.Activos.Count,
+            CantidadOrdenesAsociadas = cantidadOrdenesAsociadas,
             Estado = cliente.Estado ? "activo" : "inactivo",
             CreadoEn = cliente.FechaIngreso
         };

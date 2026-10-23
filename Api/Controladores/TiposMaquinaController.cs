@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.TiposMaquina;
 using Api.Mapeadores;
@@ -29,12 +30,17 @@ public class TiposMaquinaController : ControllerBase
             return BadRequest(PaginaDto<TipoMaquinaDto>.ErrorDePaginacion());
         }
 
+        if (!TipoMaquinaDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(TipoMaquinaDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<TipoMaquinaDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroTiposMaquina(filtros.Buscar, estado);
+        var filtro = new FiltroTiposMaquina(filtros.Buscar, estado, filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _tipoMaquinaDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(TipoMaquinaMapeador.ADto).ToList();
         return Ok(PaginaDto<TipoMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
@@ -86,7 +92,7 @@ public class TiposMaquinaController : ControllerBase
     public async Task<ActionResult<TipoMaquinaDto>> Desactivar(long id, TipoMaquinaEstadoDto solicitud, CancellationToken cancelacion)
     {
         if (!string.Equals(solicitud.Estado, "inactivo", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { mensaje = "Este endpoint solo acepta el estado 'inactivo'." });
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "Este endpoint solo acepta el estado 'inactivo'.");
 
         if (!await _tipoMaquinaDao.DarBajaLogicaTipoMaquinaAsync(id, cancelacion)) return NotFound();
 

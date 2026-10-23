@@ -6,6 +6,13 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class TipoMaquinaDAO
 {
+    public static readonly ColumnasOrdenables<TipoMaquina> ColumnasOrdenables = new(
+        t => t.IdTipoMaquina,
+        [
+            new("nombre", t => t.Nombre),
+            new("estado", t => t.Estado),
+        ]);
+
     private readonly SotraContext _contexto;
 
     public TipoMaquinaDAO() : this(new SotraContext())
@@ -42,7 +49,7 @@ public class TipoMaquinaDAO
         }
 
         return await ConsultasDeTexto.PaginarAsync(
-            consulta.OrderBy(t => t.IdTipoMaquina), pagina, tamanoPagina, cancelacion);
+            ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente), pagina, tamanoPagina, cancelacion);
     }
 
     public async Task<TipoMaquina?> SeleccionarTipoMaquinaAsync(long id, CancellationToken cancelacion)

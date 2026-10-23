@@ -14,9 +14,25 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     private const string ColumnasDeDocumento = """
         SELECT documento.id, documento.nombre_archivo, documento.activo_id,
                activo.nombre, activo.num_serie, documento.usa_sugerencias_ia,
-               documento.cantidad_fragmentos, documento.creado_en
+               documento.cantidad_fragmentos, documento.creado_en,
+               COALESCE(documento.titulo, documento.nombre_archivo), documento.tipo, documento.descripcion,
+               documento.vigente, documento.modelo_maquina_id, modelo.nombre
 
         """;
+
+    /// <summary>
+    /// Lista cerrada de columnas ordenables y su expresión SQL fija. La clave que llega de la API solo se busca aquí:
+    /// nunca se concatena texto del cliente en la consulta.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> ColumnasOrdenables = new Dictionary<string, string>
+    {
+        ["titulo"] = "COALESCE(documento.titulo, documento.nombre_archivo)",
+        ["tipo"] = "documento.tipo",
+        ["vigente"] = "documento.vigente",
+        ["nombreAsociado"] = "COALESCE(activo.nombre, activo.num_serie, modelo.nombre)",
+        ["usaSugerenciasIA"] = "documento.usa_sugerencias_ia",
+        ["creadoEn"] = "documento.creado_en",
+    };
 
     private readonly ServicioOllama _ollama;
     private readonly NpgsqlDataSource _baseDatos;
@@ -30,34 +46,50 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     private const string ConsultaBaseDeDocumentos = """
         FROM vectorial.documento_tecnico AS documento
         LEFT JOIN operativo.activo AS activo ON activo.id_activo = documento.activo_id
+        LEFT JOIN operativo.modelo_maquina AS modelo ON modelo.id_modelo_maquina = documento.modelo_maquina_id
 
         """;
 
     /// <summary>Lista una página de documentos filtrando y contando en la base, sin traer el archivo.</summary>
     public async Task<(List<DocumentoTecnicoDto> Elementos, int Total)> ListarPaginaAsync(
-        string? buscar, long? activoId, int pagina, int tamanoPagina, CancellationToken cancellationToken)
+        string? buscar, long? activoId, string? tipo, bool? vigente, long? modeloMaquinaId,
+        int pagina, int tamanoPagina, CancellationToken cancellationToken, string? ordenarPor = null, bool descendente = false)
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+
+        var sentido = descendente ? "DESC" : "ASC";
+        var orden = ordenarPor is not null && ColumnasOrdenables.TryGetValue(ordenarPor, out var expresion)
+            ? $"{expresion} {sentido} NULLS LAST, documento.id {sentido}"
+            : "documento.id";
 
         string? patron = string.IsNullOrWhiteSpace(buscar) ? null : ConsultasDeTexto.PatronContiene(buscar);
         const string filtros = """
             WHERE ($1::text IS NULL OR documento.nombre_archivo ILIKE $1
+                   OR documento.titulo ILIKE $1 OR documento.descripcion ILIKE $1
                    OR COALESCE(activo.nombre, activo.num_serie) ILIKE $1)
               AND ($2::bigint IS NULL OR documento.activo_id = $2)
+              AND ($3::text IS NULL OR documento.tipo = $3)
+              AND ($4::boolean IS NULL OR documento.vigente = $4)
+              AND ($5::bigint IS NULL OR documento.modelo_maquina_id = $5)
             """;
 
         await using var contar = _baseDatos.CreateCommand("SELECT count(*) " + ConsultaBaseDeDocumentos + filtros);
         contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)patron ?? DBNull.Value);
         contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)activoId ?? DBNull.Value);
+        contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)tipo ?? DBNull.Value);
+        contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Boolean, (object?)vigente ?? DBNull.Value);
+        contar.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)modeloMaquinaId ?? DBNull.Value);
         var total = Convert.ToInt32(await contar.ExecuteScalarAsync(cancellationToken));
 
-        await using var comando = _baseDatos.CreateCommand(ColumnasDeDocumento + ConsultaBaseDeDocumentos + filtros + """
+        await using var comando = _baseDatos.CreateCommand(ColumnasDeDocumento + ConsultaBaseDeDocumentos + filtros + " ORDER BY " + orden + """
 
-            ORDER BY documento.id
-            LIMIT $3 OFFSET $4
+            LIMIT $6 OFFSET $7
             """);
         comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)patron ?? DBNull.Value);
         comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)activoId ?? DBNull.Value);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)tipo ?? DBNull.Value);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Boolean, (object?)vigente ?? DBNull.Value);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)modeloMaquinaId ?? DBNull.Value);
         comando.Parameters.AddWithValue(tamanoPagina);
         comando.Parameters.AddWithValue((pagina - 1) * tamanoPagina);
 
@@ -81,11 +113,14 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         return await lector.ReadAsync(cancellationToken) ? LeerDocumento(lector) : null;
     }
 
-    public async Task<DocumentoTecnicoDto> GuardarAsync(string nombreArchivo, long? activoId,
+    public async Task<DocumentoTecnicoDto> GuardarAsync(string nombreArchivo, DatosDelDocumento datosSolicitados,
         bool usaSugerenciasIa, byte[] archivo, CancellationToken cancellationToken)
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
-        await ValidarActivoAsync(activoId, cancellationToken);
+        var datos = datosSolicitados.Normalizar();
+        TiposDeDocumento.Validar(datos);
+        await ValidarActivoAsync(datos.ActivoId, cancellationToken);
+        await ValidarModeloAsync(datos.ModeloMaquinaId, cancellationToken);
 
         var fragmentos = new List<FragmentoDocumento>();
         var vectores = new List<float[]>();
@@ -109,36 +144,62 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         await using var comando = new NpgsqlCommand("""
             INSERT INTO vectorial.documento_tecnico
                 (nombre_archivo, activo_id, usa_sugerencias_ia, cantidad_fragmentos,
-                 archivo, texto, creado_en, documento_vectorial_id)
-            VALUES ($1, $2, $3, $4, $5, '', $6, $7)
-            RETURNING id, creado_en
+                 archivo, texto, creado_en, documento_vectorial_id,
+                 titulo, tipo, descripcion, modelo_maquina_id)
+            VALUES ($1, $2, $3, $4, $5, '', $6, $7, $8, $9, $10, $11)
+            RETURNING id
             """, conexion, transaccion);
         comando.Parameters.AddWithValue(nombreArchivo);
-        comando.Parameters.AddWithValue(ValorONuloParaBase(activoId));
+        comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ActivoId));
         comando.Parameters.AddWithValue(usaSugerenciasIa);
         comando.Parameters.AddWithValue(fragmentos.Count);
         comando.Parameters.AddWithValue(archivo);
         comando.Parameters.AddWithValue(DateTime.UtcNow);
         comando.Parameters.AddWithValue(ValorONuloParaBase(documentoVectorialId));
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Titulo ?? DBNull.Value);
+        comando.Parameters.AddWithValue(datos.Tipo);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Descripcion ?? DBNull.Value);
+        comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ModeloMaquinaId));
 
-        await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
-        await lector.ReadAsync(cancellationToken);
-        var id = lector.GetInt64(0);
-        var creadoEn = lector.GetDateTime(1);
-        await lector.CloseAsync();
+        var id = Convert.ToInt64(await comando.ExecuteScalarAsync(cancellationToken));
         await transaccion.CommitAsync(cancellationToken);
 
-        var nombreActivo = await ObtenerNombreActivoAsync(activoId, cancellationToken);
-        return new DocumentoTecnicoDto
-        {
-            Id = id,
-            NombreArchivo = nombreArchivo,
-            ActivoId = activoId,
-            NombreActivo = nombreActivo,
-            UsaSugerenciasIA = usaSugerenciasIa,
-            CantidadFragmentos = fragmentos.Count,
-            CreadoEn = creadoEn
-        };
+        return (await ObtenerAsync(id, cancellationToken))!;
+    }
+
+    /// <summary>Reemplaza los datos generales del documento; el archivo y el procesamiento de IA no cambian.</summary>
+    public async Task<DocumentoTecnicoDto?> ActualizarAsync(long id, DatosDelDocumento datosSolicitados,
+        CancellationToken cancellationToken)
+    {
+        await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+        var datos = datosSolicitados.Normalizar();
+        TiposDeDocumento.Validar(datos);
+        await ValidarActivoAsync(datos.ActivoId, cancellationToken);
+        await ValidarModeloAsync(datos.ModeloMaquinaId, cancellationToken);
+
+        await using var comando = _baseDatos.CreateCommand("""
+            UPDATE vectorial.documento_tecnico
+            SET titulo = $2, tipo = $3, descripcion = $4, activo_id = $5, modelo_maquina_id = $6
+            WHERE id = $1
+            """);
+        comando.Parameters.AddWithValue(id);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Titulo ?? DBNull.Value);
+        comando.Parameters.AddWithValue(datos.Tipo);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Descripcion ?? DBNull.Value);
+        comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ActivoId));
+        comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ModeloMaquinaId));
+        return await comando.ExecuteNonQueryAsync(cancellationToken) == 0 ? null : await ObtenerAsync(id, cancellationToken);
+    }
+
+    /// <summary>Marca un documento como vigente u obsoleto. Las sugerencias de IA solo usan los vigentes.</summary>
+    public async Task<DocumentoTecnicoDto?> CambiarVigenciaAsync(long id, bool vigente, CancellationToken cancellationToken)
+    {
+        await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+        await using var comando = _baseDatos.CreateCommand(
+            "UPDATE vectorial.documento_tecnico SET vigente = $2 WHERE id = $1");
+        comando.Parameters.AddWithValue(id);
+        comando.Parameters.AddWithValue(vigente);
+        return await comando.ExecuteNonQueryAsync(cancellationToken) == 0 ? null : await ObtenerAsync(id, cancellationToken);
     }
 
     public async Task<ArchivoGuardado?> ObtenerArchivoAsync(long id, CancellationToken cancellationToken)
@@ -293,6 +354,22 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         }
     }
 
+    private async Task ValidarModeloAsync(long? modeloMaquinaId, CancellationToken cancellationToken)
+    {
+        if (!modeloMaquinaId.HasValue)
+        {
+            return;
+        }
+
+        await using var comando = _baseDatos.CreateCommand(
+            "SELECT COUNT(*) FROM operativo.modelo_maquina WHERE id_modelo_maquina = $1");
+        comando.Parameters.AddWithValue(modeloMaquinaId.Value);
+        if (Convert.ToInt64(await comando.ExecuteScalarAsync(cancellationToken)) == 0)
+        {
+            throw new ValidacionDeNegocioException("El modelo de máquina indicado no existe.", "MODELO_NO_EXISTE");
+        }
+    }
+
     private async Task<string?> ObtenerNombreActivoAsync(long? activoId, CancellationToken cancellationToken)
     {
         if (!activoId.HasValue)
@@ -346,7 +423,13 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             NombreActivo = nombreActivo,
             UsaSugerenciasIA = lector.GetBoolean(5),
             CantidadFragmentos = lector.GetInt32(6),
-            CreadoEn = lector.GetDateTime(7)
+            CreadoEn = lector.GetDateTime(7),
+            Titulo = lector.GetString(8),
+            Tipo = lector.GetString(9),
+            Descripcion = lector.IsDBNull(10) ? null : lector.GetString(10),
+            Vigente = lector.GetBoolean(11),
+            ModeloMaquinaId = lector.IsDBNull(12) ? null : lector.GetInt64(12),
+            NombreModelo = lector.IsDBNull(13) ? null : lector.GetString(13)
         };
     }
 

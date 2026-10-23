@@ -12,9 +12,9 @@ public static class RepuestoMapeador
         {
             Codigo = solicitud.Codigo.Trim(),
             Nombre = solicitud.Nombre.Trim(),
-            Descripcion = solicitud.Descripcion,
-            Marca = solicitud.Marca,
-            Ubicacion = solicitud.Ubicacion,
+            Descripcion = TextoOpcional.Normalizar(solicitud.Descripcion),
+            Marca = TextoOpcional.Normalizar(solicitud.Marca),
+            Ubicacion = TextoOpcional.Normalizar(solicitud.Ubicacion),
             Cantidad = solicitud.Cantidad,
             CantMin = solicitud.CantidadMinima,
             Estado = true
@@ -25,9 +25,9 @@ public static class RepuestoMapeador
     {
         repuesto.Codigo = solicitud.Codigo.Trim();
         repuesto.Nombre = solicitud.Nombre.Trim();
-        repuesto.Descripcion = solicitud.Descripcion;
-        repuesto.Marca = solicitud.Marca;
-        repuesto.Ubicacion = solicitud.Ubicacion;
+        repuesto.Descripcion = TextoOpcional.Normalizar(solicitud.Descripcion);
+        repuesto.Marca = TextoOpcional.Normalizar(solicitud.Marca);
+        repuesto.Ubicacion = TextoOpcional.Normalizar(solicitud.Ubicacion);
         repuesto.CantMin = solicitud.CantidadMinima;
     }
 

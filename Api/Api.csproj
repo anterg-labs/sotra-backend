@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.0" />
@@ -26,6 +27,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SOTRA-BACKEND\SOTRA-BACKEND.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Api.Pruebas" />
+    <InternalsVisibleTo Include="Api.PruebasUnitarias" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Recursos\logo-cvm.png" LogicalName="logo-cvm.png" />
   </ItemGroup>
 
   <ItemGroup>

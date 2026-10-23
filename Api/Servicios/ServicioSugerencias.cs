@@ -107,6 +107,9 @@ public class ServicioSugerencias : IAsyncDisposable
         await using var comando = _baseDatos.CreateCommand("""
             SELECT id
             FROM vectorial.fragmentos
+            WHERE documento_id NOT IN (
+                SELECT documento_vectorial_id FROM vectorial.documento_tecnico
+                WHERE NOT vigente AND documento_vectorial_id IS NOT NULL)
             ORDER BY embedding <=> $1, id
             LIMIT $2
             """);
@@ -123,12 +126,15 @@ public class ServicioSugerencias : IAsyncDisposable
         return ids;
     }
 
-    private async Task<List<long>> BuscarIdsPorPalabrasAsync(string consulta, CancellationToken cancellationToken)
+    internal async Task<List<long>> BuscarIdsPorPalabrasAsync(string consulta, CancellationToken cancellationToken)
     {
         await using var comando = _baseDatos.CreateCommand("""
             SELECT id
             FROM vectorial.fragmentos
             WHERE texto_busqueda @@ to_tsquery('spanish', $1)
+              AND documento_id NOT IN (
+                SELECT documento_vectorial_id FROM vectorial.documento_tecnico
+                WHERE NOT vigente AND documento_vectorial_id IS NOT NULL)
             ORDER BY ts_rank_cd(texto_busqueda, to_tsquery('spanish', $1)) DESC, id
             LIMIT $2
             """);

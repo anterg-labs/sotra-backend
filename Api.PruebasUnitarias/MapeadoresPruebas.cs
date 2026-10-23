@@ -152,11 +152,11 @@ public class MapeadoresPruebas
     }
 
     [Test]
-    public void Activo_AplicarCambios_SinCamposNoTocaNada()
+    public void Activo_AplicarCambios_SinObligatoriosRechazaSinModificar()
     {
         var activo = ActivoBase();
 
-        ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto());
+        Assert.Throws<ArgumentException>(() => ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto()));
 
         Assert.Multiple(() =>
         {
@@ -168,27 +168,31 @@ public class MapeadoresPruebas
     }
 
     [Test]
-    public void Activo_AplicarCambios_IgnoraTextosEnBlancoYAplicaLosDemas()
+    public void Activo_AplicarCambios_VaciaOpcionalesYAplicaLosDemas()
     {
         var activo = ActivoBase();
 
         ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto
         {
             ClienteId = 20,
-            NumSerie = "  ",
-            Nombre = "Fresa",
+            NumSerie = "SN-2",
+            Nombre = "  ",
+            Descripcion = null,
+            Ubicacion = "",
             ModeloMaquinaId = 30,
-            AnioFabricacion = 2024,
+            AnioFabricacion = null,
             Estado = "inactivo",
         });
 
         Assert.Multiple(() =>
         {
             Assert.That(activo.IdCliente, Is.EqualTo(20));
-            Assert.That(activo.NumSerie, Is.EqualTo("SN-1"));
-            Assert.That(activo.Nombre, Is.EqualTo("Fresa"));
+            Assert.That(activo.NumSerie, Is.EqualTo("SN-2"));
+            Assert.That(activo.Nombre, Is.Null);
+            Assert.That(activo.Descripcion, Is.Null);
+            Assert.That(activo.Ubicacion, Is.Null);
             Assert.That(activo.IdModeloMaquina, Is.EqualTo(30));
-            Assert.That(activo.AnioFabricacion, Is.EqualTo((short)2024));
+            Assert.That(activo.AnioFabricacion, Is.Null);
             Assert.That(activo.Estado, Is.False);
         });
     }
@@ -199,7 +203,13 @@ public class MapeadoresPruebas
         var activo = ActivoBase();
         activo.Estado = false;
 
-        ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto { Estado = "activo" });
+        ActivoMapeador.AplicarCambios(activo, new ActivoActualizarDto
+        {
+            ClienteId = 2,
+            ModeloMaquinaId = 3,
+            NumSerie = "SN-1",
+            Estado = "activo",
+        });
 
         Assert.That(activo.Estado, Is.True);
     }

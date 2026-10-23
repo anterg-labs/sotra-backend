@@ -37,6 +37,7 @@ public class TraduccionDeErroresPruebas
     [TestCase(ErrorDeOrdenException.OrdenInexistente, 404)]
     [TestCase(ErrorDeOrdenException.TransicionInvalida, 400)]
     [TestCase(ErrorDeOrdenException.TecnicoObligatorio, 400)]
+    [TestCase(ErrorDeOrdenException.TecnicoYaAsignado, 409)]
     [TestCase(ErrorDeOrdenException.MotivoObligatorio, 400)]
     public void CadaErrorDeOrdenTieneSuEstadoHttpYUnMensajeClaro(string codigo, int estado)
     {

@@ -6,6 +6,16 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class ActivoDAO
 {
+    public static readonly ColumnasOrdenables<Activo> ColumnasOrdenables = new(
+        a => a.IdActivo,
+        [
+            new("nombre", a => a.Nombre),
+            new("numSerie", a => a.NumSerie),
+            new("nombreCliente", a => a.IdClienteNavigation.RazonSocial),
+            new("nombreModeloMaquina", a => a.IdModeloMaquinaNavigation.Nombre),
+            new("estado", a => a.Estado),
+        ]);
+
     private readonly SotraContext _contexto;
 
     public ActivoDAO() : this(new SotraContext())
@@ -57,7 +67,8 @@ public class ActivoDAO
             consulta = consulta.Where(a => a.Estado == estado);
         }
 
-        return await ConsultasDeTexto.PaginarAsync(consulta.OrderBy(a => a.IdActivo), pagina, tamanoPagina, cancelacion);
+        return await ConsultasDeTexto.PaginarAsync(
+            ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente), pagina, tamanoPagina, cancelacion);
     }
 
     public async Task<Activo?> SeleccionarActivoAsync(long id, CancellationToken cancelacion)

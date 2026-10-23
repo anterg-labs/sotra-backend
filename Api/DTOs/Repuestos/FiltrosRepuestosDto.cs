@@ -8,6 +8,8 @@ public class FiltrosRepuestosDto
     public bool? BajoStock { get; init; }
     public string? EstadoStock { get; init; }
     public string? Orden { get; init; }
+    public string? OrdenarPor { get; init; }
+    public string? DireccionOrden { get; init; }
     public int Pagina { get; init; } = 1;
     public int TamanoPagina { get; init; } = PaginaDto<RepuestoDto>.TamanoPaginaPorDefecto;
 }

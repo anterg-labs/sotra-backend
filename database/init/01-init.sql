@@ -298,7 +298,6 @@ ALTER SEQUENCE operativo."SEC_MOTIVO_ESTADO_OT_ID" OWNED BY operativo.motivo_est
 
 CREATE TABLE operativo.movimiento_stock (
     id_movimiento bigint NOT NULL,
-    estado boolean NOT NULL,
     fecha timestamp with time zone NOT NULL,
     cantidad integer NOT NULL,
     id_repuesto bigint NOT NULL,
@@ -704,12 +703,12 @@ ALTER TABLE ONLY operativo.usuario ALTER COLUMN id_usuario SET DEFAULT nextval('
 --
 
 COPY operativo.cliente (id_cliente, razon_social, nombre, correo, telefono, direccion, observaciones, estado, fecha_ingreso) FROM stdin;
-1	Construcciones del Este S.A.	Marcelo Ibarra	marcelo.ibarra@construccionesdeleste.example.com	+598 4443 5006	Ruta 8 km 132, Treinta y Tres	Cliente con contrato de mantenimiento anual.	t	2026-09-12
-2	Vial Norte S.R.L.	Patricia Acosta	patricia.acosta@vialnorte.example.com	+598 4622 1180	Av. Artigas 1450, Tacuarembó	Obras viales en el norte del país.	t	2026-09-12
-3	Hormigones del Litoral S.A.	Gonzalo Techera	gonzalo.techera@hormigoneslitoral.example.com	+598 2292 7741	Camino Maldonado km 21, Canelones	Coordinar visitas por la mañana.	t	2026-09-13
-4	Cantera Sierra Chica	Ricardo Olivera	ricardo.olivera@sierrachica.example.com	+598 4562 3390	Ruta 55 km 18, Colonia		t	2026-09-13
-5	Agro Servicios Rocha	Natalia Cabrera	natalia.cabrera@agrorocha.example.com	+598 4472 8815	Ruta 9 km 215, Rocha	Maquinaria en establecimientos rurales.	t	2026-09-14
-6	Transportes Oriental Ltda.	Federico Barrios	federico.barrios@transportesoriental.example.com	+598 2487 6620	Bulevar Artigas 2210, Montevideo	Cuenta suspendida a pedido del cliente.	f	2026-09-14
+1	Construcciones del Este S.A.	Marcelo Ibarra	marcelo.ibarra@construccionesdeleste.example.com	44435006	Ruta 8 km 132, Treinta y Tres	Cliente con contrato de mantenimiento anual.	t	2026-09-12
+2	Vial Norte S.R.L.	Patricia Acosta	patricia.acosta@vialnorte.example.com	46221180	Av. Artigas 1450, Tacuarembó	Obras viales en el norte del país.	t	2026-09-12
+3	Hormigones del Litoral S.A.	Gonzalo Techera	gonzalo.techera@hormigoneslitoral.example.com	22927741	Camino Maldonado km 21, Canelones	Coordinar visitas por la mañana.	t	2026-09-13
+4	Cantera Sierra Chica	Ricardo Olivera	ricardo.olivera@sierrachica.example.com	45623390	Ruta 55 km 18, Colonia		t	2026-09-13
+5	Agro Servicios Rocha	Natalia Cabrera	natalia.cabrera@agrorocha.example.com	44728815	Ruta 9 km 215, Rocha	Maquinaria en establecimientos rurales.	t	2026-09-14
+6	Transportes Oriental Ltda.	Federico Barrios	federico.barrios@transportesoriental.example.com	24876620	Bulevar Artigas 2210, Montevideo	Cuenta suspendida a pedido del cliente.	f	2026-09-14
 \.
 
 
@@ -799,20 +798,20 @@ COPY operativo.historial_recomendaciones_ia (id_recomendacion_ia, recomendacion,
 --
 
 COPY operativo.usuario (id_usuario, nombre, apellido, mail, telefono, estado, fecha_ingreso) FROM stdin;
-1	Kevin	Moreira	kmoreira@gmail.com	099583488	t	2026-09-12
-3	Nicolas	Diaz	nicodiaz@gmail.com	099568742	t	2026-09-12
-4	Cris	Romero	crisrome@gmail.com	099653147	t	2026-09-12
-5	Martín	Silva	martin.silva@example.com	099111205	t	2026-09-14
-6	Laura	Gómez	laura.gomez@example.com	099222316	t	2026-09-14
-7	Roberto	Pérez	roberto.perez@example.com	099333427	t	2026-09-15
-8	Diego	Fernández	diego.fernandez@example.com	099444538	t	2026-09-15
-9	Lucía	Méndez	lucia.mendez@example.com	099555649	t	2026-09-16
-10	Andrés	Rodríguez	andres.rodriguez@example.com	099666750	t	2026-09-16
-11	Camila	Ferreira	camila.ferreira@example.com	099777861	f	2026-09-17
-12	Admin	Prueba	admin.prueba@sotra.test	099900101	t	2026-10-17
-13	Jefe	Prueba	jefe.prueba@sotra.test	099900102	t	2026-10-17
-14	Técnico	Prueba	tecnico.prueba@sotra.test	099900103	t	2026-10-17
-15	Pañolero	Prueba	panolero.prueba@sotra.test	099900104	t	2026-10-17
+1	Kevin	Moreira	kmoreira@gmail.com	99583488	t	2026-09-12
+3	Nicolas	Diaz	nicodiaz@gmail.com	99568742	t	2026-09-12
+4	Cris	Romero	crisrome@gmail.com	99653147	t	2026-09-12
+5	Martín	Silva	martin.silva@example.com	99111205	t	2026-09-14
+6	Laura	Gómez	laura.gomez@example.com	99222316	t	2026-09-14
+7	Roberto	Pérez	roberto.perez@example.com	99333427	t	2026-09-15
+8	Diego	Fernández	diego.fernandez@example.com	99444538	t	2026-09-15
+9	Lucía	Méndez	lucia.mendez@example.com	99555649	t	2026-09-16
+10	Andrés	Rodríguez	andres.rodriguez@example.com	99666750	t	2026-09-16
+11	Camila	Ferreira	camila.ferreira@example.com	99777861	f	2026-09-17
+12	Admin	Prueba	admin.prueba@sotra.test	99900101	t	2026-10-17
+13	Jefe	Prueba	jefe.prueba@sotra.test	99900102	t	2026-10-17
+14	Técnico	Prueba	tecnico.prueba@sotra.test	99900103	t	2026-10-17
+15	Pañolero	Prueba	panolero.prueba@sotra.test	99900104	t	2026-10-17
 \.
 
 
@@ -934,33 +933,33 @@ LUZ-TRA-LED	Faro de trabajo LED	Descontinuado.	0	f	Depósito D-2	Hella	14	2
 -- Data for Name: movimiento_stock; Type: TABLE DATA; Schema: operativo; Owner: postgres
 --
 
-COPY operativo.movimiento_stock (id_movimiento, estado, fecha, cantidad, id_repuesto, id_usuario, tipo, motivo, ubicacion, observaciones, stock_anterior, stock_posterior) FROM stdin;
-1	t	2026-09-12 10:05:00+00	4	5	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	4
-2	t	2026-09-12 10:10:00+00	10	10	9	ingreso	Compra a proveedor	Depósito A-3	\N	0	10
-3	t	2026-09-13 10:01:00+00	20	1	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	20
-4	t	2026-09-13 10:06:00+00	9	6	9	ingreso	Compra a proveedor	Depósito C-3	\N	0	9
-5	t	2026-09-13 10:11:00+00	6	11	9	ingreso	Compra a proveedor	Depósito C-4	\N	0	6
-6	t	2026-09-14 10:02:00+00	5	2	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	5
-7	t	2026-09-14 10:07:00+00	3	7	9	ingreso	Compra a proveedor	Depósito C-1	\N	0	3
-8	t	2026-09-14 10:12:00+00	8	12	9	ingreso	Compra a proveedor	Depósito C-5	\N	0	8
-9	t	2026-09-15 10:03:00+00	13	3	9	ingreso	Compra a proveedor	Depósito A-2	\N	0	13
-10	t	2026-09-15 10:08:00+00	68	8	9	ingreso	Compra a proveedor	Depósito C-2	\N	0	68
-11	t	2026-09-15 10:13:00+00	52	13	9	ingreso	Compra a proveedor	Depósito B-2	\N	0	52
-12	t	2026-09-16 09:30:00+00	1	1	9	egreso	Consumo en la orden de trabajo #1	Depósito A-1	\N	20	19
-13	t	2026-09-16 10:04:00+00	10	4	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	10
-14	t	2026-09-16 10:09:00+00	2	9	9	ingreso	Compra a proveedor	Depósito D-1	\N	0	2
-15	t	2026-09-16 10:30:00+00	1	3	9	egreso	Consumo en la orden de trabajo #1	Depósito A-2	\N	13	12
-16	t	2026-09-16 11:30:00+00	2	5	9	egreso	Consumo en la orden de trabajo #1	Depósito B-1	\N	4	2
-17	t	2026-09-22 10:00:00+00	1	11	9	egreso	Consumo en la orden de trabajo #2	Depósito C-4	\N	6	5
-18	t	2026-09-22 11:00:00+00	1	4	9	egreso	Consumo en la orden de trabajo #2	Depósito B-1	\N	10	9
-19	t	2026-09-22 12:00:00+00	1	6	9	egreso	Consumo en la orden de trabajo #2	Depósito C-3	\N	9	8
-20	t	2026-09-27 09:00:00+00	2	12	9	egreso	Consumo en la orden de trabajo #3	Depósito C-5	\N	8	6
-21	t	2026-09-27 10:00:00+00	8	8	9	egreso	Consumo en la orden de trabajo #3	Depósito C-2	\N	68	60
-22	t	2026-10-02 09:00:00+00	4	13	9	egreso	Consumo en la orden de trabajo #4	Depósito B-2	\N	52	48
-23	t	2026-10-05 09:15:00+00	1	6	9	egreso	Consumo en la orden de trabajo #5	Depósito C-3	\N	8	7
-24	t	2026-10-14 09:00:00+00	1	1	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	19	18
-25	t	2026-10-14 10:00:00+00	2	5	9	egreso	Consumo en la orden de trabajo #11	Depósito B-1	\N	2	0
-26	t	2026-10-14 11:00:00+00	1	2	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	5	4
+COPY operativo.movimiento_stock (id_movimiento, fecha, cantidad, id_repuesto, id_usuario, tipo, motivo, ubicacion, observaciones, stock_anterior, stock_posterior) FROM stdin;
+1	2026-09-12 10:05:00+00	4	5	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	4
+2	2026-09-12 10:10:00+00	10	10	9	ingreso	Compra a proveedor	Depósito A-3	\N	0	10
+3	2026-09-13 10:01:00+00	20	1	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	20
+4	2026-09-13 10:06:00+00	9	6	9	ingreso	Compra a proveedor	Depósito C-3	\N	0	9
+5	2026-09-13 10:11:00+00	6	11	9	ingreso	Compra a proveedor	Depósito C-4	\N	0	6
+6	2026-09-14 10:02:00+00	5	2	9	ingreso	Compra a proveedor	Depósito A-1	\N	0	5
+7	2026-09-14 10:07:00+00	3	7	9	ingreso	Compra a proveedor	Depósito C-1	\N	0	3
+8	2026-09-14 10:12:00+00	8	12	9	ingreso	Compra a proveedor	Depósito C-5	\N	0	8
+9	2026-09-15 10:03:00+00	13	3	9	ingreso	Compra a proveedor	Depósito A-2	\N	0	13
+10	2026-09-15 10:08:00+00	68	8	9	ingreso	Compra a proveedor	Depósito C-2	\N	0	68
+11	2026-09-15 10:13:00+00	52	13	9	ingreso	Compra a proveedor	Depósito B-2	\N	0	52
+12	2026-09-16 09:30:00+00	1	1	9	egreso	Consumo en la orden de trabajo #1	Depósito A-1	\N	20	19
+13	2026-09-16 10:04:00+00	10	4	9	ingreso	Compra a proveedor	Depósito B-1	\N	0	10
+14	2026-09-16 10:09:00+00	2	9	9	ingreso	Compra a proveedor	Depósito D-1	\N	0	2
+15	2026-09-16 10:30:00+00	1	3	9	egreso	Consumo en la orden de trabajo #1	Depósito A-2	\N	13	12
+16	2026-09-16 11:30:00+00	2	5	9	egreso	Consumo en la orden de trabajo #1	Depósito B-1	\N	4	2
+17	2026-09-22 10:00:00+00	1	11	9	egreso	Consumo en la orden de trabajo #2	Depósito C-4	\N	6	5
+18	2026-09-22 11:00:00+00	1	4	9	egreso	Consumo en la orden de trabajo #2	Depósito B-1	\N	10	9
+19	2026-09-22 12:00:00+00	1	6	9	egreso	Consumo en la orden de trabajo #2	Depósito C-3	\N	9	8
+20	2026-09-27 09:00:00+00	2	12	9	egreso	Consumo en la orden de trabajo #3	Depósito C-5	\N	8	6
+21	2026-09-27 10:00:00+00	8	8	9	egreso	Consumo en la orden de trabajo #3	Depósito C-2	\N	68	60
+22	2026-10-02 09:00:00+00	4	13	9	egreso	Consumo en la orden de trabajo #4	Depósito B-2	\N	52	48
+23	2026-10-05 09:15:00+00	1	6	9	egreso	Consumo en la orden de trabajo #5	Depósito C-3	\N	8	7
+24	2026-10-14 09:00:00+00	1	1	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	19	18
+25	2026-10-14 10:00:00+00	2	5	9	egreso	Consumo en la orden de trabajo #11	Depósito B-1	\N	2	0
+26	2026-10-14 11:00:00+00	1	2	9	egreso	Consumo en la orden de trabajo #11	Depósito A-1	\N	5	4
 \.
 
 
@@ -1752,6 +1751,8 @@ SELECT 1,
        || E'Uso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, '
        || E'asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se '
        || E'usan para publicidad ni para fines ajenos al mantenimiento.\n\n'
+       || E'Marco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales '
+       || E'de Uruguay.\n\n'
        || E'Tus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial '
        || E'de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\n'
        || E'Seguridad: el acceso es personal; no compartas tus credenciales.',
@@ -1792,3 +1793,35 @@ SELECT u.id_usuario, t.id_terminos
 FROM operativo.usuario u, operativo.terminos_condiciones t
 WHERE t.vigente AND u.id_usuario IN (1, 3, 4, 5, 6)
   AND NOT EXISTS (SELECT 1 FROM operativo.aceptacion_terminos a WHERE a.id_usuario = u.id_usuario AND a.id_terminos = t.id_terminos);
+
+
+-- Ejecutar manualmente, previa revisión de datos. No elimina ni corrige registros.
+-- Si hay textos obligatorios vacíos, VALIDATE falla y revierte todo este bloque.
+-- Los NULL ya están impedidos por los NOT NULL existentes.
+DO $validacion$
+DECLARE
+    regla record;
+BEGIN
+    FOR regla IN
+        SELECT * FROM (VALUES
+            ('activo', 'CK_ACTIVO_TEXTO_OBLIGATORIO', 'num_serie ~ ''[^[:space:]]'''),
+            ('cliente', 'CK_CLIENTE_TEXTOS_OBLIGATORIOS', 'razon_social ~ ''[^[:space:]]'' AND nombre ~ ''[^[:space:]]'''),
+            ('modelo_maquina', 'CK_MODELO_NOMBRE_OBLIGATORIO', 'nombre ~ ''[^[:space:]]'''),
+            ('tipo_maquina', 'CK_TIPO_NOMBRE_OBLIGATORIO', 'nombre ~ ''[^[:space:]]'''),
+            ('repuesto', 'CK_REPUESTO_TEXTOS_OBLIGATORIOS', 'codigo ~ ''[^[:space:]]'' AND nombre ~ ''[^[:space:]]'''),
+            ('orden_trabajo', 'CK_ORDEN_DESCRIPCION_OBLIGATORIA', 'descripcion ~ ''[^[:space:]]'''),
+            ('usuario', 'CK_USUARIO_TEXTOS_OBLIGATORIOS', 'nombre ~ ''[^[:space:]]'' AND apellido ~ ''[^[:space:]]'' AND mail ~ ''[^[:space:]]'' AND telefono ~ ''[^[:space:]]''')
+        ) AS reglas(tabla, nombre, expresion)
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = format('operativo.%I', regla.tabla)::regclass
+              AND conname = regla.nombre
+        ) THEN
+            EXECUTE format('ALTER TABLE operativo.%I ADD CONSTRAINT %I CHECK (%s) NOT VALID',
+                regla.tabla, regla.nombre, regla.expresion);
+        END IF;
+        EXECUTE format('ALTER TABLE operativo.%I VALIDATE CONSTRAINT %I', regla.tabla, regla.nombre);
+    END LOOP;
+END
+$validacion$;

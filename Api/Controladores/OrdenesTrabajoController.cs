@@ -39,22 +39,19 @@ public class OrdenesTrabajoController : ControllerBase
     {
         if (!PaginaDto<OrdenTrabajoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(new
-            {
-                codigo = "PAGINACION_INVALIDA",
-                mensaje = "La página debe ser 1 o mayor y el tamaño de página debe estar entre 1 y "
-                          + PaginaDto<OrdenTrabajoDto>.TamanoPaginaMaximo + "."
-            });
+            return this.RespuestaDeError(400, "PAGINACION_INVALIDA", "La página debe ser 1 o mayor y el tamaño de página debe estar entre 1 y "
+                          + PaginaDto<OrdenTrabajoDto>.TamanoPaginaMaximo + ".");
         }
 
         if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
             && filtros.FechaDesde > filtros.FechaHasta)
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO", "La fecha desde no puede ser posterior a la fecha hasta.");
+        }
+
+        if (!OrdenTrabajoDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(OrdenTrabajoDAO.ColumnasOrdenables.Claves);
         }
 
         // El técnico solo ve las órdenes que tiene asignadas, aunque pida otro filtro.
@@ -74,7 +71,7 @@ public class OrdenesTrabajoController : ControllerBase
             filtros.Buscar, filtros.ClienteId, filtros.ActivoId, tecnicoId, filtros.Estado,
             filtros.Prioridad, filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo",
             filtros.FechaDesde, filtros.FechaHasta, filtros.ConSugerencias,
-            filtros.OrdenarPor == "creadoEn", filtros.DireccionOrden == "desc");
+            OrdenarPorCreacion: false, Descendente: filtros.DireccionOrden == "desc", OrdenarPor: filtros.OrdenarPor);
 
         if (filtros.Tipo is not (null or "" or "preventivo" or "correctivo"))
         {
@@ -117,7 +114,7 @@ public class OrdenesTrabajoController : ControllerBase
             Tipo = OrdenTrabajoMapeador.ATipoBooleano(solicitud.Tipo),
             Prioridad = OrdenTrabajoMapeador.APrioridadNumero(solicitud.Prioridad),
             Descripcion = solicitud.Descripcion.Trim(),
-            Resultado = solicitud.Observaciones
+            Resultado = TextoOpcional.Normalizar(solicitud.Observaciones)
         };
 
         var ordenCreada = await _ordenTrabajoDao.CrearAsync(orden, solicitud.FechaPrevistaEjecucion,
@@ -136,7 +133,7 @@ public class OrdenesTrabajoController : ControllerBase
             solicitud.ClienteId, solicitud.ActivoId, solicitud.TecnicoId,
             OrdenTrabajoMapeador.ATipoBooleano(solicitud.Tipo),
             OrdenTrabajoMapeador.APrioridadNumero(solicitud.Prioridad),
-            solicitud.Descripcion.Trim(), solicitud.Observaciones);
+            solicitud.Descripcion.Trim(), TextoOpcional.Normalizar(solicitud.Observaciones));
 
         var versionEsperada = LeerVersionEsperada();
         Func<OrdenTrabajo, bool>? coincideConVersion = versionEsperada is null
@@ -215,11 +212,7 @@ public class OrdenesTrabajoController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(solicitud.Descripcion))
         {
-            return BadRequest(new
-            {
-                codigo = "DESCRIPCION_OBLIGATORIA",
-                mensaje = "La descripción de la tarea es obligatoria."
-            });
+            return this.RespuestaDeError(400, "DESCRIPCION_OBLIGATORIA", "La descripción de la tarea es obligatoria.");
         }
 
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
@@ -231,11 +224,7 @@ public class OrdenesTrabajoController : ControllerBase
             if (sugerencia is null)
             {
                 resultadoDeLaSugerencia = "sin_contexto";
-                return UnprocessableEntity(new
-                {
-                    codigo = "SIN_CONTEXTO_TECNICO",
-                    mensaje = "No hay información suficiente en la documentación técnica para esa tarea."
-                });
+                return this.RespuestaDeError(422, "SIN_CONTEXTO_TECNICO", "No hay información suficiente en la documentación técnica para esa tarea.");
             }
 
             await _ordenTrabajoDao.RegistrarSugerenciaGeneradaAsync(solicitud.Sesion, solicitud.Descripcion.Trim(),
@@ -251,20 +240,12 @@ public class OrdenesTrabajoController : ControllerBase
         {
             resultadoDeLaSugerencia = "no_disponible";
             _logger.LogWarning(excepcion, "El servicio de IA (Ollama) no respondió al pedir una sugerencia");
-            return StatusCode(502, new
-            {
-                codigo = "SERVICIO_IA_NO_DISPONIBLE",
-                mensaje = "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde."
-            });
+            return this.RespuestaDeError(502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
         }
         catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
         {
             _logger.LogError(excepcion, "Falló la generación de una sugerencia técnica");
-            return StatusCode(502, new
-            {
-                codigo = "SUGERENCIA_FALLIDA",
-                mensaje = "No se pudo obtener la sugerencia técnica."
-            });
+            return this.RespuestaDeError(502, "SUGERENCIA_FALLIDA", "No se pudo obtener la sugerencia técnica.");
         }
         finally
         {

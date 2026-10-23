@@ -7,6 +7,17 @@ namespace SOTRA_BACKEND.Operaciones;
 
 public class UsuarioDAO
 {
+    public static readonly ColumnasOrdenables<Usuario> ColumnasOrdenables = new(
+        u => u.IdUsuario,
+        [
+            new("nombre", u => u.Nombre + " " + u.Apellido),
+            new("correo", u => u.Mail),
+            new("roles", u => u.IdRols.Count),
+            new("cantidadOrdenesAsignadas", u => u.OrdenTrabajoIdUsuarioTecnicoNavigations.AsQueryable().Count(OrdenTrabajoDAO.EsActiva)),
+            new("estado", u => u.Estado),
+            new("creadoEn", u => u.FechaIngreso),
+        ]);
+
     private readonly SotraContext _contexto;
 
     public UsuarioDAO() : this(new SotraContext())
@@ -48,9 +59,7 @@ public class UsuarioDAO
             consulta = consulta.Where(u => u.Estado == estado);
         }
 
-        var ordenada = filtro.Descendente
-            ? consulta.OrderByDescending(u => u.IdUsuario)
-            : consulta.OrderBy(u => u.IdUsuario);
+        var ordenada = ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente);
 
         return await ConsultasDeTexto.PaginarAsync(ordenada.Include(u => u.IdRols), pagina, tamanoPagina, cancelacion);
     }
@@ -60,6 +69,18 @@ public class UsuarioDAO
         return await _contexto.Usuarios
             .Include(u => u.IdRols)
             .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
+    }
+
+    public async Task<Dictionary<long, int>> ContarOrdenesAsignadasAsync(IEnumerable<long> usuarios, CancellationToken cancelacion)
+    {
+        var ids = usuarios.ToArray();
+        if (ids.Length == 0) return [];
+        return await _contexto.OrdenTrabajos.AsNoTracking()
+            .Where(o => o.IdUsuarioTecnico != null && ids.Contains(o.IdUsuarioTecnico.Value))
+            .Where(OrdenTrabajoDAO.EsActiva)
+            .GroupBy(o => o.IdUsuarioTecnico!.Value)
+            .Select(grupo => new { Id = grupo.Key, Cantidad = grupo.Count() })
+            .ToDictionaryAsync(grupo => grupo.Id, grupo => grupo.Cantidad, cancelacion);
     }
 
     // Permite que el alta, la modificación y la baja confirmen la base solo si Keycloak
@@ -151,6 +172,26 @@ public class UsuarioDAO
         }
 
         usuarioExistente.Estado = false;
+        await _contexto.SaveChangesAsync(cancelacion);
+        return true;
+    }
+
+    public async Task<bool> ReactivarUsuarioAsync(long id, CancellationToken cancelacion)
+    {
+        var usuarioExistente = await _contexto.Usuarios
+            .FirstOrDefaultAsync(u => u.IdUsuario == id, cancelacion);
+
+        if (usuarioExistente is null)
+        {
+            return false;
+        }
+
+        if (usuarioExistente.Estado)
+        {
+            return true;
+        }
+
+        usuarioExistente.Estado = true;
         await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }

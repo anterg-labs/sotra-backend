@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs.Terminos;
 using System.ComponentModel.DataAnnotations;
 using Api.Seguridad;
@@ -61,27 +62,15 @@ public class TerminosController(TerminosDAO terminosDao) : ControllerBase
     {
         if (solicitud.Acepta != true)
         {
-            return BadRequest(new
-            {
-                codigo = "ACEPTACION_OBLIGATORIA",
-                mensaje = "Hay que marcar que se leyeron y aceptaron los términos."
-            });
+            return this.RespuestaDeError(400, "ACEPTACION_OBLIGATORIA", "Hay que marcar que se leyeron y aceptaron los términos.");
         }
 
         return await terminosDao.AceptarAsync(solicitud.UsuarioId, solicitud.TerminosId, solicitud.Version, cancelacion) switch
         {
             ResultadoDeAceptacion.Registrada => StatusCode(StatusCodes.Status201Created, await ConstruirEstado(solicitud.UsuarioId, cancelacion)),
             ResultadoDeAceptacion.YaAceptada => Ok(await ConstruirEstado(solicitud.UsuarioId, cancelacion)),
-            ResultadoDeAceptacion.UsuarioInexistente => NotFound(new
-            {
-                codigo = "USUARIO_INEXISTENTE",
-                mensaje = "La persona usuaria no existe."
-            }),
-            _ => Conflict(new
-            {
-                codigo = "TERMINOS_DESACTUALIZADOS",
-                mensaje = "Los términos cambiaron mientras los leías. Volvé a leer la versión vigente."
-            }),
+            ResultadoDeAceptacion.UsuarioInexistente => this.RespuestaDeError(404, "USUARIO_INEXISTENTE", "La persona usuaria no existe."),
+            _ => this.RespuestaDeError(409, "TERMINOS_DESACTUALIZADOS", "Los términos cambiaron mientras los leías. Volvé a leer la versión vigente."),
         };
     }
 

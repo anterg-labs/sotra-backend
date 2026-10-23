@@ -60,7 +60,7 @@ public partial class SotraContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            DotNetEnv.Env.TraversePath().Load();
+            DotNetEnv.Env.NoClobber().TraversePath().Load();
 
             var host = Environment.GetEnvironmentVariable("DB_HOST");
             var port = Environment.GetEnvironmentVariable("DB_PORT");
@@ -352,7 +352,6 @@ public partial class SotraContext : DbContext
                 .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MOVIMIENTO_STOCK_ID\"'::regclass)")
                 .HasColumnName("id_movimiento");
             entity.Property(e => e.Cantidad).HasColumnName("cantidad");
-            entity.Property(e => e.Estado).HasColumnName("estado");
             entity.Property(e => e.Fecha).HasColumnName("fecha");
             entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
             entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");

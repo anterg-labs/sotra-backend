@@ -1,4 +1,5 @@
-<#-- Igual a login.ftl del tema base, salvo la etiqueta del usuario: «Usuario», como en la pantalla del frontend. -->
+<#-- Igual a login.ftl del tema base, salvo: la etiqueta del correo, un aviso general arriba del formulario en lugar de un error bajo el campo,
+     y la validación de campos vacíos en el navegador (sin enviar nada al servidor). -->
 <#import "template.ftl" as layout>
 <#import "passkeys.ftl" as passkeys>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled??; section>
@@ -8,22 +9,21 @@
         <div id="kc-form">
           <div id="kc-form-wrapper">
             <#if realm.password>
-                <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
+                <form id="kc-form-login" action="${url.loginAction}" method="post" novalidate>
+                    <#-- Un solo lugar para los errores del formulario: lo llena el servidor (credenciales incorrectas) o el navegador (campos vacíos). -->
+                    <div id="sotra-aviso-login" class="${properties.kcAlertClass!} sotra-aviso-error sotra-aviso-formulario" role="alert" aria-live="assertive"<#if !messagesPerField.existsError('username','password')> hidden</#if>>
+                        <span id="sotra-aviso-login-texto" class="${properties.kcAlertTitleClass!}"><#if messagesPerField.existsError('username','password')>${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}</#if></span>
+                    </div>
                     <#if !usernameHidden??>
                         <div class="${properties.kcFormGroupClass!}">
                             <label for="username" class="${properties.kcLabelClass!}">${msg("usernameOrEmail")}</label>
 
                             <input tabindex="2" id="username" class="${properties.kcInputClass!}" name="username" value="${(login.username!'')}"  type="text"
-                                   autofocus autocomplete="${(enableWebAuthnConditionalUI?has_content)?then('username webauthn', 'username')}"
+                                   inputmode="email" <#if !messagesPerField.existsError('username','password')>autofocus</#if> autocomplete="${(enableWebAuthnConditionalUI?has_content)?then('username webauthn', 'username')}"
+                                   aria-describedby="sotra-aviso-login"
                                    aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                                    dir="ltr"
                             />
-
-                            <#if messagesPerField.existsError('username','password')>
-                                <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                                        ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
-                                </span>
-                            </#if>
 
                         </div>
                     </#if>
@@ -33,6 +33,8 @@
 
                         <div class="${properties.kcInputGroup!}" dir="ltr">
                             <input tabindex="3" id="password" class="${properties.kcInputClass!}" name="password" type="password" autocomplete="current-password"
+                                   <#if messagesPerField.existsError('username','password')>autofocus</#if>
+                                   aria-describedby="sotra-aviso-login"
                                    aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                             />
                             <button class="${properties.kcFormPasswordVisibilityButtonClass!}" type="button" aria-label="${msg("showPassword")}"
@@ -42,12 +44,6 @@
                                 <i class="${properties.kcFormPasswordVisibilityIconShow!}" aria-hidden="true"></i>
                             </button>
                         </div>
-
-                        <#if usernameHidden?? && messagesPerField.existsError('username','password')>
-                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                                    ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
-                            </span>
-                        </#if>
 
                     </div>
 
@@ -75,7 +71,8 @@
 
                       <div id="kc-form-buttons" class="${properties.kcFormGroupClass!}">
                           <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
-                          <input tabindex="7" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
+                          <input tabindex="7" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"
+                                 data-texto-ocupado="${msg("sotraIngresando")}" data-aviso-vacio="${msg("sotraCamposObligatorios")}"/>
                       </div>
                 </form>
             </#if>
@@ -83,6 +80,7 @@
         </div>
         <@passkeys.conditionalUIData />
         <script type="module" src="${url.resourcesPath}/js/passwordVisibility.js"></script>
+        <script type="module" src="${url.resourcesPath}/js/sotra-login.js"></script>
     <#elseif section = "info" >
         <#if realm.password && realm.registrationAllowed && !registrationDisabled??>
             <div id="kc-registration-container">

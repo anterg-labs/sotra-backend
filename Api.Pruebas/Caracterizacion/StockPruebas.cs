@@ -29,13 +29,7 @@ public class StockPruebas : PruebaBase
 
     private Task<HttpResponseMessage> IngresarAsync(long id, int cantidad)
     {
-        return Cliente.PostAsJsonAsync($"/api/v1/repuestos/{id}/ingresos", new
-        {
-            cantidad,
-            fecha = DateOnly.FromDateTime(DateTime.UtcNow),
-            motivo = "Compra",
-            ubicacion = "Depósito A",
-        });
+        return Cliente.PostAsJsonAsync($"/api/v1/repuestos/{id}/ingresos", new { cantidad });
     }
 
     private Task<HttpResponseMessage> EgresarAsync(long id, int cantidad)
@@ -273,6 +267,73 @@ public class StockPruebas : PruebaBase
     }
 
     [Test]
+    public async Task UnIngresoSoloPideLaCantidadYSumaAlStockExistente()
+    {
+        var id = await CrearRepuestoAsync(7, 5);
+        var antes = DateTime.UtcNow.AddSeconds(-5);
+
+        var respuesta = await IngresarAsync(id, 3);
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        var movimiento = await respuesta.LeerJsonAsync();
+        Assert.That(movimiento.GetProperty("tipo").GetString(), Is.EqualTo("ingreso"));
+        Assert.That(movimiento.GetProperty("cantidad").GetInt32(), Is.EqualTo(3));
+        Assert.That(movimiento.GetProperty("stockAnterior").GetInt32(), Is.EqualTo(7));
+        Assert.That(movimiento.GetProperty("stockPosterior").GetInt32(), Is.EqualTo(10));
+        Assert.That((await ObtenerAsync(id)).GetProperty("cantidad").GetInt32(), Is.EqualTo(10));
+        Assert.That(movimiento.GetProperty("fecha").GetDateTime().ToUniversalTime(), Is.GreaterThan(antes).And.LessThanOrEqualTo(DateTime.UtcNow.AddSeconds(5)),
+            "la fecha la pone el sistema");
+    }
+
+    [Test]
+    public async Task ElIngresoUsaLaUbicacionDelRepuestoNoGuardaMotivoYNoTieneUsuarioHastaQueHayaSesion()
+    {
+        var id = await CrearRepuestoAsync(0, 1);
+
+        var movimiento = await (await IngresarAsync(id, 2)).LeerJsonAsync();
+
+        Assert.That(movimiento.GetProperty("ubicacion").GetString(), Is.EqualTo("Depósito A"));
+        Assert.That(movimiento.GetProperty("motivo").GetString(), Is.EqualTo(""));
+        Assert.That(movimiento.GetProperty("usuarioId").ValueKind, Is.EqualTo(JsonValueKind.Null));
+    }
+
+    [Test]
+    public async Task UnIngresoAceptaObservacionesOpcionalesEIgnoraLosCamposQueYaNoExisten()
+    {
+        var id = await CrearRepuestoAsync(1, 1);
+
+        var respuesta = await Cliente.PostAsJsonAsync($"/api/v1/repuestos/{id}/ingresos", new
+        {
+            cantidad = 4,
+            observaciones = "Llegó con la factura 123",
+            fecha = "2001-01-01",
+            motivo = "Ignorado",
+            ubicacion = "Ignorada",
+        });
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        var movimiento = await respuesta.LeerJsonAsync();
+        Assert.That(movimiento.GetProperty("observaciones").GetString(), Is.EqualTo("Llegó con la factura 123"));
+        Assert.That(movimiento.GetProperty("ubicacion").GetString(), Is.EqualTo("Depósito A"));
+        Assert.That(movimiento.GetProperty("motivo").GetString(), Is.EqualTo(""));
+        Assert.That(movimiento.GetProperty("fecha").GetDateTime().Year, Is.GreaterThan(2001), "la fecha enviada no se usa");
+    }
+
+    [Test]
+    public async Task ElIngresoQuedaEnElHistorialDelRepuestoConSuFecha()
+    {
+        var id = await CrearRepuestoAsync(0, 1);
+        await IngresarAsync(id, 2);
+        await IngresarAsync(id, 5);
+
+        var historial = await (await Cliente.GetAsync($"/api/v1/movimientos-stock?repuestoId={id}")).LeerJsonAsync();
+
+        Assert.That(historial.GetProperty("totalElementos").GetInt32(), Is.EqualTo(2));
+        var cantidades = historial.GetProperty("elementos").EnumerateArray().Select(m => m.GetProperty("cantidad").GetInt32()).ToList();
+        Assert.That(cantidades, Is.EqualTo(new[] { 5, 2 }), "el más nuevo primero");
+    }
+
+    [Test]
     public async Task VeinteIngresosSimultaneosSumanSinPerderMovimientos()
     {
         var id = await CrearRepuestoAsync(0, 1);
@@ -322,6 +383,9 @@ public class StockPruebas : PruebaBase
             nombre = "Nombre nuevo",
             cantidad = 999,
             cantidadMinima = 4,
+            descripcion = (string?)null,
+            marca = (string?)null,
+            ubicacion = (string?)null,
         });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));

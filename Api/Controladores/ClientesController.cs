@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.Clientes;
 using Api.Mapeadores;
@@ -5,6 +6,7 @@ using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Operaciones;
+using SOTRA_BACKEND.Modelos;
 
 namespace Api.Controladores;
 
@@ -29,14 +31,20 @@ public class ClientesController : ControllerBase
             return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
         }
 
+        if (!ClienteDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(ClienteDAO.ColumnasOrdenables.Claves);
+        }
+
         if (!ConsultasDeTexto.TryTraducirEstado(filtros.Estado, out var estado))
         {
             return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc");
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor);
         var (entidades, total) = await _clienteDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
-        var elementos = entidades.Select(ClienteMapeador.AListadoDto).ToList();
+        var cantidades = await _clienteDao.ContarOrdenesAsociadasAsync(entidades.Select(c => c.IdCliente), cancelacion);
+        var elementos = entidades.Select(c => ClienteMapeador.AListadoDto(c, cantidades.GetValueOrDefault(c.IdCliente))).ToList();
         return Ok(PaginaDto<ClienteListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
@@ -47,7 +55,7 @@ public class ClientesController : ControllerBase
     public async Task<ActionResult<ClienteListadoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
     {
         var cliente = await _clienteDao.SeleccionarClienteAsync(id, cancelacion);
-        return cliente is null ? NotFound() : Ok(ClienteMapeador.AListadoDto(cliente));
+        return cliente is null ? NotFound() : Ok(await CrearRespuestaAsync(cliente, cancelacion));
     }
 
     [HttpPost]
@@ -75,7 +83,7 @@ public class ClientesController : ControllerBase
         ClienteMapeador.AplicarCambios(cliente, solicitud);
         await _clienteDao.ActualizarClienteAsync(cliente, cancelacion);
 
-        return Ok(ClienteMapeador.AListadoDto(cliente));
+        return Ok(await CrearRespuestaAsync(cliente, cancelacion));
     }
 
     [HttpPatch("{id:long}")]
@@ -95,10 +103,16 @@ public class ClientesController : ControllerBase
         }
         else
         {
-            return BadRequest(new { mensaje = "El estado debe ser 'activo' o 'inactivo'." });
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "El estado debe ser 'activo' o 'inactivo'.");
         }
 
         var cliente = (await _clienteDao.SeleccionarClienteAsync(id, cancelacion))!;
-        return Ok(ClienteMapeador.AListadoDto(cliente));
+        return Ok(await CrearRespuestaAsync(cliente, cancelacion));
+    }
+
+    private async Task<ClienteListadoDto> CrearRespuestaAsync(Cliente cliente, CancellationToken cancelacion)
+    {
+        var cantidades = await _clienteDao.ContarOrdenesAsociadasAsync([cliente.IdCliente], cancelacion);
+        return ClienteMapeador.AListadoDto(cliente, cantidades.GetValueOrDefault(cliente.IdCliente));
     }
 }

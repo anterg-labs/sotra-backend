@@ -54,8 +54,14 @@ builder.Services.AddOptions<OpcionesDeAlertasDeMaquinaria>()
     .Bind(builder.Configuration.GetSection(OpcionesDeAlertasDeMaquinaria.Seccion))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddMemoryCache();
+builder.Services.AddOptions<OpcionesDeCacheDeAnalitica>()
+    .Bind(builder.Configuration.GetSection(OpcionesDeCacheDeAnalitica.Seccion))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<CacheDeAnalitica>();
 builder.Services.AddScoped<EvidenciaOtDAO>();
-builder.Services.AddScoped<ServicioOllama>();
+builder.Services.AgregarClienteOllama();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();

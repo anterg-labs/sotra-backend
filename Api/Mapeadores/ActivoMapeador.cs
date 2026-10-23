@@ -11,24 +11,29 @@ public static class ActivoMapeador
         {
             IdCliente = activo.ClienteId,
             NumSerie = activo.NumSerie,
-            Descripcion = activo.Descripcion,
+            Descripcion = TextoOpcional.Normalizar(activo.Descripcion),
             IdModeloMaquina = activo.ModeloMaquinaId,
             AnioFabricacion = activo.AnioFabricacion,
-            Nombre = activo.Nombre,
-            Ubicacion = activo.Ubicacion,
+            Nombre = TextoOpcional.Normalizar(activo.Nombre),
+            Ubicacion = TextoOpcional.Normalizar(activo.Ubicacion),
             Estado = true
         };
     }
 
     public static void AplicarCambios(Activo destino, ActivoActualizarDto cambios)
     {
-        if (cambios.ClienteId.HasValue) destino.IdCliente = cambios.ClienteId.Value;
-        if (!string.IsNullOrWhiteSpace(cambios.NumSerie)) destino.NumSerie = cambios.NumSerie;
-        if (!string.IsNullOrWhiteSpace(cambios.Descripcion)) destino.Descripcion = cambios.Descripcion;
-        if (cambios.ModeloMaquinaId.HasValue) destino.IdModeloMaquina = cambios.ModeloMaquinaId.Value;
-        if (cambios.AnioFabricacion.HasValue) destino.AnioFabricacion = cambios.AnioFabricacion.Value;
-        if (!string.IsNullOrWhiteSpace(cambios.Nombre)) destino.Nombre = cambios.Nombre;
-        if (!string.IsNullOrWhiteSpace(cambios.Ubicacion)) destino.Ubicacion = cambios.Ubicacion;
+        if (cambios.ClienteId is null || cambios.ModeloMaquinaId is null || string.IsNullOrWhiteSpace(cambios.NumSerie))
+            throw new ArgumentException("El cliente, el modelo y el número de serie son obligatorios.");
+        if (cambios.Estado is not ("activo" or "inactivo"))
+            throw new ArgumentException("El estado debe ser 'activo' o 'inactivo'.");
+
+        destino.IdCliente = cambios.ClienteId.Value;
+        destino.NumSerie = cambios.NumSerie;
+        destino.Descripcion = TextoOpcional.Normalizar(cambios.Descripcion);
+        destino.IdModeloMaquina = cambios.ModeloMaquinaId.Value;
+        destino.AnioFabricacion = cambios.AnioFabricacion;
+        destino.Nombre = TextoOpcional.Normalizar(cambios.Nombre);
+        destino.Ubicacion = TextoOpcional.Normalizar(cambios.Ubicacion);
 
         if (cambios.Estado == "activo")
         {

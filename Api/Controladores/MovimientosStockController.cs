@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using Api.DTOs;
 using Api.DTOs.MovimientosStock;
 using Api.Mapeadores;
@@ -31,14 +32,16 @@ public class MovimientosStockController : ControllerBase
         if (filtros.FechaDesde is not null && filtros.FechaHasta is not null
             && filtros.FechaDesde > filtros.FechaHasta)
         {
-            return BadRequest(new
-            {
-                codigo = "RANGO_FECHAS_INVALIDO",
-                mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-            });
+            return this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO", "La fecha desde no puede ser posterior a la fecha hasta.");
         }
 
-        var filtro = new FiltroMovimientosStock(filtros.Buscar, filtros.RepuestoId, filtros.Tipo, filtros.FechaDesde, filtros.FechaHasta, filtros.Ubicacion, filtros.UsuarioId);
+        if (!MovimientoStockDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
+        {
+            return this.OrdenInvalido(MovimientoStockDAO.ColumnasOrdenables.Claves);
+        }
+
+        var filtro = new FiltroMovimientosStock(filtros.Buscar, filtros.RepuestoId, filtros.Tipo, filtros.FechaDesde, filtros.FechaHasta, filtros.Ubicacion, filtros.UsuarioId,
+            filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _movimientoStockDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var elementos = entidades.Select(MovimientoStockMapeador.ADto).ToList();
         return Ok(PaginaDto<MovimientoStockDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));

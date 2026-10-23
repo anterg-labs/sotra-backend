@@ -70,6 +70,8 @@ public static class ConfiguracionDeObservabilidad
                 .AddMeter("Npgsql", "Microsoft.EntityFrameworkCore", MetricasDeNegocio.NombreDelMedidor))
             .UseOtlpExporter();
 
+        servicios.AddHostedService<RecolectorDeMetricasDeNegocio>();
+
         return servicios;
     }
 }

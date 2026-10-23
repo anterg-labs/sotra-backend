@@ -17,6 +17,9 @@ public class ReportesController : ControllerBase
     private const int CantidadDeActivosEnRanking = 5;
     private const int CantidadDeOrdenesRecientes = 5;
 
+    /// <summary>Máximo de filas del listado de órdenes en un reporte; los demás cuadros ya son resúmenes agrupados.</summary>
+    internal const int MaximoDeOrdenesListadas = 5_000;
+
     private readonly OrdenTrabajoDAO _ordenTrabajoDao;
     private readonly RepuestoDAO _repuestoDao;
 
@@ -111,11 +114,7 @@ public class ReportesController : ControllerBase
         if (tipoReporte is not ("ordenes-trabajo" or "activos-intervenidos" or "repuestos-utilizados"
             or "actividad-tecnicos" or "indicadores"))
         {
-            return (null, BadRequest(new
-            {
-                codigo = "TIPO_REPORTE_INVALIDO",
-                mensaje = "El tipo de reporte no es válido."
-            }));
+            return (null, this.RespuestaDeError(400, "TIPO_REPORTE_INVALIDO", "El tipo de reporte no es válido."));
         }
 
         var filtro = AFiltroDeOrdenes(filtros);
@@ -151,11 +150,7 @@ public class ReportesController : ControllerBase
     private static bool RangoInvertido(FiltrosIndicadoresDto filtros) =>
         filtros.FechaDesde is not null && filtros.FechaHasta is not null && filtros.FechaDesde > filtros.FechaHasta;
 
-    private BadRequestObjectResult RangoDeFechasInvalido() => BadRequest(new
-    {
-        codigo = "RANGO_FECHAS_INVALIDO",
-        mensaje = "La fecha desde no puede ser posterior a la fecha hasta."
-    });
+    private ObjectResult RangoDeFechasInvalido() => this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO", "La fecha desde no puede ser posterior a la fecha hasta.");
 
     private static bool TipoValido(FiltrosIndicadoresDto filtros) =>
         filtros.Tipo is null or "" or "preventivo" or "correctivo";
@@ -226,15 +221,18 @@ public class ReportesController : ControllerBase
         return criterios;
     }
 
-    private static TablaReporte ArmarTablaOrdenes(List<OrdenResumen> ordenes)
+    internal static TablaReporte ArmarTablaOrdenes(List<OrdenResumen> ordenes)
     {
+        var recortado = ordenes.Count > MaximoDeOrdenesListadas;
         var tabla = new TablaReporte
         {
-            Titulo = "Órdenes de trabajo (" + ordenes.Count + ")",
+            Titulo = recortado
+                ? $"Órdenes de trabajo (primeras {MaximoDeOrdenesListadas} de {ordenes.Count}; filtrá por fechas, cliente o técnico para ver el resto)"
+                : "Órdenes de trabajo (" + ordenes.Count + ")",
             Columnas = new List<string> { "N°", "Creada", "Cliente", "Activo", "Técnico", "Tipo", "Prioridad", "Estado" }
         };
 
-        foreach (var orden in ordenes)
+        foreach (var orden in ordenes.Take(MaximoDeOrdenesListadas))
         {
             tabla.Filas.Add(new List<string>
             {

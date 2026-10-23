@@ -128,7 +128,17 @@ public class ActivosPruebas : PruebaBase
         var id = activo.GetProperty("id").GetInt64();
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/activos/" + id,
-            new { nombre = "Nombre actualizado", ubicacion = "Planta 2" });
+            new
+            {
+                clienteId = activo.GetProperty("clienteId").GetInt64(),
+                modeloMaquinaId = activo.GetProperty("modeloMaquinaId").GetInt64(),
+                numSerie = activo.GetProperty("numSerie").GetString(),
+                nombre = "Nombre actualizado",
+                ubicacion = "Planta 2",
+                descripcion = (string?)null,
+                anioFabricacion = (short?)null,
+                estado = "activo",
+            });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         var actualizado = await respuesta.LeerJsonAsync();
@@ -139,7 +149,17 @@ public class ActivosPruebas : PruebaBase
     [Test]
     public async Task ActualizarActivoInexistenteResponde404()
     {
-        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/activos/999999999", new { nombre = "X" });
+        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/activos/999999999", new
+        {
+            clienteId = 1,
+            modeloMaquinaId = 1,
+            numSerie = "SN-X",
+            nombre = "X",
+            estado = "activo",
+            descripcion = (string?)null,
+            ubicacion = (string?)null,
+            anioFabricacion = (short?)null,
+        });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }

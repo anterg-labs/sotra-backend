@@ -75,30 +75,18 @@ public class EvidenciasController : ControllerBase
         var estadoOrden = OrdenTrabajoMapeador.ADto(orden).Estado;
         if (estadoOrden == "cerrada" || estadoOrden == "cancelada")
         {
-            return Conflict(new
-            {
-                codigo = "ORDEN_NO_MODIFICABLE",
-                mensaje = "La orden cerrada o cancelada no admite nuevas evidencias."
-            });
+            return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o cancelada no admite nuevas evidencias.");
         }
 
         if (tipo != "foto" && tipo != "documento" && tipo != "observacion")
         {
-            return BadRequest(new
-            {
-                codigo = "TIPO_EVIDENCIA_INVALIDO",
-                mensaje = "El tipo de evidencia debe ser foto, documento u observación."
-            });
+            return this.RespuestaDeError(400, "TIPO_EVIDENCIA_INVALIDO", "El tipo de evidencia debe ser foto, documento u observación.");
         }
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         if (fechaRegistro == default || fechaRegistro > hoy.AddDays(1))
         {
-            return BadRequest(new
-            {
-                codigo = "FECHA_REGISTRO_INVALIDA",
-                mensaje = "Indicá una fecha de registro válida que no sea futura."
-            });
+            return this.RespuestaDeError(400, "FECHA_REGISTRO_INVALIDA", "Indicá una fecha de registro válida que no sea futura.");
         }
 
         var textoObservacion = "";
@@ -109,20 +97,12 @@ public class EvidenciasController : ControllerBase
 
         if (tipo == "observacion" && textoObservacion == "")
         {
-            return BadRequest(new
-            {
-                codigo = "OBSERVACION_OBLIGATORIA",
-                mensaje = "Escribí la observación de la evidencia."
-            });
+            return this.RespuestaDeError(400, "OBSERVACION_OBLIGATORIA", "Escribí la observación de la evidencia.");
         }
 
         if (tipo != "observacion" && (archivo is null || archivo.Length == 0))
         {
-            return BadRequest(new
-            {
-                codigo = "ARCHIVO_OBLIGATORIO",
-                mensaje = "Adjuntá el archivo de la evidencia."
-            });
+            return this.RespuestaDeError(400, "ARCHIVO_OBLIGATORIO", "Adjuntá el archivo de la evidencia.");
         }
 
         var evidencia = new EvidenciaOt
@@ -137,11 +117,7 @@ public class EvidenciasController : ControllerBase
         {
             if (archivo.Length > DiezMegabytesEnBytes)
             {
-                return StatusCode(413, new
-                {
-                    codigo = "ARCHIVO_DEMASIADO_GRANDE",
-                    mensaje = "El archivo supera 10 MB."
-                });
+                return this.RespuestaDeError(413, "ARCHIVO_DEMASIADO_GRANDE", "El archivo supera 10 MB.");
             }
 
             await using var memoria = new MemoryStream();
@@ -153,11 +129,7 @@ public class EvidenciasController : ControllerBase
             var esDocumentoValido = tipo != "foto" && tipoContenido != "";
             if (!esFotoValida && !esDocumentoValido)
             {
-                return BadRequest(new
-                {
-                    codigo = "ARCHIVO_NO_PERMITIDO",
-                    mensaje = "Las fotos deben ser JPG o PNG y los documentos PDF, JPG o PNG."
-                });
+                return this.RespuestaDeError(400, "ARCHIVO_NO_PERMITIDO", "Las fotos deben ser JPG o PNG y los documentos PDF, JPG o PNG.");
             }
 
             evidencia.NombreArchivo = Path.GetFileName(archivo.FileName);
