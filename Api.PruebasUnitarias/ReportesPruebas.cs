@@ -121,6 +121,23 @@ public class ReportesPruebas
     }
 
     [Test]
+    public void Pdf_Generar_IncluyeElLogoDeCvmYElTituloEnCadaPagina()
+    {
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+        var filas = Enumerable.Range(1, 120).Select(i => new[] { i.ToString(), "fila " + i }).ToArray();
+
+        var bytes = GeneradorReportesPdf.Generar("Órdenes de trabajo", ["Desde: 2026-01-01"], [Tabla("Detalle", ["N", "Texto"], filas)]);
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(bytes);
+        Assert.That(pdf.NumberOfPages, Is.GreaterThan(1), "el reporte largo ocupa varias páginas");
+        foreach (var pagina in pdf.GetPages())
+        {
+            Assert.That(pagina.GetImages().Count(), Is.EqualTo(1), "cada página lleva el logo en el encabezado");
+            Assert.That(pagina.Text, Does.Contain("SOTRA - Órdenes de trabajo"));
+        }
+    }
+
+    [Test]
     public void Pdf_Generar_ToleraTablasSinFilasYSinCriterios()
     {
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;

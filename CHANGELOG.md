@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Version 1.0.62 (2026-10-23)
+
+- Reportes: los PDF muestran la identidad visual de CVM y avisan cuando el listado de órdenes supera el máximo exportable.
+- Monitoreo: se registran métricas de órdenes por estado, tiempo de cierre y niveles de stock.
+
 ## Version 1.0.61 (2026-10-23)
 
 - Documentación técnica: se pueden registrar y modificar título, tipo, descripción y asociación, filtrar documentos y cambiar su vigencia. Los obsoletos dejan de alimentar las sugerencias.

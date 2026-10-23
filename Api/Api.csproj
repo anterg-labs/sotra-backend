@@ -30,6 +30,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Api.Pruebas" />
+    <InternalsVisibleTo Include="Api.PruebasUnitarias" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Recursos\logo-cvm.png" LogicalName="logo-cvm.png" />
   </ItemGroup>
 
   <ItemGroup>

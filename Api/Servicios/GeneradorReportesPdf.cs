@@ -13,7 +13,25 @@ public class TablaReporte
 
 public static class GeneradorReportesPdf
 {
-    public static byte[] Generar(string titulo, List<string> criterios, List<TablaReporte> tablas)
+    // Tonos provisorios de la marca (negro y rojo) hasta contar con el manual de CVM; se reemplazan solo acá.
+    private const string ColorMarcaNegro = "#111113";
+    private const string ColorMarcaRojo = "#D71920";
+
+    private static readonly Lazy<byte[]> Logo = new(CargarLogo);
+
+    private static byte[] CargarLogo()
+    {
+        using var flujo = typeof(GeneradorReportesPdf).Assembly.GetManifestResourceStream("logo-cvm.png")
+            ?? throw new InvalidOperationException("Falta el logo de CVM embebido en la aplicación.");
+        using var memoria = new MemoryStream();
+        flujo.CopyTo(memoria);
+        return memoria.ToArray();
+    }
+
+    public static byte[] Generar(string titulo, List<string> criterios, List<TablaReporte> tablas) =>
+        CrearDocumento(titulo, criterios, tablas).GeneratePdf();
+
+    internal static Document CrearDocumento(string titulo, List<string> criterios, List<TablaReporte> tablas)
     {
         var fechaGeneracion = HoraUruguay.Convertir(DateTime.UtcNow).ToString("dd/MM/yyyy HH:mm");
 
@@ -27,11 +45,16 @@ public static class GeneradorReportesPdf
 
                 pagina.Header().Column(columna =>
                 {
-                    columna.Item().Text("SOTRA - " + titulo).FontSize(16).Bold();
-                    columna.Item().Text("Generado el " + fechaGeneracion);
+                    columna.Item().Row(fila =>
+                    {
+                        fila.RelativeItem().AlignMiddle().Text("SOTRA - " + titulo).FontSize(16).Bold().FontColor(ColorMarcaNegro);
+                        fila.ConstantItem(130).AlignRight().Height(24).Image(Logo.Value).FitArea();
+                    });
+                    columna.Item().PaddingTop(4).LineHorizontal(2).LineColor(ColorMarcaRojo);
+                    columna.Item().PaddingTop(4).Text("Generado el " + fechaGeneracion).FontColor(Colors.Grey.Darken2);
                     foreach (var criterio in criterios)
                     {
-                        columna.Item().Text(criterio);
+                        columna.Item().Text(criterio).FontColor(Colors.Grey.Darken2);
                     }
                 });
 
@@ -39,7 +62,7 @@ public static class GeneradorReportesPdf
                 {
                     foreach (var tabla in tablas)
                     {
-                        columna.Item().PaddingTop(12).PaddingBottom(4).Text(tabla.Titulo).FontSize(12).Bold();
+                        columna.Item().PaddingTop(12).PaddingBottom(4).Text(tabla.Titulo).FontSize(12).Bold().FontColor(ColorMarcaNegro);
                         if (tabla.Filas.Count == 0)
                         {
                             columna.Item().Text("Sin datos para los criterios seleccionados.");
@@ -60,7 +83,7 @@ public static class GeneradorReportesPdf
                             {
                                 foreach (var nombreColumna in tabla.Columnas)
                                 {
-                                    encabezado.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text(nombreColumna).Bold();
+                                    encabezado.Cell().Background(ColorMarcaNegro).Padding(4).Text(nombreColumna).Bold().FontColor(Colors.White);
                                 }
                             });
 
@@ -75,17 +98,21 @@ public static class GeneradorReportesPdf
                     }
                 });
 
-                pagina.Footer().AlignCenter().Text(texto =>
+                pagina.Footer().Row(fila =>
                 {
-                    texto.Span("Página ");
-                    texto.CurrentPageNumber();
-                    texto.Span(" de ");
-                    texto.TotalPages();
+                    fila.RelativeItem().Text("SOTRA · CVM").FontColor(Colors.Grey.Darken1);
+                    fila.RelativeItem().AlignRight().Text(texto =>
+                    {
+                        texto.Span("Página ");
+                        texto.CurrentPageNumber();
+                        texto.Span(" de ");
+                        texto.TotalPages();
+                    });
                 });
             });
         });
 
-        return documento.GeneratePdf();
+        return documento;
     }
 }
 
