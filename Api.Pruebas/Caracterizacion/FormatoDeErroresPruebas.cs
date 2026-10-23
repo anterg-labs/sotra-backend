@@ -26,7 +26,7 @@ public class FormatoDeErroresPruebas : PruebaBase
 
     [TestCase("/api/v1/clientes/1")]
     [TestCase("/api/v1/usuarios/1")]
-    
+
     [TestCase("/api/v1/activos/1")]
     [TestCase("/api/v1/tipos-maquina/1")]
     [TestCase("/api/v1/modelos-maquina/1")]
