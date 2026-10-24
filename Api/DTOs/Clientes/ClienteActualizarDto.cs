@@ -18,7 +18,7 @@ public class ClienteActualizarDto
     [JsonConverter(typeof(TextoOpcionalJsonConverter))]
     public string? Correo { get; init; }
 
-    [MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono(Obligatorio = false)]
+    [MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono]
     [JsonRequired]
     public string? Telefono { get; init; }
 

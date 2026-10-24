@@ -47,6 +47,44 @@ public class UsuariosPruebas
         Assert.That(Validar(CrearValido()), Is.Empty);
     }
 
+    [TestCase("Nombre")]
+    [TestCase("Apellido")]
+    [TestCase("Telefono")]
+    public void Alta_ConCampoVacio_InformaUnSoloMensajeDeObligatorio(string campo)
+    {
+        var dto = campo switch
+        {
+            "Nombre" => CrearValido(nombre: ""),
+            "Apellido" => CrearValido(apellido: ""),
+            _ => CrearValido(telefono: ""),
+        };
+
+        var mensajes = Validar(dto).Where(e => e.MemberNames.Contains(campo)).Select(e => e.ErrorMessage).ToList();
+
+        Assert.That(mensajes, Has.Count.EqualTo(1));
+        Assert.That(mensajes[0], Does.EndWith("es obligatorio."));
+    }
+
+    [TestCase("")]
+    [TestCase("   ")]
+    public void Modificacion_ConApellidoVacio_InformaUnSoloMensajeDeObligatorio(string apellido)
+    {
+        var dto = new UsuarioActualizarDto
+        {
+            Nombre = "Ana",
+            Apellido = apellido,
+            Correo = "ana@example.com",
+            Telefono = "99123456",
+            IdsRol = [1],
+            Estado = "activo",
+            FechaIngreso = new DateOnly(2026, 10, 21)
+        };
+
+        var mensajes = Validar(dto).Where(e => e.MemberNames.Contains("Apellido")).Select(e => e.ErrorMessage).ToList();
+
+        Assert.That(mensajes, Is.EqualTo(new[] { "El campo Apellido es obligatorio." }));
+    }
+
     [Test]
     public void Alta_SinRoles_SeRechazaConElMensajeDelRol()
     {

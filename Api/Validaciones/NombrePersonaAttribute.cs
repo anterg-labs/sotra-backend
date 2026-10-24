@@ -5,6 +5,7 @@ namespace Api.Validaciones;
 /// <summary>
 /// Valida nombres y apellidos de personas: sin texto en blanco ni símbolos sueltos.
 /// Se permiten letras (con tildes), espacios, apóstrofo, guion y punto, y debe haber al menos una letra.
+/// El texto vacío o en blanco no se informa aquí: <c>[Required]</c> es el único que dice «es obligatorio».
 /// </summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter)]
 public sealed class NombrePersonaAttribute : ValidationAttribute
@@ -21,7 +22,7 @@ public sealed class NombrePersonaAttribute : ValidationAttribute
 
         if (string.IsNullOrWhiteSpace(texto))
         {
-            return new ValidationResult($"El campo {campo} es obligatorio.");
+            return ValidationResult.Success;
         }
 
         var contieneLetra = false;
