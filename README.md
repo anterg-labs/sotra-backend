@@ -1,5 +1,21 @@
 # Backend de SOTRA
 
+> ## ⚠️ Producción todavía no aplica los cambios de base de datos (pendiente de decisión)
+>
+> Cuando se agrega un cambio a la base (por ejemplo, el índice único del teléfono de usuarios y de clientes), su SQL va en `database/cambios/`. Para que llegue a una base que ya existe, el despliegue tiene que copiar esos archivos al servidor y ejecutar el servicio `db-datos` (`database/init/cargar-datos.sh`), que aplica los que falten y los registra en `public.cambios_aplicados`.
+>
+> | Ambiente | ¿Aplica solo los SQL de `database/cambios/`? | Dónde |
+> |---|---|---|
+> | Local | Sí | `docker compose up -d` ejecuta `db-datos` |
+> | Staging | Sí | `.github/workflows/05-staging-backend.yml` copia los SQL al VPS y ejecuta `db-datos` antes de actualizar el backend |
+> | **Producción** | **No** | `.github/workflows/03-production.yml` solo baja la imagen nueva del backend y la reinicia (`pull backend` y `up -d --no-deps backend`) |
+>
+> **Consecuencia:** el backend nuevo de producción arrancaría contra una base sin los cambios. Por ejemplo, sin el índice `UK_TELEFONO_USUARIO_NORMALIZADO` ni `UK_TELEFONO_CLIENTE_NORMALIZADO` no habría error, pero la base no impediría teléfonos duplicados con y sin cero. Lo mismo vale para cualquier otro SQL de `database/cambios/`.
+>
+> **Dato que no se pudo verificar:** `compose.production.yml` vive en el VPS y no en este repositorio, así que no se sabe si ya declara el servicio `db-datos` con el volumen `./database/cambios:/cambios:ro`.
+>
+> **Pendiente de decisión:** copiar a `03-production.yml` los pasos de staging (copiar los SQL al VPS y ejecutar `db-datos` antes de actualizar el backend). No se hizo porque el despliegue a producción está desactivado (`ENABLE_VPS_DEPLOY`) y los pasos dependen del `compose.production.yml` del VPS. Mientras tanto, antes de activar el despliegue de producción hay que aplicar a mano los SQL pendientes de `database/cambios/` (y comprobar que no haya teléfonos duplicados con y sin cero). Este aviso se retira cuando producción aplique los cambios sola.
+
 > ## ⚠️ Leer antes del próximo despliegue a staging
 >
 > El cargador de la base (`database/init/cargar-datos.sh`) **cambió**: ya no recrea una base que existe, aplica los cambios pendientes de `database/cambios/`. Antes de desplegar:
