@@ -2,7 +2,8 @@ namespace Api.Validaciones;
 
 /// <summary>
 /// Números de teléfono de Uruguay: 8 dígitos (91 234 567), o 9 si es un celular escrito con el 0 inicial (091 234 567).
-/// Se guarda siempre la forma de 8 dígitos para que el mismo número no quede repetido con y sin ese 0.
+/// Usuarios conserva el formato ingresado y compara ambas variantes para evitar duplicados;
+/// clientes utiliza <see cref="Normalizar"/> para guardar la forma de 8 dígitos.
 /// </summary>
 public static class NumerosDeTelefono
 {

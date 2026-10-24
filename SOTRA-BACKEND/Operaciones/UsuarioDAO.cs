@@ -124,6 +124,7 @@ public class UsuarioDAO
     public async Task<Usuario> InsertarUsuarioAsync(Usuario usuario, IEnumerable<long>? idsRol, CancellationToken cancelacion)
     {
         var idsRolNormalizados = NormalizarIdsRol(idsRol);
+        await VerificarTelefonoDisponibleAsync(usuario.Telefono, null, cancelacion);
 
         var rolesValidos = await ObtenerRolesValidosAsync(idsRolNormalizados, cancelacion);
         usuario.IdRols = rolesValidos;
@@ -140,6 +141,8 @@ public class UsuarioDAO
             .FirstOrDefaultAsync(u => u.IdUsuario == usuario.IdUsuario, cancelacion);
         if (usuarioExistente is null) return false;
 
+        await VerificarTelefonoDisponibleAsync(usuario.Telefono, usuario.IdUsuario, cancelacion);
+
         var rolesAAgregar = await ObtenerRolesValidosAsync(
             idsRolNormalizados.Except(usuarioExistente.IdRols.Select(r => r.IdRol)).ToList(), cancelacion);
         usuarioExistente.Nombre = usuario.Nombre;
@@ -154,6 +157,19 @@ public class UsuarioDAO
         foreach (var rol in rolesAAgregar) usuarioExistente.IdRols.Add(rol);
         await _contexto.SaveChangesAsync(cancelacion);
         return true;
+    }
+
+    private async Task VerificarTelefonoDisponibleAsync(string telefono, long? idUsuario, CancellationToken cancelacion)
+    {
+        var sinCero = telefono.Length == 9 && telefono[0] == '0' ? telefono[1..] : telefono;
+        var conCero = "0" + sinCero;
+        var existe = await _contexto.Usuarios.AsNoTracking().AnyAsync(
+            u => (!idUsuario.HasValue || u.IdUsuario != idUsuario.Value)
+                && (u.Telefono == sinCero || u.Telefono == conCero), cancelacion);
+        if (existe)
+        {
+            throw new ConflictoDeDatosException("TELEFONO_DUPLICADO", "El número de teléfono ya está registrado.");
+        }
     }
 
     public async Task<bool> DarBajaLogicaUsuarioAsync(long id, CancellationToken cancelacion)
