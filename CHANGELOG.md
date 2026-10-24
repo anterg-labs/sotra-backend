@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.70 (2026-10-23)
+
+- Roles: el listado de roles (`GET /api/v1/roles`) ahora informa el estado de cada rol (`activo` o `inactivo`).
+
 ## Version 1.0.68 (2026-10-23)
 
 - Listados: el texto se ordena con intercalación española sin distinguir mayúsculas, antes de paginar; documentos técnicos aplica el mismo criterio.

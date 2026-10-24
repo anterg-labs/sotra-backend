@@ -476,6 +476,17 @@ public class MapeadoresPruebas
         }));
     }
 
+    [TestCase(true, "activo")]
+    [TestCase(false, "inactivo")]
+    public void Rol_ADto_TraduceEstado(bool activo, string esperado)
+    {
+        var dto = RolMapeador.ADto(new Rol { IdRol = 7, Nombre = "rol", Activo = activo });
+
+        Assert.That(dto.Id, Is.EqualTo(7));
+        Assert.That(dto.Nombre, Is.EqualTo("rol"));
+        Assert.That(dto.Estado, Is.EqualTo(esperado));
+    }
+
     [Test]
     public void Usuario_AListadoDto_OrdenaRolesPorId()
     {
