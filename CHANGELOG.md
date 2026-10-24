@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.73 (2026-10-24)
+
+- Documentación: el README advierte al inicio que el despliegue a producción no aplica los SQL de `database/cambios/` (local y staging sí) y deja la decisión pendiente.
+
 ## Version 1.0.72 (2026-10-23)
 
 - Clientes: el teléfono conserva el cero inicial del celular al guardar y mostrar; el alta y la edición impiden duplicados con y sin cero.
