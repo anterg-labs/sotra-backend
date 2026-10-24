@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Version 1.0.72 (2026-10-23)
+
+- Clientes: el teléfono conserva el cero inicial del celular al guardar y mostrar; el alta y la edición impiden duplicados con y sin cero.
+- Base de datos: se agrega el índice único sobre el teléfono comparable de clientes, en el SQL inicial y en el cambio para bases existentes, que se aplica solo en el despliegue.
+
 ## Version 1.0.71 (2026-10-23)
 
 - Usuarios: la modificación de un usuario ya no permite dejarlo sin roles; igual que el alta, responde `400` si `idsRol` viene vacío o ausente.

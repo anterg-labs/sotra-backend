@@ -19,6 +19,7 @@ public static class TraduccionDeErroresDeNegocio
         ["UK_NOMBRE_CLIENTE"] = ("NOMBRE_CONTACTO_DUPLICADO", "El nombre de contacto ya está registrado."),
         ["UK_CORREO_CLIENTE"] = ("CORREO_DUPLICADO", "El correo electrónico ya está registrado."),
         ["UK_TELEFONO_CLIENTE"] = ("TELEFONO_DUPLICADO", "El número telefónico ya está registrado."),
+        ["UK_TELEFONO_CLIENTE_NORMALIZADO"] = ("TELEFONO_DUPLICADO", "El número telefónico ya está registrado."),
         ["UK_MAIL_USUARIO"] = ("CORREO_DUPLICADO", "El correo electrónico ya está registrado."),
         ["UK_TELEFONO_USUARIO"] = ("TELEFONO_DUPLICADO", "El número de teléfono ya está registrado."),
         ["UK_TELEFONO_USUARIO_NORMALIZADO"] = ("TELEFONO_DUPLICADO", "El número de teléfono ya está registrado."),

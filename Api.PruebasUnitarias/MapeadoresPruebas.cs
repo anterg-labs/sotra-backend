@@ -61,6 +61,18 @@ public class MapeadoresPruebas
         });
     }
 
+    [TestCase("99123456")]
+    [TestCase("099123456")]
+    public void Cliente_ConservaElFormatoDelTelefonoIngresado(string telefono)
+    {
+        var entidad = ClienteMapeador.AEntidad(new ClienteCrearDto { RazonSocial = "Acme", NombreContacto = "Ana", Telefono = telefono });
+        Assert.That(entidad.Telefono, Is.EqualTo(telefono));
+
+        var existente = new Cliente { RazonSocial = "x", Nombre = "y", Telefono = "1" };
+        ClienteMapeador.AplicarCambios(existente, new ClienteActualizarDto { RazonSocial = "Acme", NombreContacto = "Ana", Telefono = telefono });
+        Assert.That(existente.Telefono, Is.EqualTo(telefono));
+    }
+
     [Test]
     public void Cliente_AplicarCambios_VaciaLosOpcionalesEnBlanco()
     {

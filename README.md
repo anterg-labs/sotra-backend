@@ -13,9 +13,9 @@
 
 ## Requisitos
 
-### Teléfonos de usuarios
+### Teléfonos de usuarios y clientes
 
-El alta y la modificación aceptan 8 dígitos, o 9 si empiezan con cero (`99123456` y `099123456`). `TelefonoAttribute` valida el formato y `UsuarioMapeador` usa `NumerosDeTelefono.Normalizar` antes de persistir: ambos ejemplos se guardan y devuelven como `99123456`, y la unicidad impide registrar el mismo número con otra escritura. Se rechazan letras, espacios, prefijos internacionales, 7 dígitos, 9 sin cero inicial y 10 o más. No requiere cambios de esquema ni se aplicaron operaciones sobre bases existentes. El requisito y los casos de Bugasura se alinean con la decisión de Nicolás del 23/10/2026.
+El alta y la modificación de usuarios y de clientes aceptan 8 dígitos, o 9 si empiezan con cero (`99123456` y `099123456`). `TelefonoAttribute` valida el formato y el teléfono se guarda y devuelve exactamente como se ingresó. La unicidad compara ambas escrituras como el mismo número: en usuarios con una comprobación previa y un índice único, y en clientes con el índice único `UK_TELEFONO_CLIENTE_NORMALIZADO`. Se rechazan letras, espacios, prefijos internacionales, 7 dígitos, 9 sin cero inicial y 10 o más. Los índices se aplican a las bases existentes al desplegar (ver «Carga automática de datos»). El requisito y los casos de Bugasura se alinean con la decisión de Nicolás del 23/10/2026.
 
 El alta informa `correoDeContrasenaEnviado` (`true`, `false` o ausente cuando no correspondía enviarlo). Si falla el reenvío, `POST /api/v1/usuarios/{id}/restablecer-contrasena` responde 502 con `codigo: CORREO_NO_ENVIADO`.
 
@@ -280,7 +280,7 @@ curl -H "Authorization: Bearer TOKEN" http://localhost:8081/api/v1/sesion
 
 Los datos de cada usuario (nombre, apellido, correo, teléfono, fecha de ingreso, estado y roles) se guardan en `operativo.usuario`, que es la fuente principal. Lo referido al login (contraseña, cambio obligatorio de contraseña, bloqueo por intentos y sesiones) vive solo en Keycloak. `id_keycloak` vincula los dos. La API copia a Keycloak lo que necesita para el login: correo (que es el nombre de usuario), nombre, apellido, roles y si está habilitado. No hace falta tocar los usuarios desde la consola de Keycloak.
 
-El teléfono de usuario admite 8 dígitos o 9 con cero inicial. Se guarda y devuelve exactamente como se ingresó; `099123456` vuelve a verse con el cero en el listado, detalle y edición. Para evitar duplicados, `099123456` y `99123456` se comparan como el mismo número. Las bases nuevas incluyen el índice único comparable en `database/init/01-init.sql`; para una base existente, `db-datos` aplica solo en el despliegue `database/cambios/2026-10-23-usuario-telefono-con-formato-original.sql`. Si hay teléfonos duplicados con y sin cero, el cambio falla a propósito y el backend no arranca hasta resolverlos.
+El teléfono de usuario y de cliente admite 8 dígitos o 9 con cero inicial. Se guarda y devuelve exactamente como se ingresó; `099123456` vuelve a verse con el cero en el listado, detalle y edición. Para evitar duplicados, `099123456` y `99123456` se comparan como el mismo número. Las bases nuevas incluyen el índice único comparable en `database/init/01-init.sql`; para una base existente, `db-datos` aplica solo en el despliegue `database/cambios/2026-10-23-usuario-telefono-con-formato-original.sql` y `database/cambios/2026-10-23-cliente-telefono-con-formato-original.sql`. Si hay teléfonos duplicados con y sin cero, el cambio falla a propósito y el backend no arranca hasta resolverlos.
 
 `Api/Servicios/ServicioKeycloakUsuarios.cs` usa la API de administración de Keycloak con la cuenta de servicio de `sotra-backend-admin`, que solo tiene `manage-users` y `view-users`.
 
