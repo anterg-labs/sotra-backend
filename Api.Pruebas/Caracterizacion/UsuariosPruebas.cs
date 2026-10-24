@@ -205,6 +205,59 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
+    public async Task AltaConCeroInicialConservaElFormatoEnAltaDetalleYListado()
+    {
+        var telefono = "0" + DatosDePrueba.Telefono();
+        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", DatosDePrueba.UsuarioNuevo(telefono: telefono));
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        var usuario = await respuesta.LeerJsonAsync();
+        Assert.That(usuario.GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+
+        var id = usuario.GetProperty("id").GetInt64();
+        var detalle = await (await Cliente.GetAsync($"/api/v1/usuarios/{id}")).LeerJsonAsync();
+        Assert.That(detalle.GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+
+        var correo = usuario.GetProperty("correo").GetString();
+        var listado = await (await Cliente.GetAsync("/api/v1/usuarios?buscar=" + Uri.EscapeDataString(correo!))).LeerJsonAsync();
+        Assert.That(listado.GetProperty("elementos")[0].GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+    }
+
+    [Test]
+    public async Task TelefonosConYSinCeroInicialNoPuedenDuplicarse()
+    {
+        var telefono = DatosDePrueba.Telefono();
+        var primero = await Cliente.PostAsJsonAsync("/api/v1/usuarios", DatosDePrueba.UsuarioNuevo(telefono: "0" + telefono));
+        Assert.That(primero.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+
+        var repetido = await Cliente.PostAsJsonAsync("/api/v1/usuarios", DatosDePrueba.UsuarioNuevo(telefono: telefono));
+        Assert.That(repetido.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That((await repetido.LeerJsonAsync()).GetProperty("codigo").GetString(), Is.EqualTo("TELEFONO_DUPLICADO"));
+    }
+
+    [Test]
+    public async Task EdicionConCeroInicialConservaElFormatoIngresado()
+    {
+        var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
+        var telefono = "0" + usuario.GetProperty("telefono").GetString();
+        var id = usuario.GetProperty("id").GetInt64();
+        var datos = new
+        {
+            nombre = usuario.GetProperty("nombre").GetString(),
+            apellido = usuario.GetProperty("apellido").GetString(),
+            correo = usuario.GetProperty("correo").GetString(),
+            telefono,
+            estado = "activo",
+            fechaIngreso = usuario.GetProperty("fechaIngreso").GetString(),
+            idsRol = new long[] { 1 },
+        };
+
+        var respuesta = await Cliente.PutAsJsonAsync($"/api/v1/usuarios/{id}", datos);
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That((await respuesta.LeerJsonAsync()).GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+    }
+
+    [Test]
     public async Task CrearUsuarioConUnRolInexistenteResponde400ConMensaje()
     {
         var datos = DatosDePrueba.UsuarioNuevo(idsRol: new long[] { 999999 });

@@ -100,23 +100,23 @@ public class UsuariosPruebas
         Assert.That(errores, Is.Not.Empty);
     }
 
-    [TestCase("99123456", "99123456")]
-    [TestCase("099123456", "99123456")]
-    [TestCase("092624911", "92624911")]
-    public void Alta_AceptaElCeroInicialOpcionalYGuardaElTelefonoNormalizado(string telefono, string esperado)
+    [TestCase("99123456")]
+    [TestCase("099123456")]
+    [TestCase("092624911")]
+    public void Alta_AceptaElCeroInicialYConservaElFormatoIngresado(string telefono)
     {
         var datos = CrearValido(telefono: telefono);
 
         Assert.Multiple(() =>
         {
             Assert.That(Validar(datos), Is.Empty);
-            Assert.That(UsuarioMapeador.AEntidad(datos).Telefono, Is.EqualTo(esperado));
+            Assert.That(UsuarioMapeador.AEntidad(datos).Telefono, Is.EqualTo(telefono));
         });
     }
 
-    [TestCase("099123456", "99123456")]
-    [TestCase("092624911", "92624911")]
-    public void Modificacion_AceptaElCeroInicialOpcionalYConservaLaFormaNormalizada(string telefono, string esperado)
+    [TestCase("099123456")]
+    [TestCase("092624911")]
+    public void Modificacion_ConservaElFormatoIngresado(string telefono)
     {
         var datos = ActualizarValido(telefono: telefono);
         var usuario = UsuarioMapeador.AEntidad(CrearValido());
@@ -124,7 +124,7 @@ public class UsuariosPruebas
         Assert.That(Validar(datos), Is.Empty);
         UsuarioMapeador.AplicarCambios(usuario, datos);
 
-        Assert.That(usuario.Telefono, Is.EqualTo(esperado));
+        Assert.That(usuario.Telefono, Is.EqualTo(telefono));
     }
 
     [TestCase("sin-arroba")]

@@ -5,6 +5,7 @@
 
 # dotenv files
 .env
+database/.respaldo-local/
 
 # User-specific files
 *.rsuser

@@ -21,6 +21,7 @@ public static class TraduccionDeErroresDeNegocio
         ["UK_TELEFONO_CLIENTE"] = ("TELEFONO_DUPLICADO", "El número telefónico ya está registrado."),
         ["UK_MAIL_USUARIO"] = ("CORREO_DUPLICADO", "El correo electrónico ya está registrado."),
         ["UK_TELEFONO_USUARIO"] = ("TELEFONO_DUPLICADO", "El número de teléfono ya está registrado."),
+        ["UK_TELEFONO_USUARIO_NORMALIZADO"] = ("TELEFONO_DUPLICADO", "El número de teléfono ya está registrado."),
     };
 
     // Si la restricción no tiene texto propio, se usa el de la tabla.

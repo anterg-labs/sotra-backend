@@ -4,6 +4,15 @@
 
 - Usuarios: la modificación de un usuario ya no permite dejarlo sin roles; igual que el alta, responde `400` si `idsRol` viene vacío o ausente.
 
+## Version 1.0.70 (2026-10-23)
+
+- Roles: el listado de roles (`GET /api/v1/roles`) ahora informa el estado de cada rol (`activo` o `inactivo`).
+
+## Version 1.0.69 (2026-10-23)
+
+- Usuarios: se conserva el cero inicial del celular al guardar y mostrar el teléfono; el alta y la edición impiden duplicados con y sin cero.
+- Base de datos: se agrega un índice único sobre el teléfono comparable, tanto al SQL inicial como al cambio para bases existentes, que se aplica solo en el despliegue.
+
 ## Version 1.0.68 (2026-10-23)
 
 - Listados: el texto se ordena con intercalación española sin distinguir mayúsculas, antes de paginar; documentos técnicos aplica el mismo criterio.
