@@ -17,7 +17,7 @@ public class UsuarioActualizarDto
     [Required(ErrorMessage = "El campo teléfono es obligatorio."), MaxLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres."), Telefono]
     public required string Telefono { get; init; }
 
-    [Required]
+    [Required, MinLength(1, ErrorMessage = "El usuario debe tener al menos un rol.")]
     public required List<long> IdsRol { get; init; }
 
     [Required]

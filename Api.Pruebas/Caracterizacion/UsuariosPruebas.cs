@@ -359,7 +359,7 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
-    public async Task ActualizarUsuarioConListaDeRolesVaciaLeQuitaTodosLosRoles()
+    public async Task ActualizarUsuarioSinRolesSeRechazaYConservaLosRoles()
     {
         var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
         var id = usuario.GetProperty("id").GetInt64();
@@ -376,8 +376,30 @@ public class UsuariosPruebas : PruebaBase
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/usuarios/" + id, datos);
 
-        var actualizado = await respuesta.LeerJsonAsync();
-        Assert.That(actualizado.GetProperty("roles").GetArrayLength(), Is.EqualTo(0));
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That((await respuesta.LeerJsonAsync()).GetProperty("errors").GetProperty("IdsRol")[0].GetString(),
+            Is.EqualTo("El usuario debe tener al menos un rol."));
+        var conservado = await (await Cliente.GetAsync("/api/v1/usuarios/" + id)).LeerJsonAsync();
+        Assert.That(conservado.GetProperty("roles").GetArrayLength(), Is.GreaterThan(0));
+    }
+
+    [Test]
+    public async Task ActualizarUsuarioSinEnviarIdsRolSeRechaza()
+    {
+        var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
+        var datos = new
+        {
+            nombre = "Prueba",
+            apellido = "Usuario",
+            correo = usuario.GetProperty("correo").GetString(),
+            telefono = usuario.GetProperty("telefono").GetString(),
+            estado = "activo",
+            fechaIngreso = "2026-08-12",
+        };
+
+        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/usuarios/" + usuario.GetProperty("id").GetInt64(), datos);
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
     [Test]
@@ -391,7 +413,7 @@ public class UsuariosPruebas : PruebaBase
             telefono = "12345678",
             estado = "activo",
             fechaIngreso = "2026-08-12",
-            idsRol = Array.Empty<long>(),
+            idsRol = new long[] { 1 },
         };
 
         var respuesta = await Cliente.PutAsJsonAsync("/api/v1/usuarios/999999999", datos);

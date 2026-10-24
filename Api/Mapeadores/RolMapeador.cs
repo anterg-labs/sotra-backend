@@ -10,7 +10,8 @@ public static class RolMapeador
         return new RolDto
         {
             Id = rol.IdRol,
-            Nombre = rol.Nombre
+            Nombre = rol.Nombre,
+            Estado = rol.Activo ? "activo" : "inactivo"
         };
     }
 }
