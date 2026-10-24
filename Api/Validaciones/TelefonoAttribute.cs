@@ -2,12 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Api.Validaciones;
 
-/// <summary>Valida el teléfono: 8 dígitos, o 9 si empieza con 0 (celular con el 0 inicial; ver <see cref="NumerosDeTelefono"/>). Con <see cref="Obligatorio"/> en falso admite vacío.</summary>
+/// <summary>Valida el teléfono: 8 dígitos, o 9 si empieza con 0 (celular con el 0 inicial; ver <see cref="NumerosDeTelefono"/>). El texto vacío o en blanco no se informa aquí: si el teléfono es obligatorio, lo dice <c>[Required]</c>.</summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter)]
 public sealed class TelefonoAttribute : ValidationAttribute
 {
-    public bool Obligatorio { get; init; } = true;
-
     protected override ValidationResult? IsValid(object? valor, ValidationContext contexto)
     {
         if (valor is not string texto)
@@ -17,9 +15,7 @@ public sealed class TelefonoAttribute : ValidationAttribute
 
         if (string.IsNullOrWhiteSpace(texto))
         {
-            return Obligatorio
-                ? new ValidationResult("El campo teléfono es obligatorio.")
-                : ValidationResult.Success;
+            return ValidationResult.Success;
         }
 
         if (!texto.All(char.IsAsciiDigit))

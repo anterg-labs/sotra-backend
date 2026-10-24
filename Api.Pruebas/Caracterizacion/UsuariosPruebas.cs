@@ -541,4 +541,29 @@ public class UsuariosPruebas : PruebaBase
         var reactivado = await respuesta.LeerJsonAsync();
         Assert.That(reactivado.GetProperty("estado").GetString(), Is.EqualTo("activo"));
     }
+
+    [TestCase("apellido")]
+    [TestCase("nombre")]
+    [TestCase("telefono")]
+    public async Task CrearUsuarioConCampoVacioInformaUnSoloMensajeDeObligatorio(string campo)
+    {
+        var datos = new Dictionary<string, object?>
+        {
+            ["nombre"] = "Juan",
+            ["apellido"] = "Pérez",
+            ["correo"] = "vacio." + DatosDePrueba.Sufijo() + "@pruebas.test",
+            ["telefono"] = DatosDePrueba.Telefono(),
+            ["idsRol"] = new long[] { 1 },
+        };
+        datos[campo] = "";
+
+        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/usuarios", datos);
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        var errores = (await respuesta.LeerJsonAsync()).GetProperty("errors");
+        var mensajes = errores.EnumerateObject()
+            .Single(propiedad => string.Equals(propiedad.Name, campo, StringComparison.OrdinalIgnoreCase)).Value;
+        Assert.That(mensajes.GetArrayLength(), Is.EqualTo(1));
+        Assert.That(mensajes[0].GetString(), Does.EndWith("es obligatorio."));
+    }
 }

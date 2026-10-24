@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.74 (2026-10-24)
+
+- Usuarios: un campo vacío (nombre, apellido o teléfono) ya no repite el mensaje «es obligatorio» dos veces en la respuesta de error del alta y la modificación.
+
 ## Version 1.0.73 (2026-10-24)
 
 - Documentación: el README advierte al inicio que el despliegue a producción no aplica los SQL de `database/cambios/` (local y staging sí) y deja la decisión pendiente.

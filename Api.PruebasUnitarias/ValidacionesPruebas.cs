@@ -68,11 +68,9 @@ public class ValidacionesPruebas
     [TestCase("")]
     [TestCase("   ")]
     [TestCase("\t")]
-    public void NombrePersona_RechazaTextoEnBlancoConMensajeDeObligatorio(string nombre)
+    public void NombrePersona_DejaElTextoEnBlancoALaValidacionRequired(string nombre)
     {
-        var resultado = Validar(new NombrePersonaAttribute(), nombre, "Apellido");
-
-        Assert.That(resultado!.ErrorMessage, Is.EqualTo("El campo Apellido es obligatorio."));
+        Assert.That(Validar(new NombrePersonaAttribute(), nombre, "Apellido"), Is.EqualTo(ValidationResult.Success));
     }
 
     [TestCase("Ana1")]
@@ -98,9 +96,9 @@ public class ValidacionesPruebas
     }
 
     [Test]
-    public void NombrePersona_ValorQueNoEsTextoSeTrataComoVacio()
+    public void NombrePersona_ValorQueNoEsTextoSeTrataComoVacioYLoDecideRequired()
     {
-        Assert.That(Validar(new NombrePersonaAttribute(), 42)!.ErrorMessage, Does.Contain("obligatorio"));
+        Assert.That(Validar(new NombrePersonaAttribute(), 42), Is.EqualTo(ValidationResult.Success));
     }
 
     [TestCase("99123456")]
@@ -139,17 +137,10 @@ public class ValidacionesPruebas
 
     [TestCase("")]
     [TestCase("   ")]
-    public void Telefono_VacioEsErrorSiEsObligatorio(string telefono)
-    {
-        Assert.That(Validar(new TelefonoAttribute(), telefono)!.ErrorMessage, Is.EqualTo("El campo teléfono es obligatorio."));
-    }
-
-    [TestCase("")]
-    [TestCase("   ")]
     [TestCase(null)]
-    public void Telefono_VacioEsValidoSiNoEsObligatorio(string? telefono)
+    public void Telefono_VacioLoDecideRequired(string? telefono)
     {
-        Assert.That(Validar(new TelefonoAttribute { Obligatorio = false }, telefono), Is.EqualTo(ValidationResult.Success));
+        Assert.That(Validar(new TelefonoAttribute(), telefono), Is.EqualTo(ValidationResult.Success));
     }
 
     [Test]
