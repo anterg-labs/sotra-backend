@@ -58,6 +58,7 @@ public class TraduccionDeErroresPruebas
     [TestCase("cliente", "UK_NOMBRE_CLIENTE", "NOMBRE_CONTACTO_DUPLICADO")]
     [TestCase("cliente", "UK_CORREO_CLIENTE", "CORREO_DUPLICADO")]
     [TestCase("cliente", "UK_TELEFONO_CLIENTE", "TELEFONO_DUPLICADO")]
+    [TestCase("cliente", "UK_TELEFONO_CLIENTE_NORMALIZADO", "TELEFONO_DUPLICADO")]
     [TestCase("usuario", "UK_MAIL_USUARIO", "CORREO_DUPLICADO")]
     [TestCase("usuario", "UK_TELEFONO_USUARIO", "TELEFONO_DUPLICADO")]
     [TestCase("cliente", "RESTRICCION_NUEVA", "CLIENTE_DUPLICADO")]

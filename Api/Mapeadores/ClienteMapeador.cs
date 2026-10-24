@@ -1,4 +1,3 @@
-using Api.Validaciones;
 using Api.DTOs.Clientes;
 using SOTRA_BACKEND.Modelos;
 
@@ -18,10 +17,6 @@ public static class ClienteMapeador
         if (string.IsNullOrWhiteSpace(telefono))
         {
             telefono = null;
-        }
-        else
-        {
-            telefono = NumerosDeTelefono.Normalizar(telefono);
         }
 
         string? direccion = cliente.Direccion;
@@ -60,7 +55,7 @@ public static class ClienteMapeador
             destino.Correo = null;
         }
 
-        destino.Telefono = string.IsNullOrWhiteSpace(cambios.Telefono) ? null : NumerosDeTelefono.Normalizar(cambios.Telefono);
+        destino.Telefono = string.IsNullOrWhiteSpace(cambios.Telefono) ? null : cambios.Telefono;
 
         destino.Direccion = cambios.Direccion;
         if (string.IsNullOrWhiteSpace(destino.Direccion))
