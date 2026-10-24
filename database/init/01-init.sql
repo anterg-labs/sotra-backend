@@ -1436,6 +1436,10 @@ ALTER TABLE ONLY operativo.cliente
 ALTER TABLE ONLY operativo.cliente
     ADD CONSTRAINT "UK_TELEFONO_CLIENTE" UNIQUE (telefono);
 
+CREATE UNIQUE INDEX "UK_TELEFONO_CLIENTE_NORMALIZADO" ON operativo.cliente
+    ((CASE WHEN length(telefono) = 9 AND left(telefono, 1) = '0'
+        THEN substring(telefono FROM 2) ELSE telefono END));
+
 
 --
 -- Name: usuario UK_TELEFONO_USUARIO; Type: CONSTRAINT; Schema: operativo; Owner: -

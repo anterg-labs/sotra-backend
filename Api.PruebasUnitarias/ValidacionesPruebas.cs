@@ -128,15 +128,6 @@ public class ValidacionesPruebas
         Assert.That(Validar(new TelefonoAttribute(), telefono), Is.EqualTo(ValidationResult.Success));
     }
 
-    [TestCase("099123456", "99123456")]
-    [TestCase("092624911", "92624911")]
-    [TestCase("99123456", "99123456")]
-    [TestCase("09912345", "09912345")]
-    public void NumerosDeTelefono_GuardaSiempreLaFormaDeOchoDigitos(string entrada, string esperado)
-    {
-        Assert.That(Api.Validaciones.NumerosDeTelefono.Normalizar(entrada), Is.EqualTo(esperado));
-    }
-
     [TestCase("1234567")]
     [TestCase("123456789")]
     [TestCase("0")]

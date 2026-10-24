@@ -250,4 +250,35 @@ public class ClientesPruebas : PruebaBase
         Assert.That(cuerpo.GetProperty("codigo").GetString(), Is.EqualTo("TELEFONO_DUPLICADO"));
         Assert.That(cuerpo.GetProperty("mensaje").GetString(), Is.EqualTo("El número telefónico ya está registrado."));
     }
+
+    [Test]
+    public async Task AltaConCeroInicialConservaElFormatoEnAltaDetalleYListado()
+    {
+        var telefono = "0" + DatosDePrueba.Telefono();
+        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/clientes", DatosDePrueba.ClienteNuevo(telefono: telefono));
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        var cliente = await respuesta.LeerJsonAsync();
+        Assert.That(cliente.GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+
+        var id = cliente.GetProperty("id").GetInt64();
+        var detalle = await (await Cliente.GetAsync($"/api/v1/clientes/{id}")).LeerJsonAsync();
+        Assert.That(detalle.GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+
+        var correo = cliente.GetProperty("correo").GetString();
+        var listado = await (await Cliente.GetAsync("/api/v1/clientes?buscar=" + Uri.EscapeDataString(correo!))).LeerJsonAsync();
+        Assert.That(listado.GetProperty("elementos")[0].GetProperty("telefono").GetString(), Is.EqualTo(telefono));
+    }
+
+    [Test]
+    public async Task TelefonosConYSinCeroInicialNoPuedenDuplicarse()
+    {
+        var telefono = DatosDePrueba.Telefono();
+        var primero = await Cliente.PostAsJsonAsync("/api/v1/clientes", DatosDePrueba.ClienteNuevo(telefono: "0" + telefono));
+        Assert.That(primero.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+
+        var repetido = await Cliente.PostAsJsonAsync("/api/v1/clientes", DatosDePrueba.ClienteNuevo(telefono: telefono));
+        Assert.That(repetido.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That((await repetido.LeerJsonAsync()).GetProperty("codigo").GetString(), Is.EqualTo("TELEFONO_DUPLICADO"));
+    }
 }
