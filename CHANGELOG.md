@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.71 (2026-10-23)
+
+- Usuarios: la modificación de un usuario ya no permite dejarlo sin roles; igual que el alta, responde `400` si `idsRol` viene vacío o ausente.
+
 ## Version 1.0.70 (2026-10-23)
 
 - Roles: el listado de roles (`GET /api/v1/roles`) ahora informa el estado de cada rol (`activo` o `inactivo`).
