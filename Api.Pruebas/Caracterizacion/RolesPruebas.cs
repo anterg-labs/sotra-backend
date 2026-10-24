@@ -21,12 +21,22 @@ public class RolesPruebas : PruebaBase
     }
 
     [Test]
-    public async Task ListarRolesSoloExponeIdYNombre()
+    public async Task ListarRolesExponeIdNombreYEstado()
     {
         var respuesta = await Cliente.GetAsync("/api/v1/roles");
 
         var roles = await respuesta.Content.ReadFromJsonAsync<JsonElement>();
         var propiedades = roles[0].EnumerateObject().Select(propiedad => propiedad.Name).ToList();
-        Assert.That(propiedades, Is.EquivalentTo(new[] { "id", "nombre" }));
+        Assert.That(propiedades, Is.EquivalentTo(new[] { "id", "nombre", "estado" }));
+    }
+
+    [Test]
+    public async Task ListarRolesInformaElEstadoComoTexto()
+    {
+        var respuesta = await Cliente.GetAsync("/api/v1/roles");
+
+        var roles = await respuesta.Content.ReadFromJsonAsync<JsonElement>();
+        var estados = roles.EnumerateArray().Select(rol => rol.GetProperty("estado").GetString()).ToList();
+        Assert.That(estados, Has.All.EqualTo("activo"));
     }
 }
