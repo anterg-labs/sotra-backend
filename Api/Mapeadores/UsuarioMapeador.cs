@@ -13,7 +13,7 @@ public static class UsuarioMapeador
             Nombre = usuario.Nombre,
             Apellido = usuario.Apellido,
             Mail = usuario.Correo,
-            Telefono = NumerosDeTelefono.Normalizar(usuario.Telefono),
+            Telefono = usuario.Telefono,
             Estado = true,
             FechaIngreso = DateOnly.FromDateTime(DateTime.UtcNow)
         };
@@ -24,7 +24,7 @@ public static class UsuarioMapeador
         destino.Nombre = cambios.Nombre;
         destino.Apellido = cambios.Apellido;
         destino.Mail = cambios.Correo;
-        destino.Telefono = NumerosDeTelefono.Normalizar(cambios.Telefono);
+        destino.Telefono = cambios.Telefono;
         destino.FechaIngreso = cambios.FechaIngreso;
 
         if (cambios.Estado == "activo")
