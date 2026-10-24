@@ -3,7 +3,7 @@
 ## Version 1.0.69 (2026-10-23)
 
 - Usuarios: se conserva el cero inicial del celular al guardar y mostrar el teléfono; el alta y la edición impiden duplicados con y sin cero.
-- Base de datos: se agrega un índice único sobre el teléfono comparable, tanto al SQL inicial como al cambio para bases existentes.
+- Base de datos: se agrega un índice único sobre el teléfono comparable, tanto al SQL inicial como al cambio para bases existentes, que se aplica solo en el despliegue.
 
 ## Version 1.0.68 (2026-10-23)
 

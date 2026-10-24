@@ -1,5 +1,6 @@
 -- Conserva el cero inicial mostrado al usuario, sin permitir duplicados con y sin ese cero.
--- Aplicar a una base existente solo tras revisar y respaldar sus datos.
+-- Lo aplica solo el despliegue (database/init/cargar-datos.sh) y lo registra en public.cambios_aplicados.
+-- Si hay teléfonos duplicados con y sin cero, falla a propósito y el backend no arranca hasta resolverlos.
 DO $$
 BEGIN
     IF EXISTS (
