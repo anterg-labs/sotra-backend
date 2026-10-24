@@ -55,6 +55,23 @@ public class UsuariosPruebas
         Assert.That(errores.Select(e => e.ErrorMessage), Does.Contain("El usuario debe tener al menos un rol."));
     }
 
+    [Test]
+    public void Modificacion_SinRoles_SeRechazaConElMensajeDelRol()
+    {
+        var dto = new UsuarioActualizarDto
+        {
+            Nombre = "Ana",
+            Apellido = "Pérez",
+            Correo = "ana@example.com",
+            Telefono = "99123456",
+            IdsRol = [],
+            Estado = "activo",
+            FechaIngreso = new DateOnly(2026, 10, 21)
+        };
+
+        Assert.That(Validar(dto).Select(e => e.ErrorMessage), Does.Contain("El usuario debe tener al menos un rol."));
+    }
+
     [TestCase("D'Angelo", "O’Brien")]
     [TestCase("María-José", "Núñez")]
     [TestCase("Jr.", "de la Cruz")]
