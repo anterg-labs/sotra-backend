@@ -1444,6 +1444,10 @@ ALTER TABLE ONLY operativo.cliente
 ALTER TABLE ONLY operativo.usuario
     ADD CONSTRAINT "UK_TELEFONO_USUARIO" UNIQUE (telefono);
 
+CREATE UNIQUE INDEX "UK_TELEFONO_USUARIO_NORMALIZADO" ON operativo.usuario
+    ((CASE WHEN length(telefono) = 9 AND left(telefono, 1) = '0'
+        THEN substring(telefono FROM 2) ELSE telefono END));
+
 
 --
 -- Name: IDX_HISTORIAL_RECOMENDACIONES_IA_ORDEN; Type: INDEX; Schema: operativo; Owner: -
