@@ -13,7 +13,8 @@ public static class OrdenTrabajoMapeador
     private const short PrioridadAltaEnBase = 5;
     private const string FormatoDeFecha = "yyyy-MM-dd";
 
-    public static OrdenTrabajoDto ADto(OrdenTrabajo orden, ReglasDeEstadoOrden reglas)
+    /// <param name="soloTecnico">Quien pide es solo técnico: ve únicamente las transiciones que puede hacer.</param>
+    public static OrdenTrabajoDto ADto(OrdenTrabajo orden, ReglasDeEstadoOrden reglas, bool soloTecnico = false)
     {
         var estado = reglas.Inicial.Nombre;
         var fechaPrevista = DateOnly.FromDateTime(orden.FechaCreada).ToString(FormatoDeFecha);
@@ -124,6 +125,7 @@ public static class OrdenTrabajoMapeador
             Sugerencias = sugerencias,
             Repuestos = repuestos,
             Transiciones = reglas.TransicionesDesde(estado)
+                .Where(t => !soloTecnico || t.PuedeTecnico)
                 .Select(t => new TransicionOrdenDto(t.Destino, t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal))
                 .ToList(),
             HistorialEstados = historialEstados

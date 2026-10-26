@@ -80,7 +80,7 @@ public class OrdenesTrabajoController : ControllerBase
 
         var (ordenes, total) = await _ordenTrabajoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
-        var elementos = ordenes.Select(orden => OrdenTrabajoMapeador.ADto(orden, reglas)).ToList();
+        var elementos = ordenes.Select(orden => OrdenTrabajoMapeador.ADto(orden, reglas, User.EsSoloTecnico())).ToList();
         return Ok(PaginaDto<OrdenTrabajoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
@@ -110,7 +110,7 @@ public class OrdenesTrabajoController : ControllerBase
             return Forbid();
         }
 
-        return OkConVersion(OrdenTrabajoMapeador.ADto(orden, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
+        return OkConVersion(OrdenTrabajoMapeador.ADto(orden, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 
     [HttpPost]
@@ -187,8 +187,8 @@ public class OrdenesTrabajoController : ControllerBase
             motivo = motivo.Trim();
         }
 
-        var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, cancelacion);
-        return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
+        var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, User.EsSoloTecnico(), cancelacion);
+        return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 
     [HttpPatch("{id:long}/tecnico")]

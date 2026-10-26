@@ -1,4 +1,4 @@
-using Api.Infraestructura;
+﻿using Api.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NUnit.Framework;
@@ -36,6 +36,7 @@ public class TraduccionDeErroresPruebas
     [TestCase(ErrorDeOrdenException.OrdenModificada, 412)]
     [TestCase(ErrorDeOrdenException.OrdenInexistente, 404)]
     [TestCase(ErrorDeOrdenException.TransicionInvalida, 400)]
+    [TestCase(ErrorDeOrdenException.TransicionNoPermitida, 403)]
     [TestCase(ErrorDeOrdenException.TecnicoObligatorio, 400)]
     [TestCase(ErrorDeOrdenException.TecnicoYaAsignado, 409)]
     [TestCase(ErrorDeOrdenException.MotivoObligatorio, 400)]

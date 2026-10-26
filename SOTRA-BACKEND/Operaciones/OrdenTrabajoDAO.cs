@@ -295,7 +295,7 @@ public class OrdenTrabajoDAO
     }
 
     public async Task<OrdenTrabajo> CambiarEstadoAsync(
-        OrdenTrabajo ordenLeida, string estado, string? motivo, CancellationToken cancelacion)
+        OrdenTrabajo ordenLeida, string estado, string? motivo, bool comoTecnico, CancellationToken cancelacion)
     {
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         var orden = await BloquearYRecargarAsync(ordenLeida.IdOrden, cancelacion);
@@ -313,7 +313,7 @@ public class OrdenTrabajoDAO
             throw new ErrorDeOrdenException(ErrorDeOrdenException.TransicionInvalida);
         }
 
-        reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
+        reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo, comoTecnico);
         await AgregarEstadoAsync(orden, estado, motivo, cancelacion);
         AplicarFechasDeEstado(orden, estado, reglas);
         await _contexto.SaveChangesAsync(cancelacion);
