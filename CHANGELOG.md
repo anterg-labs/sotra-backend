@@ -11,6 +11,10 @@
 - Reportes y alertas: las órdenes abiertas, terminadas y pendientes de validación se calculan por la fase del estado y cada alerta por el código que define la base.
 - Base de datos: SQL incremental y `01-init.sql` con las columnas y la tabla nuevas, y el catálogo con `cancelada` y sus etiquetas; el despliegue se detiene con un mensaje claro si hay estados sin reglas. Se agrega `sotra-dump.sql` en la raíz, sin PDF ni embeddings.
 
+## Version 1.0.75 (2026-10-25)
+
+- Documentación: el README resume lo que hay que hacer para pasar a producción: aplicar los SQL de `database/cambios/` en el despliegue.
+
 ## Version 1.0.74 (2026-10-24)
 
 - Usuarios: un campo vacío (nombre, apellido o teléfono) ya no repite el mensaje «es obligatorio» dos veces en la respuesta de error del alta y la modificación.
