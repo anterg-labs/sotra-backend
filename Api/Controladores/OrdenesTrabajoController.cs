@@ -83,6 +83,15 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(PaginaDto<OrdenTrabajoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    [HttpGet("estados")]
+    [Authorize(Policy = Politicas.OtConsultar)]
+    [ProducesResponseType<List<EstadoOrdenTrabajoDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<EstadoOrdenTrabajoDto>>> ObtenerEstados(CancellationToken cancelacion)
+    {
+        var estados = await _ordenTrabajoDao.ListarEstadosAsync(cancelacion);
+        return Ok(estados.Select(estado => new EstadoOrdenTrabajoDto(estado.Valor, estado.Etiqueta)).ToList());
+    }
+
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<OrdenTrabajoDto>> ObtenerPorId(long id, CancellationToken cancelacion)

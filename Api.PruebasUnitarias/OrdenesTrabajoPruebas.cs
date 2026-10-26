@@ -53,6 +53,24 @@ public class OrdenesTrabajoPruebas
         Assert.That(OrdenTrabajoDAO.ObtenerEstadosSiguientes(actual), Is.EqualTo(esperados));
     }
 
+    [Test]
+    public void EstadosDelCiclo_TodosLosEstadosSiguientesPertenecenAlCatalogo()
+    {
+        foreach (var estado in OrdenTrabajoDAO.EstadosDelCiclo)
+        {
+            Assert.That(OrdenTrabajoDAO.EstadosDelCiclo, Is.SupersetOf(OrdenTrabajoDAO.ObtenerEstadosSiguientes(estado)), estado);
+        }
+    }
+
+    [TestCase("en_ejecucion", "En ejecución", "En ejecución")]
+    [TestCase("en_ejecucion", null, "En ejecucion")]
+    [TestCase("en_ejecucion", "  ", "En ejecucion")]
+    [TestCase("pausada", "", "Pausada")]
+    public void EtiquetaDelEstado_UsaLaDeLaBaseYSiFaltaArmaUnaLegible(string nombre, string? descripcion, string esperada)
+    {
+        Assert.That(OrdenTrabajoDAO.EtiquetaDelEstado(nombre, descripcion), Is.EqualTo(esperada));
+    }
+
     [TestCase("desconocido")]
     [TestCase("")]
     [TestCase("CREADA")]

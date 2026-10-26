@@ -548,4 +548,26 @@ public class OrdenesTrabajoPruebas : PruebaBase
             .Count(h => h.GetProperty("estado").GetString() == "en_ejecucion");
         Assert.That(enEjecucion, Is.EqualTo(1));
     }
+
+    [Test]
+    public async Task ListarEstadosDevuelveElCatalogoDeLaBaseEnElOrdenDelCiclo()
+    {
+        var respuesta = await Cliente.GetAsync("/api/v1/ordenes-trabajo/estados");
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var estados = await respuesta.LeerJsonAsync();
+        var valores = estados.EnumerateArray().Select(estado => estado.GetProperty("valor").GetString()).ToList();
+        Assert.That(valores, Is.EqualTo(new[] { "creada", "asignada", "en_ejecucion", "pausada", "finalizada", "cerrada", "cancelada" }));
+        var etiquetas = estados.EnumerateArray().Select(estado => estado.GetProperty("etiqueta").GetString()).ToList();
+        Assert.That(etiquetas, Is.EqualTo(new[] { "Creada", "Asignada", "En ejecución", "Pausada", "Finalizada", "Cerrada", "Cancelada" }));
+    }
+
+    [Test]
+    public async Task ElCatalogoDeEstadosCoincideConLosEstadosQueConoceElCodigo()
+    {
+        var estados = await (await Cliente.GetAsync("/api/v1/ordenes-trabajo/estados")).LeerJsonAsync();
+        var valores = estados.EnumerateArray().Select(estado => estado.GetProperty("valor").GetString()).ToList();
+
+        Assert.That(valores, Is.EquivalentTo(SOTRA_BACKEND.Operaciones.OrdenTrabajoDAO.EstadosDelCiclo));
+    }
 }

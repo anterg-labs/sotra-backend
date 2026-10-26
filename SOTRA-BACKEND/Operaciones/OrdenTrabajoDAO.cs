@@ -46,10 +46,13 @@ public class OrdenTrabajoDAO
                 .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada");
 
 
-    private static readonly string[] EstadosValidos =
+    /// <summary>Estados del ciclo de vida, en el orden en que se muestran. El catálogo vive en la tabla <c>estado_ot</c>.</summary>
+    public static readonly string[] EstadosDelCiclo =
     {
         "creada", "asignada", "en_ejecucion", "pausada", "finalizada", "cerrada", "cancelada"
     };
+
+    private static string[] EstadosValidos => EstadosDelCiclo;
 
     private static readonly Dictionary<string, string[]> TransicionesPermitidas = new()
     {
@@ -370,6 +373,40 @@ public class OrdenTrabajoDAO
             .ToListAsync(cancelacion);
         _contexto.ChangeTracker.Clear();
         return await SeleccionarAsync(idOrden, cancelacion) ?? throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenInexistente);
+    }
+
+    /// <summary>Catálogo de estados leído de la tabla <c>estado_ot</c>, en el orden del ciclo de vida y con su etiqueta.</summary>
+    public async Task<List<(string Valor, string Etiqueta)>> ListarEstadosAsync(CancellationToken cancelacion)
+    {
+        var estados = await _contexto.EstadoOts
+            .AsNoTracking()
+            .Where(estado => estado.Estado)
+            .Select(estado => new { estado.Nombre, estado.Descripcion })
+            .ToListAsync(cancelacion);
+
+        return estados
+            .OrderBy(estado => PosicionEnElCiclo(estado.Nombre))
+            .ThenBy(estado => estado.Nombre, StringComparer.Ordinal)
+            .Select(estado => (estado.Nombre, EtiquetaDelEstado(estado.Nombre, estado.Descripcion)))
+            .ToList();
+    }
+
+    /// <summary>La etiqueta cargada en <c>estado_ot.descripcion</c>; si falta, el nombre con espacios y la primera letra en mayúscula.</summary>
+    public static string EtiquetaDelEstado(string nombre, string? descripcion)
+    {
+        if (!string.IsNullOrWhiteSpace(descripcion))
+        {
+            return descripcion.Trim();
+        }
+
+        var legible = nombre.Replace('_', ' ').Trim();
+        return legible.Length == 0 ? legible : char.ToUpperInvariant(legible[0]) + legible[1..];
+    }
+
+    private static int PosicionEnElCiclo(string nombre)
+    {
+        var posicion = Array.IndexOf(EstadosDelCiclo, nombre);
+        return posicion < 0 ? int.MaxValue : posicion;
     }
 
     public static List<string> ObtenerEstadosSiguientes(string estadoActual)

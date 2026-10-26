@@ -130,6 +130,8 @@ Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `
 
 Los cambios de estructura nuevos se entregan en dos lugares a la vez: se incorporan a `01-init.sql` (bases nuevas) y se agrega un archivo idempotente en `database/cambios/` (bases existentes). El contenedor necesita `database/cambios` montado en `/cambios`; `compose.yml` ya lo hace y el flujo de staging copia esos archivos al servidor.
 
+**Dump exportado.** En la raíz de este repositorio queda `sotra-dump.sql`, un dump de PostgreSQL (`pg_dump`, esquema `operativo`, estructura y datos) **sin PDF ni embeddings**: sin el esquema `vectorial` (documentos y vectores), sin el esquema `keycloak` y sin las tablas de control de la carga. Se genera a partir de una base descartable creada con `01-init.sql` y se regenera cada vez que cambia la base, sin tocar la base local con datos. Para restaurarlo en una base vacía: `psql -U USUARIO -d BASE -f sotra-dump.sql`.
+
 **Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 14 personas usuarias con los 4 roles (entre ellas `admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`, que coinciden con los usuarios de prueba del realm de Keycloak), 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Los usuarios no tienen contraseña en SOTRA: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
 
 Para agregar un cambio: editar `01-init.sql`, crear el SQL en `database/cambios/` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
@@ -492,6 +494,10 @@ RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:**
 - `GET /api/v1/movimientos-stock` (paginado, ver arriba) y `GET /api/v1/movimientos-stock/{id}`: cada movimiento tiene `id`, `repuestoId`, `codigoRepuesto`, `nombreRepuesto`, `tipo`, `cantidad`, `fecha`, `ubicacion`, `usuarioId`, `nombreUsuario`, `motivo`, `observaciones`, `stockAnterior` y `stockPosterior`.
 
 La especificación también pide filtrar repuestos por "categoría", pero el repuesto no tiene ese dato en la base; queda pendiente de definir.
+
+### Catálogo de estados (`GET /api/v1/ordenes-trabajo/estados`)
+
+Los estados de las órdenes y sus etiquetas salen de la tabla `operativo.estado_ot` (`nombre` es el valor y `descripcion`, la etiqueta). El endpoint los devuelve en el orden del ciclo de vida, `[{ "valor": "en_ejecucion", "etiqueta": "En ejecución" }, …]`, solo los activos; si una fila no tiene etiqueta, se arma una con el nombre (`En ejecucion`). Lo consumen el filtro del listado, los reportes, los formularios y las etiquetas del frontend, que no tienen listas propias. Lo que sigue en el código son las reglas de qué estado puede seguir a cuál (`OrdenTrabajoDAO.TransicionesPermitidas`); una prueba de integración comprueba que `OrdenTrabajoDAO.EstadosDelCiclo` y la tabla coincidan. Los siete estados vienen en `01-init.sql` y, para bases existentes, en `database/cambios/2026-10-25-estado-ot-catalogo-completo.sql` (agrega `cancelada` y las etiquetas), que el despliegue aplica solo.
 
 ### Ciclo de vida de la orden (`PATCH /api/v1/ordenes-trabajo/{id}/estado` y `/tecnico`)
 

@@ -772,12 +772,13 @@ COPY operativo.activo (id_activo, id_cliente, num_serie, descripcion, id_modelo_
 --
 
 COPY operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) FROM stdin;
-1	creada	\N	t
-2	en_ejecucion	\N	t
-3	asignada	\N	t
-4	pausada	\N	t
-5	finalizada	\N	t
-6	cerrada	\N	t
+1	creada	Creada	t
+2	en_ejecucion	En ejecución	t
+3	asignada	Asignada	t
+4	pausada	Pausada	t
+5	finalizada	Finalizada	t
+6	cerrada	Cerrada	t
+7	cancelada	Cancelada	t
 \.
 
 
@@ -1098,7 +1099,7 @@ SELECT pg_catalog.setval('operativo."SEC_CLIENTE_ID"', 6, true);
 -- Name: SEC_ESTADO_OT_ID; Type: SEQUENCE SET; Schema: operativo; Owner: postgres
 --
 
-SELECT pg_catalog.setval('operativo."SEC_ESTADO_OT_ID"', 6, true);
+SELECT pg_catalog.setval('operativo."SEC_ESTADO_OT_ID"', 7, true);
 
 
 --
