@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict jmyfFJTpNndg6jkQUqBOMfkKrCs2fcDNfB9JL8AihOmJ3bZM7cczI2QyP9N3cKR
+\restrict t3QTNlbS6vARwR03laPnlHnpvzn2gbSGbOtLZmD7xocIadd9f8vcUA5en57siqo
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
@@ -113,7 +113,17 @@ CREATE TABLE operativo.estado_ot (
     id_estado_ot bigint NOT NULL,
     nombre character varying(60) NOT NULL,
     descripcion text,
-    estado boolean CONSTRAINT estado_ot_activo_not_null NOT NULL
+    estado boolean CONSTRAINT estado_ot_activo_not_null NOT NULL,
+    orden smallint NOT NULL,
+    fase character varying(20) NOT NULL,
+    exige_tecnico boolean DEFAULT false NOT NULL,
+    completa_fecha character varying(10),
+    tono character varying(12) NOT NULL,
+    codigo_alerta character varying(40),
+    es_inicial boolean DEFAULT false NOT NULL,
+    CONSTRAINT "CK_ESTADO_OT_COMPLETA_FECHA" CHECK (((completa_fecha IS NULL) OR ((completa_fecha)::text = ANY ((ARRAY['inicio'::character varying, 'cierre'::character varying])::text[])))),
+    CONSTRAINT "CK_ESTADO_OT_FASE" CHECK (((fase)::text = ANY ((ARRAY['pendiente'::character varying, 'en_curso'::character varying, 'por_validar'::character varying, 'cerrada'::character varying, 'cancelada'::character varying])::text[]))),
+    CONSTRAINT "CK_ESTADO_OT_TONO" CHECK (((tono)::text = ANY ((ARRAY['neutro'::character varying, 'info'::character varying, 'alerta'::character varying, 'exito'::character varying, 'peligro'::character varying, 'destacado'::character varying])::text[])))
 );
 
 
@@ -653,6 +663,22 @@ ALTER TABLE operativo.terminos_condiciones ALTER COLUMN id_terminos ADD GENERATE
 
 
 --
+-- Name: transicion_estado_ot; Type: TABLE; Schema: operativo; Owner: -
+--
+
+CREATE TABLE operativo.transicion_estado_ot (
+    id_estado_origen bigint NOT NULL,
+    id_estado_destino bigint NOT NULL,
+    exige_motivo boolean DEFAULT false NOT NULL,
+    puede_tecnico boolean DEFAULT false NOT NULL,
+    accion character varying(40),
+    principal boolean DEFAULT false NOT NULL,
+    al_asignar_tecnico boolean DEFAULT false NOT NULL,
+    CONSTRAINT "CK_TRANSICION_ESTADO_OT_DISTINTOS" CHECK ((id_estado_origen <> id_estado_destino))
+);
+
+
+--
 -- Name: usuario_rol; Type: TABLE; Schema: operativo; Owner: -
 --
 
@@ -779,11 +805,11 @@ ALTER TABLE ONLY operativo.usuario ALTER COLUMN id_usuario SET DEFAULT nextval('
 --
 
 COPY operativo.aceptacion_terminos (id_aceptacion, id_usuario, id_terminos, aceptado_en) FROM stdin;
-1	1	1	2026-10-26 01:28:33.524515+00
-2	3	1	2026-10-26 01:28:33.524515+00
-3	4	1	2026-10-26 01:28:33.524515+00
-4	5	1	2026-10-26 01:28:33.524515+00
-5	6	1	2026-10-26 01:28:33.524515+00
+1	1	1	2026-10-26 02:05:56.722322+00
+2	3	1	2026-10-26 02:05:56.722322+00
+3	4	1	2026-10-26 02:05:56.722322+00
+4	5	1	2026-10-26 02:05:56.722322+00
+5	6	1	2026-10-26 02:05:56.722322+00
 \.
 
 
@@ -827,14 +853,14 @@ COPY operativo.cliente (id_cliente, razon_social, nombre, correo, telefono, dire
 -- Data for Name: estado_ot; Type: TABLE DATA; Schema: operativo; Owner: -
 --
 
-COPY operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) FROM stdin;
-1	creada	Creada	t
-2	en_ejecucion	En ejecución	t
-3	asignada	Asignada	t
-4	pausada	Pausada	t
-5	finalizada	Finalizada	t
-6	cerrada	Cerrada	t
-7	cancelada	Cancelada	t
+COPY operativo.estado_ot (id_estado_ot, nombre, descripcion, estado, orden, fase, exige_tecnico, completa_fecha, tono, codigo_alerta, es_inicial) FROM stdin;
+1	creada	Creada	t	1	pendiente	f	\N	neutro	sin_asignar	t
+2	en_ejecucion	En ejecución	t	3	en_curso	t	inicio	info	\N	f
+3	asignada	Asignada	t	2	pendiente	t	\N	info	demorada_para_iniciar	f
+4	pausada	Pausada	t	4	en_curso	f	\N	alerta	pausada_demasiado	f
+5	finalizada	Finalizada	t	5	por_validar	f	\N	destacado	\N	f
+6	cerrada	Cerrada	t	6	cerrada	f	cierre	exito	\N	f
+7	cancelada	Cancelada	t	7	cancelada	f	\N	neutro	\N	f
 \.
 
 
@@ -1117,7 +1143,7 @@ COPY operativo.rol_permiso (id_rol, id_permiso) FROM stdin;
 --
 
 COPY operativo.terminos_condiciones (id_terminos, version, titulo, texto, datos_almacenados, vigente, creado_en, id_usuario_autor) FROM stdin;
-1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-26 01:28:33.434887+00	\N
+1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-26 02:05:56.63712+00	\N
 \.
 
 
@@ -1133,6 +1159,24 @@ COPY operativo.tipo_maquina (id_tipo_maquina, nombre, estado) FROM stdin;
 5	Rodillo compactador	t
 6	Camión hormigonero	t
 7	Camión volcador	t
+\.
+
+
+--
+-- Data for Name: transicion_estado_ot; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+COPY operativo.transicion_estado_ot (id_estado_origen, id_estado_destino, exige_motivo, puede_tecnico, accion, principal, al_asignar_tecnico) FROM stdin;
+1	3	f	f	\N	f	t
+1	7	t	f	\N	f	f
+3	2	f	t	Iniciar	t	f
+3	7	t	f	\N	f	f
+2	4	t	t	Pausar	f	f
+2	5	f	t	Finalizar	t	f
+4	2	f	t	Reanudar	t	f
+4	7	t	f	\N	f	f
+5	6	t	f	\N	f	f
+5	3	t	f	\N	f	f
 \.
 
 
@@ -1432,6 +1476,14 @@ ALTER TABLE ONLY operativo.rol_permiso
 
 ALTER TABLE ONLY operativo.tipo_maquina
     ADD CONSTRAINT "PK_TIPO_MAQUINA" PRIMARY KEY (id_tipo_maquina);
+
+
+--
+-- Name: transicion_estado_ot PK_TRANSICION_ESTADO_OT; Type: CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.transicion_estado_ot
+    ADD CONSTRAINT "PK_TRANSICION_ESTADO_OT" PRIMARY KEY (id_estado_origen, id_estado_destino);
 
 
 --
@@ -1741,6 +1793,20 @@ CREATE INDEX "IX_USUARIO_ROL_ID_ROL" ON operativo.usuario_rol USING btree (id_ro
 
 
 --
+-- Name: UK_ESTADO_OT_INICIAL; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE UNIQUE INDEX "UK_ESTADO_OT_INICIAL" ON operativo.estado_ot USING btree (es_inicial) WHERE es_inicial;
+
+
+--
+-- Name: UK_ESTADO_OT_ORDEN; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE UNIQUE INDEX "UK_ESTADO_OT_ORDEN" ON operativo.estado_ot USING btree (orden);
+
+
+--
 -- Name: UK_TELEFONO_CLIENTE_NORMALIZADO; Type: INDEX; Schema: operativo; Owner: -
 --
 
@@ -1767,6 +1833,13 @@ END));
 --
 
 CREATE UNIQUE INDEX "UK_TERMINOS_UNICA_VIGENTE" ON operativo.terminos_condiciones USING btree (vigente) WHERE vigente;
+
+
+--
+-- Name: UK_TRANSICION_AL_ASIGNAR_TECNICO; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE UNIQUE INDEX "UK_TRANSICION_AL_ASIGNAR_TECNICO" ON operativo.transicion_estado_ot USING btree (id_estado_origen) WHERE al_asignar_tecnico;
 
 
 --
@@ -1913,6 +1986,22 @@ ALTER TABLE ONLY operativo.modelo_maquina
 
 
 --
+-- Name: transicion_estado_ot FK_TRANSICION_ESTADO_OT_DESTINO; Type: FK CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.transicion_estado_ot
+    ADD CONSTRAINT "FK_TRANSICION_ESTADO_OT_DESTINO" FOREIGN KEY (id_estado_destino) REFERENCES operativo.estado_ot(id_estado_ot);
+
+
+--
+-- Name: transicion_estado_ot FK_TRANSICION_ESTADO_OT_ORIGEN; Type: FK CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.transicion_estado_ot
+    ADD CONSTRAINT "FK_TRANSICION_ESTADO_OT_ORIGEN" FOREIGN KEY (id_estado_origen) REFERENCES operativo.estado_ot(id_estado_ot);
+
+
+--
 -- Name: evidencia_ot FK_USUARIO_EVIDENCIA_OT; Type: FK CONSTRAINT; Schema: operativo; Owner: -
 --
 
@@ -1980,5 +2069,5 @@ ALTER TABLE ONLY operativo.terminos_condiciones
 -- PostgreSQL database dump complete
 --
 
-\unrestrict jmyfFJTpNndg6jkQUqBOMfkKrCs2fcDNfB9JL8AihOmJ3bZM7cczI2QyP9N3cKR
+\unrestrict t3QTNlbS6vARwR03laPnlHnpvzn2gbSGbOtLZmD7xocIadd9f8vcUA5en57siqo
 

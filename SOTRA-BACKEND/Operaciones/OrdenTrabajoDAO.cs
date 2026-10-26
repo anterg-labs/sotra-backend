@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SOTRA_BACKEND.Contexto;
 using SOTRA_BACKEND.Modelos;
@@ -30,7 +30,7 @@ public class OrdenTrabajoDAO
                 : o.IdUsuarioTecnicoNavigation.Nombre + " " + o.IdUsuarioTecnicoNavigation.Apellido),
             new("estado", o => o.HistorialEstadoOts
                 .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
-                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada"),
+                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? ""),
             new("creadoEn", o => o.FechaCreada),
             // La fecha prevista se guarda como texto ISO (aaaa-mm-dd) en la observaciÃ³n del primer estado.
             new("fechaPrevistaEjecucion", o => o.HistorialEstadoOts
@@ -38,34 +38,16 @@ public class OrdenTrabajoDAO
                 .Select(h => h.Observacion).FirstOrDefault()),
         ]);
 
-    private static readonly string[] EstadosTerminales = ["cerrada", "cancelada"];
+    private static readonly string[] FasesFinales = [FasesDeEstado.Cerrada, FasesDeEstado.Cancelada];
 
+    /// <summary>Una orden está activa mientras su estado actual no sea de una fase final (cerrada o cancelada).</summary>
     public static readonly Expression<Func<OrdenTrabajo, bool>> EsActiva = orden =>
-        !EstadosTerminales.Contains(
+        !FasesFinales.Contains(
             orden.HistorialEstadoOts.OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
-                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada");
-
-
-    /// <summary>Estados del ciclo de vida, en el orden en que se muestran. El catálogo vive en la tabla <c>estado_ot</c>.</summary>
-    public static readonly string[] EstadosDelCiclo =
-    {
-        "creada", "asignada", "en_ejecucion", "pausada", "finalizada", "cerrada", "cancelada"
-    };
-
-    private static string[] EstadosValidos => EstadosDelCiclo;
-
-    private static readonly Dictionary<string, string[]> TransicionesPermitidas = new()
-    {
-        { "creada", new[] { "asignada", "cancelada" } },
-        { "asignada", new[] { "en_ejecucion", "cancelada" } },
-        { "en_ejecucion", new[] { "pausada", "finalizada" } },
-        { "pausada", new[] { "en_ejecucion", "cancelada" } },
-        { "finalizada", new[] { "cerrada", "asignada" } },
-        { "cerrada", new string[0] },
-        { "cancelada", new string[0] }
-    };
+                .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() ?? "");
 
     private readonly SotraContext _contexto;
+    private ReglasDeEstadoOrden? _reglas;
 
     public OrdenTrabajoDAO(SotraContext contexto)
     {
@@ -103,9 +85,9 @@ public class OrdenTrabajoDAO
         if (!string.IsNullOrEmpty(filtro.Estado))
         {
             var estado = filtro.Estado;
-            consulta = consulta.Where(o => (o.HistorialEstadoOts
+            consulta = consulta.Where(o => o.HistorialEstadoOts
                 .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
-                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada") == estado);
+                .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() == estado);
         }
 
         consulta = AplicarPrioridad(consulta, filtro.Prioridad);
@@ -177,7 +159,7 @@ public class OrdenTrabajoDAO
                 o.IdUsuarioTecnicoNavigation == null ? null : o.IdUsuarioTecnicoNavigation.Nombre + " " + o.IdUsuarioTecnicoNavigation.Apellido,
                 o.Tipo, o.Prioridad,
                 o.HistorialEstadoOts.OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
-                    .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "creada"))
+                    .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? ""))
             .ToListAsync(cancelacion);
     }
 
@@ -227,6 +209,7 @@ public class OrdenTrabajoDAO
         List<string> sugerencias, Guid? sesion, long? idResponsable, CancellationToken cancelacion)
     {
         await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds, cancelacion);
+        var reglas = await ObtenerReglasAsync(cancelacion);
         orden.IdUsuarioResponsable = idResponsable ?? await ObtenerResponsableAsync(cancelacion);
         orden.FechaCreada = DateTime.UtcNow;
 
@@ -234,7 +217,7 @@ public class OrdenTrabajoDAO
         _contexto.OrdenTrabajos.Add(orden);
         await _contexto.SaveChangesAsync(cancelacion);
 
-        await AgregarEstadoAsync(orden, "creada", fechaPrevista.ToString(FormatoDeFecha), cancelacion);
+        await AgregarEstadoAsync(orden, reglas.Inicial.Nombre, fechaPrevista.ToString(FormatoDeFecha), cancelacion);
         ReemplazarRepuestos(orden, repuestosIds);
         await ReemplazarSugerenciasAsync(orden, sugerencias, sesion, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
@@ -264,8 +247,9 @@ public class OrdenTrabajoDAO
             throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenModificada);
         }
 
-        var estadoActual = ObtenerEstadoActual(orden);
-        if (estadoActual == "cerrada")
+        var reglas = await ObtenerReglasAsync(cancelacion);
+        var estadoActual = ObtenerEstadoActual(orden, reglas);
+        if (reglas.EstaCerrada(estadoActual))
         {
             throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenCerrada);
         }
@@ -278,8 +262,8 @@ public class OrdenTrabajoDAO
         orden.Descripcion = cambios.Descripcion;
         orden.Resultado = cambios.Resultado;
 
-        ValidarEstado(estado);
-        ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
+        ValidarEstado(reglas, estado);
+        reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
         await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds, cancelacion);
 
         var primerEstado = orden.HistorialEstadoOts.OrderBy(item => item.FechaHora).FirstOrDefault();
@@ -291,7 +275,7 @@ public class OrdenTrabajoDAO
         if (estado != estadoActual)
         {
             await AgregarEstadoAsync(orden, estado, motivo, cancelacion);
-            AplicarFechasDeEstado(orden, estado);
+            AplicarFechasDeEstado(orden, estado, reglas);
         }
 
         ReemplazarRepuestos(orden, repuestosIds);
@@ -308,21 +292,22 @@ public class OrdenTrabajoDAO
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         var orden = await BloquearYRecargarAsync(ordenLeida.IdOrden, cancelacion);
 
-        var estadoActual = ObtenerEstadoActual(orden);
-        if (estadoActual == "cerrada")
+        var reglas = await ObtenerReglasAsync(cancelacion);
+        var estadoActual = ObtenerEstadoActual(orden, reglas);
+        if (reglas.EstaCerrada(estadoActual))
         {
             throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenCerrada);
         }
 
-        ValidarEstado(estado);
+        ValidarEstado(reglas, estado);
         if (estado == estadoActual)
         {
             throw new ErrorDeOrdenException(ErrorDeOrdenException.TransicionInvalida);
         }
 
-        ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
+        reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
         await AgregarEstadoAsync(orden, estado, motivo, cancelacion);
-        AplicarFechasDeEstado(orden, estado);
+        AplicarFechasDeEstado(orden, estado, reglas);
         await _contexto.SaveChangesAsync(cancelacion);
         await transaccion.CommitAsync(cancelacion);
 
@@ -334,8 +319,9 @@ public class OrdenTrabajoDAO
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         var orden = await BloquearYRecargarAsync(ordenLeida.IdOrden, cancelacion);
 
-        var estadoActual = ObtenerEstadoActual(orden);
-        if (estadoActual == "cerrada" || estadoActual == "cancelada")
+        var reglas = await ObtenerReglasAsync(cancelacion);
+        var estadoActual = ObtenerEstadoActual(orden, reglas);
+        if (reglas.EsFinal(estadoActual))
         {
             throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenNoModificable);
         }
@@ -348,11 +334,7 @@ public class OrdenTrabajoDAO
         var tecnico = await ValidarTecnicoAsync(tecnicoId, cancelacion);
         orden.IdUsuarioTecnico = tecnicoId;
 
-        var estadoNuevo = estadoActual;
-        if (estadoActual == "creada")
-        {
-            estadoNuevo = "asignada";
-        }
+        var estadoNuevo = reglas.EstadoAlAsignarTecnico(estadoActual) ?? estadoActual;
 
         await AgregarEstadoAsync(orden, estadoNuevo, "Técnico asignado: " + tecnico.Nombre + " " + tecnico.Apellido, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
@@ -375,86 +357,56 @@ public class OrdenTrabajoDAO
         return await SeleccionarAsync(idOrden, cancelacion) ?? throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenInexistente);
     }
 
-    /// <summary>Catálogo de estados leído de la tabla <c>estado_ot</c>, en el orden del ciclo de vida y con su etiqueta.</summary>
-    public async Task<List<(string Valor, string Etiqueta)>> ListarEstadosAsync(CancellationToken cancelacion)
+    /// <summary>
+    /// Las reglas de los estados leídas de la base (<c>estado_ot</c> y <c>transicion_estado_ot</c>). Se cargan una vez por
+    /// instancia, que vive lo que dura el pedido.
+    /// </summary>
+    public async Task<ReglasDeEstadoOrden> ObtenerReglasAsync(CancellationToken cancelacion)
     {
-        var estados = await _contexto.EstadoOts
-            .AsNoTracking()
+        if (_reglas is not null)
+        {
+            return _reglas;
+        }
+
+        var estados = await _contexto.EstadoOts.AsNoTracking()
             .Where(estado => estado.Estado)
-            .Select(estado => new { estado.Nombre, estado.Descripcion })
+            .Select(estado => new
+            {
+                estado.IdEstadoOt,
+                estado.Nombre,
+                estado.Descripcion,
+                estado.Orden,
+                estado.Fase,
+                estado.ExigeTecnico,
+                estado.CompletaFecha,
+                estado.Tono,
+                estado.CodigoAlerta,
+                estado.EsInicial
+            })
+            .ToListAsync(cancelacion);
+        var transiciones = await _contexto.TransicionEstadoOts.AsNoTracking()
+            .Select(t => new TransicionDeEstado(t.IdEstadoOrigenNavigation.Nombre, t.IdEstadoDestinoNavigation.Nombre,
+                t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal, t.AlAsignarTecnico))
             .ToListAsync(cancelacion);
 
-        return estados
-            .OrderBy(estado => PosicionEnElCiclo(estado.Nombre))
-            .ThenBy(estado => estado.Nombre, StringComparer.Ordinal)
-            .Select(estado => (estado.Nombre, EtiquetaDelEstado(estado.Nombre, estado.Descripcion)))
-            .ToList();
+        _reglas = new ReglasDeEstadoOrden(
+            estados.Select(e => new EstadoDeOrden(e.IdEstadoOt, e.Nombre,
+                ReglasDeEstadoOrden.EtiquetaDelEstado(e.Nombre, e.Descripcion), e.Orden, e.Fase, e.ExigeTecnico,
+                e.CompletaFecha, e.Tono, e.CodigoAlerta, e.EsInicial)),
+            transiciones);
+        return _reglas;
     }
 
-    /// <summary>La etiqueta cargada en <c>estado_ot.descripcion</c>; si falta, el nombre con espacios y la primera letra en mayúscula.</summary>
-    public static string EtiquetaDelEstado(string nombre, string? descripcion)
+    private static void AplicarFechasDeEstado(OrdenTrabajo orden, string estado, ReglasDeEstadoOrden reglas)
     {
-        if (!string.IsNullOrWhiteSpace(descripcion))
+        switch (reglas.CompletaFecha(estado))
         {
-            return descripcion.Trim();
-        }
-
-        var legible = nombre.Replace('_', ' ').Trim();
-        return legible.Length == 0 ? legible : char.ToUpperInvariant(legible[0]) + legible[1..];
-    }
-
-    private static int PosicionEnElCiclo(string nombre)
-    {
-        var posicion = Array.IndexOf(EstadosDelCiclo, nombre);
-        return posicion < 0 ? int.MaxValue : posicion;
-    }
-
-    public static List<string> ObtenerEstadosSiguientes(string estadoActual)
-    {
-        var estadosSiguientes = new List<string>();
-        if (TransicionesPermitidas.ContainsKey(estadoActual))
-        {
-            estadosSiguientes.AddRange(TransicionesPermitidas[estadoActual]);
-        }
-
-        return estadosSiguientes;
-    }
-
-    private static void ValidarTransicion(string estadoActual, string estadoNuevo, long? tecnicoId, string? motivo)
-    {
-        if (estadoNuevo == estadoActual)
-        {
-            return;
-        }
-
-        if (!ObtenerEstadosSiguientes(estadoActual).Contains(estadoNuevo))
-        {
-            throw new ErrorDeOrdenException(ErrorDeOrdenException.TransicionInvalida);
-        }
-
-        if ((estadoNuevo == "asignada" || estadoNuevo == "en_ejecucion") && tecnicoId is null)
-        {
-            throw new ErrorDeOrdenException(ErrorDeOrdenException.TecnicoObligatorio);
-        }
-
-        var necesitaMotivo = estadoNuevo == "pausada" || estadoNuevo == "cancelada" || estadoNuevo == "cerrada"
-                             || (estadoActual == "finalizada" && estadoNuevo == "asignada");
-        if (necesitaMotivo && string.IsNullOrWhiteSpace(motivo))
-        {
-            throw new ErrorDeOrdenException(ErrorDeOrdenException.MotivoObligatorio);
-        }
-    }
-
-    private static void AplicarFechasDeEstado(OrdenTrabajo orden, string estado)
-    {
-        if (estado == "en_ejecucion" && orden.FechaInicio is null)
-        {
-            orden.FechaInicio = DateTime.UtcNow;
-        }
-
-        if (estado == "cerrada")
-        {
-            orden.FechaCierre = DateTime.UtcNow;
+            case "inicio" when orden.FechaInicio is null:
+                orden.FechaInicio = DateTime.UtcNow;
+                break;
+            case "cierre":
+                orden.FechaCierre = DateTime.UtcNow;
+                break;
         }
     }
 
@@ -541,13 +493,8 @@ public class OrdenTrabajoDAO
     private async Task AgregarEstadoAsync(
         OrdenTrabajo orden, string nombreEstado, string? observacion, CancellationToken cancelacion)
     {
-        ValidarEstado(nombreEstado);
-        var estado = await _contexto.EstadoOts.FirstOrDefaultAsync(item => item.Nombre == nombreEstado, cancelacion);
-        if (estado is null)
-        {
-            estado = new EstadoOt { Nombre = nombreEstado, Estado = true };
-            _contexto.EstadoOts.Add(estado);
-        }
+        var estado = await _contexto.EstadoOts.FirstOrDefaultAsync(item => item.Nombre == nombreEstado && item.Estado, cancelacion)
+            ?? throw new ValidacionDeNegocioException("El estado indicado no es válido.");
 
         orden.HistorialEstadoOts.Add(new HistorialEstadoOt
         {
@@ -557,15 +504,15 @@ public class OrdenTrabajoDAO
         });
     }
 
-    private static void ValidarEstado(string estado)
+    private static void ValidarEstado(ReglasDeEstadoOrden reglas, string estado)
     {
-        if (!EstadosValidos.Contains(estado))
+        if (!reglas.EsValido(estado))
         {
             throw new ValidacionDeNegocioException("El estado indicado no es válido.");
         }
     }
 
-    private static string ObtenerEstadoActual(OrdenTrabajo orden)
+    private static string ObtenerEstadoActual(OrdenTrabajo orden, ReglasDeEstadoOrden reglas)
     {
         var ultimoEstado = orden.HistorialEstadoOts
             .OrderByDescending(item => item.FechaHora)
@@ -573,7 +520,7 @@ public class OrdenTrabajoDAO
             .FirstOrDefault();
         if (ultimoEstado is null)
         {
-            return "creada";
+            return reglas.Inicial.Nombre;
         }
 
         return ultimoEstado.IdEstadoOtNavigation.Nombre;

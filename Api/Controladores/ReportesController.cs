@@ -1,4 +1,4 @@
-using Api.DTOs.OrdenesTrabajo;
+﻿using Api.DTOs.OrdenesTrabajo;
 using Api.Infraestructura;
 using Api.DTOs.Reportes;
 using Api.Mapeadores;
@@ -46,10 +46,11 @@ public class ReportesController : ControllerBase
         var horasHastaCierre = ordenes.Where(o => o.FechaCierre is not null)
             .Select(o => (o.FechaCierre!.Value - o.CreadoEn).TotalHours).ToList();
 
+        var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
         var ordenesRecientes = ordenes.Count == 0
             ? []
             : (await _ordenTrabajoDao.ListarPaginaAsync(filtro with { OrdenarPorCreacion = true, Descendente = true }, 1,
-                CantidadDeOrdenesRecientes, cancelacion)).Elementos.Select(OrdenTrabajoMapeador.ADto).ToList();
+                CantidadDeOrdenesRecientes, cancelacion)).Elementos.Select(orden => OrdenTrabajoMapeador.ADto(orden, reglas)).ToList();
 
         return Ok(new IndicadoresDto
         {

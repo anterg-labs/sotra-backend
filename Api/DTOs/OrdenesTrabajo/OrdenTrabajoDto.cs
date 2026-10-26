@@ -1,4 +1,4 @@
-namespace Api.DTOs.OrdenesTrabajo;
+﻿namespace Api.DTOs.OrdenesTrabajo;
 
 public class OrdenTrabajoDto
 {
@@ -20,7 +20,7 @@ public class OrdenTrabajoDto
     public DateTime? FechaCierre { get; init; }
     public List<string> Sugerencias { get; init; } = new();
     public List<RepuestoOrdenDto> Repuestos { get; init; } = new();
-    public List<string> EstadosSiguientes { get; init; } = new();
+    public List<TransicionOrdenDto> Transiciones { get; init; } = new();
     public List<HistorialEstadoDto> HistorialEstados { get; init; } = new();
 
     /// <summary>Huella del contenido actual: cambia con cualquier modificación. Es el valor del encabezado <c>ETag</c>.</summary>

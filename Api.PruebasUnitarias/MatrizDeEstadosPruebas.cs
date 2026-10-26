@@ -1,4 +1,3 @@
-using System.Reflection;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.PruebasUnitarias;
@@ -55,17 +54,18 @@ public class MatrizDeEstadosPruebas
         return null;
     }
 
+    private static readonly ReglasDeEstadoOrden Reglas = ReglasDePrueba.Documentadas();
+
     private static string? Obtenido(string actual, string nuevo, bool conTecnico, bool conMotivo)
     {
-        var metodo = typeof(OrdenTrabajoDAO).GetMethod("ValidarTransicion", BindingFlags.NonPublic | BindingFlags.Static)!;
         try
         {
-            metodo.Invoke(null, [actual, nuevo, conTecnico ? 7L : null, conMotivo ? "motivo" : null]);
+            Reglas.ValidarTransicion(actual, nuevo, conTecnico ? 7L : null, conMotivo ? "motivo" : null);
             return null;
         }
-        catch (TargetInvocationException excepcion) when (excepcion.InnerException is InvalidOperationException error)
+        catch (ErrorDeOrdenException error)
         {
-            return error.Message;
+            return error.Codigo;
         }
     }
 
@@ -97,6 +97,6 @@ public class MatrizDeEstadosPruebas
     public void LaMatrizCubreLosSieteEstadosYSusCuarentaYNueveParejas()
     {
         Assert.That(Combinaciones().Count(), Is.EqualTo(7 * 7 * 4));
-        Assert.That(OrdenTrabajoDAO.EstadosDelCiclo, Is.EquivalentTo(Estados));
+        Assert.That(Reglas.Estados.Select(estado => estado.Nombre), Is.EquivalentTo(Estados));
     }
 }

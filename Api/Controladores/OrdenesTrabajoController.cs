@@ -1,4 +1,4 @@
-using Api.Infraestructura;
+﻿using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs;
 using Api.DTOs.OrdenesTrabajo;
@@ -79,7 +79,8 @@ public class OrdenesTrabajoController : ControllerBase
         }
 
         var (ordenes, total) = await _ordenTrabajoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
-        var elementos = ordenes.Select(OrdenTrabajoMapeador.ADto).ToList();
+        var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
+        var elementos = ordenes.Select(orden => OrdenTrabajoMapeador.ADto(orden, reglas)).ToList();
         return Ok(PaginaDto<OrdenTrabajoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
@@ -88,8 +89,10 @@ public class OrdenesTrabajoController : ControllerBase
     [ProducesResponseType<List<EstadoOrdenTrabajoDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<List<EstadoOrdenTrabajoDto>>> ObtenerEstados(CancellationToken cancelacion)
     {
-        var estados = await _ordenTrabajoDao.ListarEstadosAsync(cancelacion);
-        return Ok(estados.Select(estado => new EstadoOrdenTrabajoDto(estado.Valor, estado.Etiqueta)).ToList());
+        var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
+        return Ok(reglas.Estados
+            .Select(estado => new EstadoOrdenTrabajoDto(estado.Nombre, estado.Etiqueta, estado.Orden, estado.Fase, estado.Tono))
+            .ToList());
     }
 
     [HttpGet("{id:long}")]
@@ -107,7 +110,7 @@ public class OrdenesTrabajoController : ControllerBase
             return Forbid();
         }
 
-        return OkConVersion(OrdenTrabajoMapeador.ADto(orden));
+        return OkConVersion(OrdenTrabajoMapeador.ADto(orden, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
     }
 
     [HttpPost]
@@ -129,7 +132,7 @@ public class OrdenesTrabajoController : ControllerBase
         var ordenCreada = await _ordenTrabajoDao.CrearAsync(orden, solicitud.FechaPrevistaEjecucion,
             solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion,
             await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
-        var respuesta = OrdenTrabajoMapeador.ADto(ordenCreada);
+        var respuesta = OrdenTrabajoMapeador.ADto(ordenCreada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion));
         return CreatedAtAction(nameof(ObtenerPorId), new { id = ordenCreada.IdOrden }, respuesta);
     }
 
@@ -144,11 +147,12 @@ public class OrdenesTrabajoController : ControllerBase
             OrdenTrabajoMapeador.APrioridadNumero(solicitud.Prioridad),
             solicitud.Descripcion.Trim(), TextoOpcional.Normalizar(solicitud.Observaciones));
 
+        var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
         var versionEsperada = LeerVersionEsperada();
         Func<OrdenTrabajo, bool>? coincideConVersion = versionEsperada is null
             ? null
             : orden => versionEsperada == "*"
-                || versionEsperada == OrdenTrabajoMapeador.ADto(orden).Version;
+                || versionEsperada == OrdenTrabajoMapeador.ADto(orden, reglas).Version;
 
         var ordenActualizada = await _ordenTrabajoDao.ActualizarAsync(id, cambios,
             solicitud.FechaPrevistaEjecucion, solicitud.RepuestosIds,
@@ -159,7 +163,7 @@ public class OrdenesTrabajoController : ControllerBase
             return NotFound();
         }
 
-        return OkConVersion(OrdenTrabajoMapeador.ADto(ordenActualizada));
+        return OkConVersion(OrdenTrabajoMapeador.ADto(ordenActualizada, reglas));
     }
 
     [HttpPatch("{id:long}/estado")]
@@ -184,7 +188,7 @@ public class OrdenesTrabajoController : ControllerBase
         }
 
         var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, cancelacion);
-        return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada));
+        return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
     }
 
     [HttpPatch("{id:long}/tecnico")]
@@ -198,7 +202,7 @@ public class OrdenesTrabajoController : ControllerBase
         }
 
         var ordenActualizada = await _ordenTrabajoDao.AsignarTecnicoAsync(orden, solicitud.TecnicoId, cancelacion);
-        return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada));
+        return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
     }
 
     private ActionResult<OrdenTrabajoDto> OkConVersion(OrdenTrabajoDto orden)

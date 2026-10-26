@@ -1,3 +1,4 @@
-namespace Api.DTOs.OrdenesTrabajo;
+﻿namespace Api.DTOs.OrdenesTrabajo;
 
-public record EstadoOrdenTrabajoDto(string Valor, string Etiqueta);
+/// <summary>Un estado del catálogo de órdenes (tabla <c>estado_ot</c>).</summary>
+public record EstadoOrdenTrabajoDto(string Valor, string Etiqueta, int Orden, string Fase, string Tono);
