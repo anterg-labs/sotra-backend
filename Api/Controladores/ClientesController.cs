@@ -41,7 +41,7 @@ public class ClientesController : ControllerBase
             return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor);
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor, filtros.ConActivos);
         var (entidades, total) = await _clienteDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var cantidades = await _clienteDao.ContarOrdenesAsociadasAsync(entidades.Select(c => c.IdCliente), cancelacion);
         var elementos = entidades.Select(c => ClienteMapeador.AListadoDto(c, cantidades.GetValueOrDefault(c.IdCliente))).ToList();

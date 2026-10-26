@@ -57,6 +57,11 @@ public class ClienteDAO
             consulta = consulta.Where(c => c.Estado == estado);
         }
 
+        if (filtro.ConActivos)
+        {
+            consulta = consulta.Where(c => c.Activos.Any());
+        }
+
         var ordenada = ColumnasOrdenables.Aplicar(consulta, filtro.OrdenarPor, filtro.Descendente);
 
         return await ConsultasDeTexto.PaginarAsync(

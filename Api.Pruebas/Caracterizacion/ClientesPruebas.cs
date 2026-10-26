@@ -90,6 +90,22 @@ public class ClientesPruebas : PruebaBase
     }
 
     [Test]
+    public async Task ListarClientesConActivosExcluyeLosQueNoTienenActivos()
+    {
+        var activo = await DatosDePrueba.CrearActivoAsync(Cliente);
+        var conActivos = activo.GetProperty("clienteId").GetInt64();
+        var sinActivos = (await DatosDePrueba.CrearClienteAsync(Cliente)).GetProperty("id").GetInt64();
+
+        var respuesta = await Cliente.GetAsync("/api/v1/clientes?conActivos=true&tamanoPagina=100");
+
+        var pagina = await respuesta.LeerJsonAsync();
+        var ids = pagina.GetProperty("elementos").EnumerateArray().Select(c => c.GetProperty("id").GetInt64()).ToList();
+        Assert.That(ids, Does.Contain(conActivos));
+        Assert.That(ids, Does.Not.Contain(sinActivos));
+        Assert.That(pagina.GetProperty("elementos").EnumerateArray().All(c => c.GetProperty("cantidadActivosAsociados").GetInt32() > 0));
+    }
+
+    [Test]
     public async Task ObtenerUnClienteInexistenteResponde404()
     {
         var respuesta = await Cliente.GetAsync("/api/v1/clientes/999999999");
