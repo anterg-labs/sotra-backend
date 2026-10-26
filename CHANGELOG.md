@@ -1,15 +1,28 @@
 # CHANGELOG
 
-## Version 1.0.77 (2026-10-26)
+## Version 1.0.81 (2026-10-26)
 
 - Seguridad: un técnico ya no puede cerrar, cancelar ni devolver una orden; la API responde `403` (`TRANSICION_NO_PERMITIDA`) y solo le muestra los cambios de estado que le corresponden.
 
+## Version 1.0.80 (2026-10-25)
+
+- Órdenes de trabajo: el listado acepta el filtro `fase` y trae las órdenes de todos los estados de esa fase, además del filtro por `estado`.
+
+## Version 1.0.79 (2026-10-25)
+
+- Reportes y alertas: las órdenes abiertas, terminadas y pendientes de validación se calculan por la fase del estado y cada alerta por el código que define la base, sin nombres de estado en el código.
+
+## Version 1.0.77 (2026-10-25)
+
+- Órdenes de trabajo: las reglas de los estados (orden, fase, si exige técnico, qué fecha completa, color, alerta y estado inicial) y las transiciones (quién puede pasar a quién, si exige motivo y qué puede hacer un técnico) están ahora en la base, en `estado_ot` y `transicion_estado_ot`, y el código ya no nombra ningún estado.
+- API: la orden devuelve `transiciones` en lugar de `estadosSiguientes`, y el catálogo de estados suma `orden`, `fase` y `tono`.
+- Base de datos: SQL incremental y `01-init.sql` con las columnas y la tabla nuevas; el despliegue se detiene con un mensaje claro si hay estados sin reglas. Se actualiza `sotra-dump.sql`.
+
 ## Version 1.0.76 (2026-10-25)
 
-- Órdenes de trabajo: las reglas de los estados (orden, fase, si exige técnico, qué fecha completa, color, alerta y estado inicial) y las transiciones (quién puede pasar a quién, si exige motivo y qué puede hacer un técnico) están en la base, en `estado_ot` y `transicion_estado_ot`, y el código ya no nombra ningún estado.
-- API: los estados y sus etiquetas los entrega `GET /api/v1/ordenes-trabajo/estados` con `orden`, `fase` y `tono`; la orden devuelve `transiciones` en lugar de `estadosSiguientes`; el listado acepta el filtro `fase` además de `estado`.
-- Reportes y alertas: las órdenes abiertas, terminadas y pendientes de validación se calculan por la fase del estado y cada alerta por el código que define la base.
-- Base de datos: SQL incremental y `01-init.sql` con las columnas y la tabla nuevas, y el catálogo con `cancelada` y sus etiquetas; el despliegue se detiene con un mensaje claro si hay estados sin reglas. Se agrega `sotra-dump.sql` en la raíz, sin PDF ni embeddings.
+- Órdenes de trabajo: los estados y sus etiquetas salen de la tabla `estado_ot` y los entrega `GET /api/v1/ordenes-trabajo/estados`, en el orden del ciclo de vida; si una etiqueta falta, se arma una legible.
+- Base de datos: el catálogo `estado_ot` incluye `cancelada` y las etiquetas, en `01-init.sql` y en el cambio para bases existentes, que se aplica solo en el despliegue.
+- Base de datos: se agrega `sotra-dump.sql` en la raíz, un dump sin PDF ni embeddings.
 
 ## Version 1.0.75 (2026-10-25)
 
