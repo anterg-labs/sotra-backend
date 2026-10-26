@@ -64,8 +64,8 @@ public class ReportesController : ControllerBase
             RepuestosBajoStock = (await _repuestoDao.ListarConStockInsuficienteAsync(cancelacion)).Select(RepuestoMapeador.ADto).ToList(),
             PromedioHorasHastaInicio = CalcularPromedio(horasHastaInicio),
             PromedioHorasHastaCierre = CalcularPromedio(horasHastaCierre),
-            OrdenesAltaPrioridadPendientes = ordenes.Count(o => o.Prioridad >= 5 && !EstaTerminada(o.Estado)),
-            OrdenesPendientesDeValidacion = ordenes.Count(o => o.Estado == "finalizada"),
+            OrdenesAltaPrioridadPendientes = ordenes.Count(o => o.Prioridad >= 5 && !EstaTerminada(reglas, o.Estado)),
+            OrdenesPendientesDeValidacion = ordenes.Count(o => reglas.FaseDe(o.Estado) == FasesDeEstado.PorValidar),
             OrdenesRecientes = ordenesRecientes
         });
     }
@@ -122,6 +122,7 @@ public class ReportesController : ControllerBase
         var tipoValido = TipoValido(filtros);
         var ordenes = tipoValido ? await _ordenTrabajoDao.ListarResumenesAsync(filtro, cancelacion) : [];
         var criterios = await ArmarCriterios(filtros, cancelacion);
+        var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
 
         return tipoReporte switch
         {
@@ -132,7 +133,7 @@ public class ReportesController : ControllerBase
             "repuestos-utilizados" => (new ReporteArmado("Reporte de repuestos utilizados", criterios,
                 [ArmarTablaRepuestos(tipoValido ? await _ordenTrabajoDao.ListarRepuestosUsadosAsync(filtro, cancelacion) : [])]), null),
             "actividad-tecnicos" => (new ReporteArmado("Reporte de actividad por técnico", criterios,
-                [ArmarTablaTecnicos(ordenes)]), null),
+                [ArmarTablaTecnicos(ordenes, reglas)]), null),
             _ => (new ReporteArmado("Reporte de indicadores operativos", criterios,
             [
                 ArmarTablaResumen(ordenes),
@@ -140,7 +141,7 @@ public class ReportesController : ControllerBase
                 ArmarTablaGrupos("Órdenes por prioridad", "Prioridad",
                     Agrupar(ordenes, o => OrdenTrabajoMapeador.APrioridadTexto(o.Prioridad))),
                 ArmarTablaGrupos("Órdenes por tipo de mantenimiento", "Tipo", Agrupar(ordenes, TextoDelTipo)),
-                ArmarTablaTecnicos(ordenes),
+                ArmarTablaTecnicos(ordenes, reglas),
                 ArmarTablaActivos(ordenes)
             ]), null),
         };
@@ -163,7 +164,12 @@ public class ReportesController : ControllerBase
 
     private static string TextoDelTipo(OrdenResumen orden) => orden.EsPreventivo ? "preventivo" : "correctivo";
 
-    private static bool EstaTerminada(string estado) => estado is "finalizada" or "cerrada" or "cancelada";
+    private static bool EstaTerminada(ReglasDeEstadoOrden reglas, string estado) =>
+        reglas.FaseDe(estado) is { } fase && FasesDeEstado.Terminadas.Contains(fase);
+
+    /// <summary>El trabajo ya se hizo: está por validar o cerrada.</summary>
+    private static bool TieneElTrabajoHecho(ReglasDeEstadoOrden reglas, string estado) =>
+        reglas.FaseDe(estado) is FasesDeEstado.PorValidar or FasesDeEstado.Cerrada;
 
     private static List<CantidadPorGrupoDto> Agrupar(IEnumerable<OrdenResumen> ordenes, Func<OrdenResumen, string> clave) =>
         ordenes.GroupBy(clave)
@@ -283,7 +289,7 @@ public class ReportesController : ControllerBase
         return tabla;
     }
 
-    private static TablaReporte ArmarTablaTecnicos(List<OrdenResumen> ordenes)
+    private static TablaReporte ArmarTablaTecnicos(List<OrdenResumen> ordenes, ReglasDeEstadoOrden reglas)
     {
         var tabla = new TablaReporte
         {
@@ -294,7 +300,7 @@ public class ReportesController : ControllerBase
         foreach (var tecnico in ordenes.Where(o => o.Tecnico is not null).GroupBy(o => o.Tecnico!))
         {
             var asignadas = tecnico.Count();
-            var terminadas = tecnico.Count(o => o.Estado is "finalizada" or "cerrada");
+            var terminadas = tecnico.Count(o => TieneElTrabajoHecho(reglas, o.Estado));
             tabla.Filas.Add(new List<string>
             {
                 tecnico.Key, asignadas.ToString(), terminadas.ToString(), (asignadas - terminadas).ToString()

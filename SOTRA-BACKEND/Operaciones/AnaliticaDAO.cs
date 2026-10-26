@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
 using SOTRA_BACKEND.Contexto;
@@ -62,6 +62,7 @@ public sealed class OrdenAbiertaFila
     public string NombreActivo { get; set; } = "";
     public string Cliente { get; set; } = "";
     public string Estado { get; set; } = "";
+    public string? CodigoAlerta { get; set; }
     public short Prioridad { get; set; }
     public double HorasEnEstado { get; set; }
     public double HorasDesdeCreacion { get; set; }
@@ -157,6 +158,7 @@ public class AnaliticaDAO
                COALESCE(a.nombre, a.num_serie) AS "NombreActivo",
                cl.razon_social AS "Cliente",
                e.nombre AS "Estado",
+               e.codigo_alerta AS "CodigoAlerta",
                o.prioridad AS "Prioridad",
                GREATEST(0, EXTRACT(EPOCH FROM (now() - actual.fecha_hora)) / 3600.0)::float8 AS "HorasEnEstado",
                GREATEST(0, EXTRACT(EPOCH FROM (now() - o.fecha_creada)) / 3600.0)::float8 AS "HorasDesdeCreacion"
@@ -171,7 +173,7 @@ public class AnaliticaDAO
         JOIN operativo.estado_ot AS e ON e.id_estado_ot = actual.id_estado_ot
         JOIN operativo.activo AS a ON a.id_activo = o.id_activo
         JOIN operativo.cliente AS cl ON cl.id_cliente = o.id_cliente
-        WHERE e.nombre IN ('creada', 'asignada', 'en_ejecucion', 'pausada') {FiltrosDeOrden}
+        WHERE e.fase IN ('{FasesDeEstado.Pendiente}', '{FasesDeEstado.EnCurso}') {FiltrosDeOrden}
         """;
 
     /// <summary>

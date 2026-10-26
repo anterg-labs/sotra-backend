@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace Api.DTOs.OrdenesTrabajo;
 
@@ -35,7 +35,7 @@ public class OrdenTrabajoCrearDto
     [Required]
     public List<long> RepuestosIds { get; init; } = new();
 
-    [Required]
-    public string Estado { get; init; } = "creada";
+    // El alta ignora el estado recibido: la orden nace en el estado inicial del catálogo.
+    public string? Estado { get; init; }
     public Guid? Sesion { get; init; }
 }

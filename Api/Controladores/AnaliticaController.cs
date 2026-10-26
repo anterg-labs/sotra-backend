@@ -1,4 +1,4 @@
-using Api.DTOs.Reportes;
+﻿using Api.DTOs.Reportes;
 using Api.Infraestructura;
 using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
@@ -214,17 +214,10 @@ public class AnaliticaController : ControllerBase
         {
             var prioridad = orden.Prioridad >= 5 ? "alta" : orden.Prioridad >= 3 ? "media" : "baja";
 
-            switch (orden.Estado)
+            // La alerta del estado la define la base (`estado_ot.codigo_alerta`); aquí solo se conoce su umbral.
+            if (orden.CodigoAlerta is { } codigoAlerta && UmbralDeLaAlerta(codigoAlerta) is { } umbralDelEstado)
             {
-                case "creada":
-                    AgregarSiSuperaElUmbral(alertas, orden, prioridad, "sin_asignar", orden.HorasEnEstado, _opciones.SinAsignarHoras);
-                    break;
-                case "asignada":
-                    AgregarSiSuperaElUmbral(alertas, orden, prioridad, "demorada_para_iniciar", orden.HorasEnEstado, _opciones.AsignadaSinIniciarHoras);
-                    break;
-                case "pausada":
-                    AgregarSiSuperaElUmbral(alertas, orden, prioridad, "pausada_demasiado", orden.HorasEnEstado, _opciones.PausadaHoras);
-                    break;
+                AgregarSiSuperaElUmbral(alertas, orden, prioridad, codigoAlerta, orden.HorasEnEstado, umbralDelEstado);
             }
 
             var umbralDeDetencion = prioridad switch
@@ -247,6 +240,14 @@ public class AnaliticaController : ControllerBase
             Alertas = ordenadas,
         };
     }
+
+    private int? UmbralDeLaAlerta(string codigo) => codigo switch
+    {
+        "sin_asignar" => _opciones.SinAsignarHoras,
+        "demorada_para_iniciar" => _opciones.AsignadaSinIniciarHoras,
+        "pausada_demasiado" => _opciones.PausadaHoras,
+        _ => null,
+    };
 
     private static void AgregarSiSuperaElUmbral(List<AlertaMaquinariaDto> alertas, OrdenAbiertaFila orden,
         string prioridad, string tipo, double horas, int umbral)
