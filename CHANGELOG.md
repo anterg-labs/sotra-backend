@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.75 (2026-10-25)
+
+- Documentación: el README resume lo que hay que hacer para pasar a producción: aplicar los SQL de `database/cambios/` en el despliegue.
+
 ## Version 1.0.74 (2026-10-24)
 
 - Usuarios: un campo vacío (nombre, apellido o teléfono) ya no repite el mensaje «es obligatorio» dos veces en la respuesta de error del alta y la modificación.
