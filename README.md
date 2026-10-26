@@ -1,28 +1,28 @@
 # Backend de SOTRA
 
-> ## ⚠️ Producción todavía no aplica los cambios de base de datos (pendiente de decisión)
+> ## 🛑 PARA QUIEN ADMINISTRA LOS DESPLIEGUES: producción NO aplica los cambios de base de datos
 >
-> Cuando se agrega un cambio a la base (por ejemplo, el índice único del teléfono de usuarios y de clientes), su SQL va en `database/cambios/`. Para que llegue a una base que ya existe, el despliegue tiene que copiar esos archivos al servidor y ejecutar el servicio `db-datos` (`database/init/cargar-datos.sh`), que aplica los que falten y los registra en `public.cambios_aplicados`.
+> **Esto no lo maneja Nicolás: lo tiene que resolver quien se encarga del despliegue a producción (el VPS, `03-production.yml` y `compose.production.yml`).** Nicolás lo detectó y lo dejó documentado, pero no lo arregló porque esa parte no es suya y el despliegue a producción hoy está apagado (`ENABLE_VPS_DEPLOY`).
 >
-> | Ambiente | ¿Aplica solo los SQL de `database/cambios/`? | Dónde |
+> **El problema, en simple.** Cuando se cambia la base de datos (por ejemplo, la protección que impide teléfonos duplicados con y sin cero, en usuarios y en clientes), el cambio se escribe en un archivo SQL dentro de `database/cambios/`. Alguien tiene que ejecutar ese archivo sobre la base de cada ambiente:
+>
+> | Ambiente | ¿Ejecuta solo los archivos de `database/cambios/`? | Cómo |
 > |---|---|---|
-> | Local | Sí | `docker compose up -d` ejecuta `db-datos` |
-> | Staging | Sí | `.github/workflows/05-staging-backend.yml` copia los SQL al VPS y ejecuta `db-datos` antes de actualizar el backend |
-> | **Producción** | **No** | `.github/workflows/03-production.yml` solo baja la imagen nueva del backend y la reinicia (`pull backend` y `up -d --no-deps backend`) |
+> | Local | **Sí** | `docker compose up -d` ejecuta el servicio `db-datos` |
+> | Staging | **Sí** | `.github/workflows/05-staging-backend.yml` copia los archivos al VPS y ejecuta `db-datos` antes de actualizar el backend |
+> | **Producción** | **NO** | `.github/workflows/03-production.yml` solo baja la imagen nueva del backend y la reinicia (`pull backend` y `up -d --no-deps backend`) |
 >
-> **Consecuencia:** el backend nuevo de producción arrancaría contra una base sin los cambios. Por ejemplo, sin el índice `UK_TELEFONO_USUARIO_NORMALIZADO` ni `UK_TELEFONO_CLIENTE_NORMALIZADO` no habría error, pero la base no impediría teléfonos duplicados con y sin cero. Lo mismo vale para cualquier otro SQL de `database/cambios/`.
+> **Qué pasa si no se corrige:** el backend nuevo arranca en producción contra una base que no tiene los cambios. No da ningún error ni se nota a simple vista, pero la base no impide los teléfonos duplicados con y sin cero (faltan los índices `UK_TELEFONO_USUARIO_NORMALIZADO` y `UK_TELEFONO_CLIENTE_NORMALIZADO`). Lo mismo le pasa a **cualquier cambio de base futuro**: queda sin aplicar salvo que alguien lo ejecute a mano.
 >
-> **Dato que no se pudo verificar:** `compose.production.yml` vive en el VPS y no en este repositorio, así que no se sabe si ya declara el servicio `db-datos` con el volumen `./database/cambios:/cambios:ro`.
+> **Qué hay que hacer (en orden):**
 >
-> **Pendiente de decisión:** copiar a `03-production.yml` los pasos de staging (copiar los SQL al VPS y ejecutar `db-datos` antes de actualizar el backend). No se hizo porque el despliegue a producción está desactivado (`ENABLE_VPS_DEPLOY`) y los pasos dependen del `compose.production.yml` del VPS. Mientras tanto, antes de activar el despliegue de producción hay que aplicar a mano los SQL pendientes de `database/cambios/` (y comprobar que no haya teléfonos duplicados con y sin cero). Este aviso se retira cuando producción aplique los cambios sola.
+> 1. **Revisar el `compose.production.yml` del VPS** (vive en el servidor, no en este repositorio; no se pudo ver desde aquí). Tiene que declarar el servicio `db-datos` igual que en `compose.yml`: imagen `pgvector/pgvector:pg18`, entrypoint `["sh", "/datos/cargar-datos.sh"]`, `restart: "no"`, `depends_on` de la base saludable, las variables `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` y las de Keycloak, y los volúmenes `./database/init:/datos:ro` y `./database/cambios:/cambios:ro`. Sin el volumen de `cambios`, el cargador avisa «no existe /cambios» y no aplica nada.
+> 2. **Completar `03-production.yml` (job `deploy`)** copiando lo que ya hace `05-staging-backend.yml`, siempre antes de actualizar el backend: (a) `actions/checkout`; (b) validar que existan `database/init/01-init.sql`, `02-vectorial.sql` y `cargar-datos.sh`; (c) crear por SSH `$VPS_APP_PATH/database/init` y `database/cambios`; (d) `scp` de esos tres archivos de `database/init` y de `database/cambios/*.sql` al VPS; (e) por SSH, `docker compose --env-file .env.production -f compose.production.yml up -d database && ... run --rm db-datos` y, **solo si eso termina bien**, `pull backend` y `up -d --no-deps backend`. Si un SQL falla, `db-datos` termina con error, el despliegue se detiene y el backend nuevo no arranca.
+> 3. **Hacer un respaldo antes de aplicar:** un `pg_dump` de la base de producción, guardado fuera del contenedor, justo antes de `db-datos`, para poder volver atrás.
+> 4. **Cuidado con la primera ejecución:** si la base de producción se creó antes del cargador nuevo y no tiene la tabla `public.cambios_aplicados`, la primera vez se aplican **todos** los archivos de `database/cambios/` de una vez, incluido `2026-10-17-terminos-documento-unico.sql`, que **borra datos** (ver el aviso de staging más abajo). Antes de activar hay que ver qué tiene hoy esa base y registrar a mano en `public.cambios_aplicados` los cambios que ya estén aplicados. Además, comprobar que no haya teléfonos duplicados con y sin cero, porque el cambio de teléfonos se detiene a propósito si los hay.
+> 5. **Probar y recién después activar:** probar los mismos pasos en staging y poner `ENABLE_VPS_DEPLOY=true` solo cuando funcione. Se verifica con `docker compose logs db-datos` y con `SELECT archivo FROM public.cambios_aplicados`.
 >
-> **Cómo se soluciona (pasos):**
->
-> 1. **En el VPS, `compose.production.yml`:** declarar el servicio `db-datos` igual que en `compose.yml` (imagen `pgvector/pgvector:pg18`, entrypoint `["sh", "/datos/cargar-datos.sh"]`, `restart: "no"`, `depends_on` de la base saludable, las variables `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` y las de Keycloak, y los volúmenes `./database/init:/datos:ro` y `./database/cambios:/cambios:ro`). Sin el volumen de `cambios`, el cargador avisa «no existe /cambios» y no aplica nada.
-> 2. **En `03-production.yml`, job `deploy`:** igual que en `05-staging-backend.yml`, agregar antes de actualizar el backend: (a) `actions/checkout` para tener los archivos; (b) validar que existan `database/init/01-init.sql`, `02-vectorial.sql` y `cargar-datos.sh`; (c) crear por SSH `$VPS_APP_PATH/database/init` y `database/cambios`; (d) `scp` de `database/init/{01-init.sql,02-vectorial.sql,cargar-datos.sh}` y de `database/cambios/*.sql` al VPS; (e) por SSH, `docker compose --env-file .env.production -f compose.production.yml up -d database && ... run --rm db-datos` y, solo si eso termina bien, `pull backend` y `up -d --no-deps backend`. Si un SQL falla, `db-datos` termina con error, el job se detiene y el backend nuevo no arranca.
-> 3. **Respaldo antes de aplicar:** agregar un paso que haga `pg_dump` de la base de producción (guardado fuera del contenedor) justo antes de `db-datos`, para poder volver atrás si un SQL deja la base mal.
-> 4. **Primera ejecución en producción:** si la base se creó con el cargador anterior y no tiene la tabla `public.cambios_aplicados`, la primera ejecución aplica **todos** los archivos de `database/cambios/` una sola vez (incluido `2026-10-17-terminos-documento-unico.sql`, que borra datos; ver el aviso de staging más abajo). Antes de activar el despliegue hay que revisar qué contiene hoy la base y, si algunos cambios ya estaban aplicados a mano, registrarlos en `public.cambios_aplicados`.
-> 5. **Activar:** probar el flujo primero con staging (los mismos pasos) y recién después poner `ENABLE_VPS_DEPLOY=true`. Comprobar con `docker compose logs db-datos` y con `SELECT archivo FROM public.cambios_aplicados`.
+> Mientras esto no esté hecho, **no activar el despliegue a producción**, o aplicar a mano los SQL pendientes de `database/cambios/`. Este aviso se retira cuando producción aplique los cambios sola.
 
 > ## ⚠️ Leer antes del próximo despliegue a staging
 >

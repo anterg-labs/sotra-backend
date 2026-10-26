@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.75 (2026-10-25)
+
+- Documentación: el aviso del inicio del README deja claro que corregir el despliegue a producción (que no aplica los SQL de `database/cambios/`) le corresponde a quien administra los despliegues, con los pasos en orden y los riesgos.
+
 ## Version 1.0.74 (2026-10-24)
 
 - Usuarios: un campo vacío (nombre, apellido o teléfono) ya no repite el mensaje «es obligatorio» dos veces en la respuesta de error del alta y la modificación.
