@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Version 1.0.76 (2026-10-25)
+
+- Órdenes de trabajo: las reglas de los estados (orden, fase, si exige técnico, qué fecha completa, color, alerta y estado inicial) y las transiciones (quién puede pasar a quién, si exige motivo y qué puede hacer un técnico) están en la base, en `estado_ot` y `transicion_estado_ot`, y el código ya no nombra ningún estado.
+- API: los estados y sus etiquetas los entrega `GET /api/v1/ordenes-trabajo/estados` con `orden`, `fase` y `tono`; la orden devuelve `transiciones` en lugar de `estadosSiguientes`; el listado acepta el filtro `fase` además de `estado`.
+- Reportes y alertas: las órdenes abiertas, terminadas y pendientes de validación se calculan por la fase del estado y cada alerta por el código que define la base.
+- Base de datos: SQL incremental y `01-init.sql` con las columnas y la tabla nuevas, y el catálogo con `cancelada` y sus etiquetas; el despliegue se detiene con un mensaje claro si hay estados sin reglas. Se agrega `sotra-dump.sql` en la raíz, sin PDF ni embeddings.
+
 ## Version 1.0.75 (2026-10-25)
 
 - Documentación: el README resume lo que hay que hacer para pasar a producción: aplicar los SQL de `database/cambios/` en el despliegue.

@@ -1,4 +1,3 @@
-using System.Reflection;
 using Api.Mapeadores;
 using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
@@ -8,6 +7,7 @@ namespace Api.PruebasUnitarias;
 public class OrdenesTrabajoPruebas
 {
     private static readonly DateTime Base = new(2026, 1, 10, 8, 0, 0, DateTimeKind.Utc);
+    private static readonly ReglasDeEstadoOrden Reglas = ReglasDePrueba.Documentadas();
 
     private static OrdenTrabajo CrearOrden(params (string Estado, int Minutos, string? Observacion)[] historial)
     {
@@ -45,12 +45,31 @@ public class OrdenesTrabajoPruebas
     [TestCase("asignada", new[] { "en_ejecucion", "cancelada" })]
     [TestCase("en_ejecucion", new[] { "pausada", "finalizada" })]
     [TestCase("pausada", new[] { "en_ejecucion", "cancelada" })]
-    [TestCase("finalizada", new[] { "cerrada", "asignada" })]
+    [TestCase("finalizada", new[] { "asignada", "cerrada" })]
     [TestCase("cerrada", new string[0])]
     [TestCase("cancelada", new string[0])]
     public void EstadosSiguientes_SegunElCicloDeVida(string actual, string[] esperados)
     {
-        Assert.That(OrdenTrabajoDAO.ObtenerEstadosSiguientes(actual), Is.EqualTo(esperados));
+        Assert.That(Reglas.Siguientes(actual), Is.EqualTo(esperados));
+    }
+
+    [Test]
+    public void EstadosDelCiclo_TodosLosEstadosSiguientesPertenecenAlCatalogo()
+    {
+        var nombres = Reglas.Estados.Select(estado => estado.Nombre).ToList();
+        foreach (var estado in nombres)
+        {
+            Assert.That(nombres, Is.SupersetOf(Reglas.Siguientes(estado)), estado);
+        }
+    }
+
+    [TestCase("en_ejecucion", "En ejecución", "En ejecución")]
+    [TestCase("en_ejecucion", null, "En ejecucion")]
+    [TestCase("en_ejecucion", "  ", "En ejecucion")]
+    [TestCase("pausada", "", "Pausada")]
+    public void EtiquetaDelEstado_UsaLaDeLaBaseYSiFaltaArmaUnaLegible(string nombre, string? descripcion, string esperada)
+    {
+        Assert.That(ReglasDeEstadoOrden.EtiquetaDelEstado(nombre, descripcion), Is.EqualTo(esperada));
     }
 
     [TestCase("desconocido")]
@@ -58,36 +77,19 @@ public class OrdenesTrabajoPruebas
     [TestCase("CREADA")]
     public void EstadosSiguientes_EstadoDesconocidoNoTieneSiguientes(string actual)
     {
-        Assert.That(OrdenTrabajoDAO.ObtenerEstadosSiguientes(actual), Is.Empty);
-    }
-
-    [Test]
-    public void EstadosSiguientes_DevuelveUnaListaNuevaCadaVez()
-    {
-        var primera = OrdenTrabajoDAO.ObtenerEstadosSiguientes("creada");
-        primera.Add("cerrada");
-
-        Assert.That(OrdenTrabajoDAO.ObtenerEstadosSiguientes("creada"), Is.EqualTo(new[] { "asignada", "cancelada" }));
+        Assert.That(Reglas.Siguientes(actual), Is.Empty);
     }
 
     [Test]
     public void EstadosFinales_NoTienenSalida()
     {
-        Assert.That(OrdenTrabajoDAO.ObtenerEstadosSiguientes("cerrada"), Is.Empty);
-        Assert.That(OrdenTrabajoDAO.ObtenerEstadosSiguientes("cancelada"), Is.Empty);
+        Assert.That(Reglas.Siguientes("cerrada"), Is.Empty);
+        Assert.That(Reglas.Siguientes("cancelada"), Is.Empty);
     }
 
     private static void ValidarTransicion(string actual, string nuevo, long? tecnicoId = null, string? motivo = null)
     {
-        var metodo = typeof(OrdenTrabajoDAO).GetMethod("ValidarTransicion", BindingFlags.NonPublic | BindingFlags.Static)!;
-        try
-        {
-            metodo.Invoke(null, [actual, nuevo, tecnicoId, motivo]);
-        }
-        catch (TargetInvocationException excepcion)
-        {
-            throw excepcion.InnerException!;
-        }
+        Reglas.ValidarTransicion(actual, nuevo, tecnicoId, motivo);
     }
 
     private static string? CodigoDeError(string actual, string nuevo, long? tecnicoId = null, string? motivo = null)
@@ -202,7 +204,7 @@ public class OrdenesTrabajoPruebas
         var orden = CrearOrden(("creada", 0, null));
         orden.Prioridad = numero;
 
-        Assert.That(OrdenTrabajoMapeador.ADto(orden).Prioridad, Is.EqualTo(esperado));
+        Assert.That(OrdenTrabajoMapeador.ADto(orden, Reglas).Prioridad, Is.EqualTo(esperado));
     }
 
     // Mapeo completo
@@ -210,13 +212,13 @@ public class OrdenesTrabajoPruebas
     [Test]
     public void ADto_SinHistorialQuedaCreadaConFechaPrevistaDeCreacion()
     {
-        var dto = OrdenTrabajoMapeador.ADto(CrearOrden());
+        var dto = OrdenTrabajoMapeador.ADto(CrearOrden(), Reglas);
 
         Assert.Multiple(() =>
         {
             Assert.That(dto.Estado, Is.EqualTo("creada"));
             Assert.That(dto.FechaPrevistaEjecucion, Is.EqualTo("2026-01-10"));
-            Assert.That(dto.EstadosSiguientes, Is.EqualTo(new[] { "asignada", "cancelada" }));
+            Assert.That(dto.Transiciones.Select(transicion => transicion.Estado), Is.EqualTo(new[] { "asignada", "cancelada" }));
             Assert.That(dto.HistorialEstados, Is.Empty);
             Assert.That(dto.Tipo, Is.EqualTo("correctivo"));
             Assert.That(dto.Observaciones, Is.EqualTo(""));
@@ -229,13 +231,13 @@ public class OrdenesTrabajoPruebas
     {
         var orden = CrearOrden(("creada", 0, "2026-02-15"), ("asignada", 10, "Se asignó"), ("en_ejecucion", 20, null));
 
-        var dto = OrdenTrabajoMapeador.ADto(orden);
+        var dto = OrdenTrabajoMapeador.ADto(orden, Reglas);
 
         Assert.Multiple(() =>
         {
             Assert.That(dto.Estado, Is.EqualTo("en_ejecucion"));
             Assert.That(dto.FechaPrevistaEjecucion, Is.EqualTo("2026-02-15"));
-            Assert.That(dto.EstadosSiguientes, Is.EqualTo(new[] { "pausada", "finalizada" }));
+            Assert.That(dto.Transiciones.Select(transicion => transicion.Estado), Is.EqualTo(new[] { "pausada", "finalizada" }));
             Assert.That(dto.HistorialEstados.Select(item => item.Estado),
                 Is.EqualTo(new[] { "creada", "asignada", "en_ejecucion" }));
             Assert.That(dto.HistorialEstados[0].Observacion, Is.Null, "la fecha prevista no se muestra como observación");
@@ -248,7 +250,7 @@ public class OrdenesTrabajoPruebas
     {
         var orden = CrearOrden(("creada", 0, "no es una fecha"));
 
-        Assert.That(OrdenTrabajoMapeador.ADto(orden).FechaPrevistaEjecucion, Is.EqualTo("2026-01-10"));
+        Assert.That(OrdenTrabajoMapeador.ADto(orden, Reglas).FechaPrevistaEjecucion, Is.EqualTo("2026-01-10"));
     }
 
     [Test]
@@ -256,7 +258,7 @@ public class OrdenesTrabajoPruebas
     {
         var orden = CrearOrden(("creada", 0, null), ("asignada", 0, null));
 
-        Assert.That(OrdenTrabajoMapeador.ADto(orden).Estado, Is.EqualTo("asignada"));
+        Assert.That(OrdenTrabajoMapeador.ADto(orden, Reglas).Estado, Is.EqualTo("asignada"));
     }
 
     [Test]
@@ -265,7 +267,7 @@ public class OrdenesTrabajoPruebas
         var orden = CrearOrden(("creada", 0, null));
         orden.IdActivoNavigation.Nombre = "  ";
 
-        Assert.That(OrdenTrabajoMapeador.ADto(orden).NombreActivo, Is.EqualTo("SN-1"));
+        Assert.That(OrdenTrabajoMapeador.ADto(orden, Reglas).NombreActivo, Is.EqualTo("SN-1"));
     }
 
     [Test]
@@ -296,7 +298,7 @@ public class OrdenesTrabajoPruebas
         orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa { IdRecomendacionIa = 1, Estado = true, Recomendacion = "r1" });
         orden.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa { IdRecomendacionIa = 3, Estado = false, Recomendacion = "descartada" });
 
-        var dto = OrdenTrabajoMapeador.ADto(orden);
+        var dto = OrdenTrabajoMapeador.ADto(orden, Reglas);
 
         Assert.Multiple(() =>
         {
@@ -315,8 +317,8 @@ public class OrdenesTrabajoPruebas
     [Test]
     public void Version_EsDeterministaYTieneDieciseisCaracteresHexadecimales()
     {
-        var primera = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null))).Version;
-        var segunda = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null))).Version;
+        var primera = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null)), Reglas).Version;
+        var segunda = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null)), Reglas).Version;
 
         Assert.That(primera, Is.EqualTo(segunda));
         Assert.That(primera, Does.Match("^[0-9a-f]{16}$"));
@@ -325,7 +327,7 @@ public class OrdenesTrabajoPruebas
     [Test]
     public void Version_CambiaSiCambiaElContenido()
     {
-        var original = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null))).Version;
+        var original = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null)), Reglas).Version;
 
         var descripcion = CrearOrden(("creada", 0, null));
         descripcion.Descripcion = "Otra descripción";
@@ -338,10 +340,10 @@ public class OrdenesTrabajoPruebas
         var versiones = new[]
         {
             original,
-            OrdenTrabajoMapeador.ADto(descripcion).Version,
-            OrdenTrabajoMapeador.ADto(prioridad).Version,
-            OrdenTrabajoMapeador.ADto(estado).Version,
-            OrdenTrabajoMapeador.ADto(resultado).Version,
+            OrdenTrabajoMapeador.ADto(descripcion, Reglas).Version,
+            OrdenTrabajoMapeador.ADto(prioridad, Reglas).Version,
+            OrdenTrabajoMapeador.ADto(estado, Reglas).Version,
+            OrdenTrabajoMapeador.ADto(resultado, Reglas).Version,
         };
 
         Assert.That(versiones, Is.Unique);
@@ -350,7 +352,7 @@ public class OrdenesTrabajoPruebas
     [Test]
     public void Version_CambiaConUnNuevoRepuestoOSugerencia()
     {
-        var original = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null))).Version;
+        var original = OrdenTrabajoMapeador.ADto(CrearOrden(("creada", 0, null)), Reglas).Version;
 
         var conRepuesto = CrearOrden(("creada", 0, null));
         conRepuesto.OtRepuestos.Add(new OtRepuesto
@@ -361,8 +363,8 @@ public class OrdenesTrabajoPruebas
         var conSugerencia = CrearOrden(("creada", 0, null));
         conSugerencia.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa { Estado = true, Recomendacion = "x" });
 
-        Assert.That(OrdenTrabajoMapeador.ADto(conRepuesto).Version, Is.Not.EqualTo(original));
-        Assert.That(OrdenTrabajoMapeador.ADto(conSugerencia).Version, Is.Not.EqualTo(original));
+        Assert.That(OrdenTrabajoMapeador.ADto(conRepuesto, Reglas).Version, Is.Not.EqualTo(original));
+        Assert.That(OrdenTrabajoMapeador.ADto(conSugerencia, Reglas).Version, Is.Not.EqualTo(original));
     }
 
     [Test]
@@ -377,6 +379,6 @@ public class OrdenesTrabajoPruebas
             b.HistorialEstadoOts.Add(item);
         }
 
-        Assert.That(OrdenTrabajoMapeador.ADto(b).Version, Is.EqualTo(OrdenTrabajoMapeador.ADto(a).Version));
+        Assert.That(OrdenTrabajoMapeador.ADto(b, Reglas).Version, Is.EqualTo(OrdenTrabajoMapeador.ADto(a, Reglas).Version));
     }
 }

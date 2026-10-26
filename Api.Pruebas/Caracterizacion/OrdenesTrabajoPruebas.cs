@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using NUnit.Framework;
@@ -55,13 +55,16 @@ public class OrdenesTrabajoPruebas : PruebaBase
     }
 
     [Test]
-    public async Task UnaOrdenNuevaNaceEnEstadoCreadaConSusEstadosSiguientes()
+    public async Task UnaOrdenNuevaNaceEnEstadoCreadaConSusTransiciones()
     {
         var orden = await CrearOrdenAsync();
 
         Assert.That(orden.GetProperty("estado").GetString(), Is.EqualTo("creada"));
-        var siguientes = orden.GetProperty("estadosSiguientes").EnumerateArray().Select(e => e.GetString());
-        Assert.That(siguientes, Is.EquivalentTo(new[] { "asignada", "cancelada" }));
+        var transiciones = orden.GetProperty("transiciones").EnumerateArray().ToList();
+        Assert.That(transiciones.Select(t => t.GetProperty("estado").GetString()), Is.EqualTo(new[] { "asignada", "cancelada" }));
+        Assert.That(transiciones.Select(t => t.GetProperty("exigeMotivo").GetBoolean()), Is.EqualTo(new[] { false, true }));
+        Assert.That(transiciones.Select(t => t.GetProperty("puedeTecnico").GetBoolean()), Is.EqualTo(new[] { false, false }));
+        Assert.That(orden.TryGetProperty("estadosSiguientes", out _), Is.False);
     }
 
     [Test]
@@ -383,6 +386,20 @@ public class OrdenesTrabajoPruebas : PruebaBase
     }
 
     [Test]
+    public async Task ElListadoFiltradoPorFaseDevuelveLasOrdenesDeTodosLosEstadosDeLaFase()
+    {
+        var id = await CrearOrdenAsignadaAsync();
+
+        var pendientes = await (await Cliente.GetAsync("/api/v1/ordenes-trabajo?fase=pendiente&tamanoPagina=100")).LeerJsonAsync();
+        var enCurso = await (await Cliente.GetAsync("/api/v1/ordenes-trabajo?fase=en_curso&tamanoPagina=100")).LeerJsonAsync();
+
+        var estadosPendientes = pendientes.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("estado").GetString()).Distinct();
+        Assert.That(estadosPendientes, Is.SubsetOf(new[] { "creada", "asignada" }));
+        Assert.That(pendientes.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("id").GetInt64()), Does.Contain(id));
+        Assert.That(enCurso.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("id").GetInt64()), Does.Not.Contain(id));
+    }
+
+    [Test]
     public async Task ElListadoPaginadoYFiltradoPorEstadoDevuelveSoloEsasOrdenes()
     {
         var id = await CrearOrdenAsignadaAsync();
@@ -547,5 +564,38 @@ public class OrdenesTrabajoPruebas : PruebaBase
         var enEjecucion = final.GetProperty("historialEstados").EnumerateArray()
             .Count(h => h.GetProperty("estado").GetString() == "en_ejecucion");
         Assert.That(enEjecucion, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task ListarEstadosDevuelveElCatalogoDeLaBaseEnElOrdenDelCiclo()
+    {
+        var respuesta = await Cliente.GetAsync("/api/v1/ordenes-trabajo/estados");
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var estados = await respuesta.LeerJsonAsync();
+        var valores = estados.EnumerateArray().Select(estado => estado.GetProperty("valor").GetString()).ToList();
+        Assert.That(valores, Is.EqualTo(new[] { "creada", "asignada", "en_ejecucion", "pausada", "finalizada", "cerrada", "cancelada" }));
+        var etiquetas = estados.EnumerateArray().Select(estado => estado.GetProperty("etiqueta").GetString()).ToList();
+        Assert.That(etiquetas, Is.EqualTo(new[] { "Creada", "Asignada", "En ejecución", "Pausada", "Finalizada", "Cerrada", "Cancelada" }));
+        Assert.That(estados.EnumerateArray().Select(estado => estado.GetProperty("orden").GetInt32()), Is.EqualTo(new[] { 1, 2, 3, 4, 5, 6, 7 }));
+        Assert.That(estados.EnumerateArray().Select(estado => estado.GetProperty("fase").GetString()),
+            Is.EqualTo(new[] { "pendiente", "pendiente", "en_curso", "en_curso", "por_validar", "cerrada", "cancelada" }));
+        Assert.That(estados.EnumerateArray().Select(estado => estado.GetProperty("tono").GetString()),
+            Is.EqualTo(new[] { "neutro", "info", "info", "alerta", "destacado", "exito", "neutro" }));
+    }
+
+    [Test]
+    public async Task LaBaseTieneLasReglasDeEstadoDeLaSeccion13Punto1DelDocumento()
+    {
+        using var alcance = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(EntornoDePruebas.Fabrica.Services);
+        var reglas = await Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<SOTRA_BACKEND.Operaciones.OrdenTrabajoDAO>(alcance.ServiceProvider)
+            .ObtenerReglasAsync(CancellationToken.None);
+
+        static string Describir(SOTRA_BACKEND.Operaciones.EstadoDeOrden e) =>
+            $"{e.Orden}|{e.Nombre}|{e.Etiqueta}|{e.Fase}|{e.ExigeTecnico}|{e.CompletaFecha}|{e.Tono}|{e.CodigoAlerta}|{e.EsInicial}";
+        Assert.That(reglas.Estados.Select(Describir), Is.EqualTo(Api.PruebasUnitarias.ReglasDePrueba.EstadosDocumentados.Select(Describir)));
+
+        var enLaBase = reglas.Estados.SelectMany(e => reglas.TransicionesDesde(e.Nombre)).ToHashSet();
+        Assert.That(enLaBase, Is.EquivalentTo(Api.PruebasUnitarias.ReglasDePrueba.TransicionesDocumentadas));
     }
 }

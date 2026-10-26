@@ -116,6 +116,8 @@ Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `
 
 Los cambios de estructura nuevos se entregan en dos lugares a la vez: se incorporan a `01-init.sql` (bases nuevas) y se agrega un archivo idempotente en `database/cambios/` (bases existentes). El contenedor necesita `database/cambios` montado en `/cambios`; `compose.yml` ya lo hace y el flujo de staging copia esos archivos al servidor.
 
+**Dump exportado.** En la raíz de este repositorio queda `sotra-dump.sql`, un dump de PostgreSQL (`pg_dump`, esquema `operativo`, estructura y datos) **sin PDF ni embeddings**: sin el esquema `vectorial` (documentos y vectores), sin el esquema `keycloak` y sin las tablas de control de la carga. Se genera a partir de una base descartable creada con `01-init.sql` y se regenera cada vez que cambia la base, sin tocar la base local con datos. Para restaurarlo en una base vacía: `psql -U USUARIO -d BASE -f sotra-dump.sql`.
+
 **Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 14 personas usuarias con los 4 roles (entre ellas `admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`, que coinciden con los usuarios de prueba del realm de Keycloak), 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Los usuarios no tienen contraseña en SOTRA: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
 
 Para agregar un cambio: editar `01-init.sql`, crear el SQL en `database/cambios/` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
@@ -479,9 +481,13 @@ RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:**
 
 La especificación también pide filtrar repuestos por "categoría", pero el repuesto no tiene ese dato en la base; queda pendiente de definir.
 
+### Catálogo de estados (`GET /api/v1/ordenes-trabajo/estados`)
+
+Los estados de las órdenes, sus etiquetas y sus reglas salen de la base: `operativo.estado_ot` (`nombre` es el valor, `descripcion` la etiqueta y `orden`, `fase`, `exige_tecnico`, `completa_fecha`, `tono`, `codigo_alerta` y `es_inicial` el comportamiento) y `operativo.transicion_estado_ot` (cada cambio permitido, con `exige_motivo`, `puede_tecnico`, `accion`, `principal` y `al_asignar_tecnico`). El código no nombra ningún estado: `ReglasDeEstadoOrden` solo aplica lo que dice la base. El endpoint los devuelve en el orden del ciclo de vida, `[{ "valor": "en_ejecucion", "etiqueta": "En ejecución", "orden": 3, "fase": "en_curso", "tono": "info" }, …]`, solo los activos; si una fila no tiene etiqueta, se arma una con el nombre (`En ejecucion`). Lo consumen el filtro del listado, los reportes, los formularios y las etiquetas del frontend, que no tienen listas propias. Una prueba de integración comprueba que la base tenga exactamente el ciclo de vida del documento (sección 13.1 de `Flujo de datos SOTRA.md`) y las pruebas unitarias recorren las 196 combinaciones de estado, técnico y motivo. Los siete estados vienen en `01-init.sql` y, para bases existentes, en `database/cambios/2026-10-25-estado-ot-catalogo-completo.sql` (agrega `cancelada` y las etiquetas), que el despliegue aplica solo.
+
 ### Ciclo de vida de la orden (`PATCH /api/v1/ordenes-trabajo/{id}/estado` y `/tecnico`)
 
-RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones permitidas están en `OrdenTrabajoDAO.TransicionesPermitidas` y se validan tanto en `PATCH /estado` como en `PUT`:
+RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones permitidas están en la tabla `transicion_estado_ot` y se validan tanto en `PATCH /estado` como en `PUT`:
 
 | Estado actual | Puede pasar a |
 |---|---|
@@ -496,7 +502,7 @@ RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones 
 - `PATCH /{id}/tecnico` recibe `{ "tecnicoId": 0 }`. Valida que sea un usuario activo con rol Técnico, pasa la orden de `creada` a `asignada` y registra en el historial "Técnico asignado: Nombre Apellido".
 - Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
 - Ediciones simultáneas: `OrdenTrabajoDto.Version` (hash SHA-256 truncado del DTO, calculado en `OrdenTrabajoMapeador`) se devuelve también como `ETag` en `GET /ordenes-trabajo/{id}` y `PUT`. El `PUT` acepta `If-Match` y lo compara dentro del bloqueo de fila de `OrdenTrabajoDAO.Actualizar`; si no coincide responde `412` `ORDEN_MODIFICADA` sin cambiar nada. Sin el encabezado (o con `*`) no se verifica. CORS permite `If-Match` y expone `ETag`.
-- `OrdenTrabajoDto` incluye `estadosSiguientes` (los estados a los que puede pasar) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
+- `OrdenTrabajoDto` incluye `transiciones` (los cambios posibles desde el estado actual, con `exigeMotivo`, `puedeTecnico`, `accion` y `principal`) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
 
 El historial todavía no registra el usuario responsable del cambio: `historial_estado_ot` no tiene una columna para eso.
 
