@@ -1,4 +1,4 @@
-using SOTRA_BACKEND.Operaciones;
+﻿using SOTRA_BACKEND.Operaciones;
 
 namespace Api.PruebasUnitarias;
 
@@ -75,6 +75,37 @@ public class ReglasDeEstadoOrdenPruebas
         Assert.That(Reglas.TransicionesDesde("pausada").Single(t => t.PuedeTecnico).Accion, Is.EqualTo("Reanudar"));
         Assert.That(Reglas.TransicionesDesde("asignada").Single(t => t.PuedeTecnico).Accion, Is.EqualTo("Iniciar"));
         Assert.That(Reglas.TransicionesDesde("finalizada").Any(t => t.PuedeTecnico), Is.False);
+    }
+
+    [TestCase("asignada", "en_ejecucion")]
+    [TestCase("en_ejecucion", "pausada")]
+    [TestCase("en_ejecucion", "finalizada")]
+    [TestCase("pausada", "en_ejecucion")]
+    public void UnTecnicoPuedeHacerSoloLasTransicionesMarcadasParaEl(string actual, string nuevo)
+    {
+        Assert.DoesNotThrow(() => Reglas.ValidarTransicion(actual, nuevo, 7, "motivo", comoTecnico: true));
+    }
+
+    [TestCase("finalizada", "cerrada")]
+    [TestCase("finalizada", "asignada")]
+    [TestCase("creada", "asignada")]
+    [TestCase("creada", "cancelada")]
+    [TestCase("asignada", "cancelada")]
+    [TestCase("pausada", "cancelada")]
+    public void UnTecnicoNoPuedeCerrarCancelarNiAsignar(string actual, string nuevo)
+    {
+        var error = Assert.Throws<ErrorDeOrdenException>(() => Reglas.ValidarTransicion(actual, nuevo, 7, "motivo", comoTecnico: true));
+
+        Assert.That(error!.Codigo, Is.EqualTo(ErrorDeOrdenException.TransicionNoPermitida));
+        Assert.DoesNotThrow(() => Reglas.ValidarTransicion(actual, nuevo, 7, "motivo", comoTecnico: false));
+    }
+
+    [Test]
+    public void ParaUnTecnicoUnaTransicionInexistenteSigueSiendoInvalida()
+    {
+        var error = Assert.Throws<ErrorDeOrdenException>(() => Reglas.ValidarTransicion("creada", "cerrada", 7, "motivo", comoTecnico: true));
+
+        Assert.That(error!.Codigo, Is.EqualTo(ErrorDeOrdenException.TransicionInvalida));
     }
 
     [Test]

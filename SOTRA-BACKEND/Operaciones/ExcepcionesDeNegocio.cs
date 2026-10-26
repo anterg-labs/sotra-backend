@@ -1,4 +1,4 @@
-namespace SOTRA_BACKEND.Operaciones;
+﻿namespace SOTRA_BACKEND.Operaciones;
 
 /// <summary>
 /// Un dato de la solicitud no cumple una regla de negocio (referencia inexistente, inactiva, etc.).
@@ -25,6 +25,7 @@ public sealed class ErrorDeOrdenException(string codigo) : InvalidOperationExcep
     public const string OrdenModificada = "ORDEN_MODIFICADA";
     public const string OrdenInexistente = "ORDEN_INEXISTENTE";
     public const string TransicionInvalida = "TRANSICION_INVALIDA";
+    public const string TransicionNoPermitida = "TRANSICION_NO_PERMITIDA";
     public const string TecnicoObligatorio = "TECNICO_OBLIGATORIO";
     public const string TecnicoYaAsignado = "TECNICO_YA_ASIGNADO";
     public const string MotivoObligatorio = "MOTIVO_OBLIGATORIO";

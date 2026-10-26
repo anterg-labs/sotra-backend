@@ -84,9 +84,10 @@ public sealed class ReglasDeEstadoOrden
 
     /// <summary>
     /// Comprueba un cambio de estado: pasar al mismo estado no hace nada; si no hay transición, <c>TRANSICION_INVALIDA</c>;
-    /// luego se exige técnico y motivo según el estado de destino y la transición.
+    /// luego, si lo pide un técnico, que la transición sea de las que puede hacer (<c>TRANSICION_NO_PERMITIDA</c>);
+    /// por último se exige técnico y motivo según el estado de destino y la transición.
     /// </summary>
-    public void ValidarTransicion(string estadoActual, string estadoNuevo, long? tecnicoId, string? motivo)
+    public void ValidarTransicion(string estadoActual, string estadoNuevo, long? tecnicoId, string? motivo, bool comoTecnico = false)
     {
         if (estadoNuevo == estadoActual)
         {
@@ -95,6 +96,11 @@ public sealed class ReglasDeEstadoOrden
 
         var transicion = TransicionesDesde(estadoActual).FirstOrDefault(t => t.Destino == estadoNuevo)
             ?? throw new ErrorDeOrdenException(ErrorDeOrdenException.TransicionInvalida);
+
+        if (comoTecnico && !transicion.PuedeTecnico)
+        {
+            throw new ErrorDeOrdenException(ErrorDeOrdenException.TransicionNoPermitida);
+        }
 
         if (_porNombre[estadoNuevo].ExigeTecnico && tecnicoId is null)
         {

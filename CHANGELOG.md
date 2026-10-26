@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.77 (2026-10-26)
+
+- Seguridad: un técnico ya no puede cerrar, cancelar ni devolver una orden; la API responde `403` (`TRANSICION_NO_PERMITIDA`) y solo le muestra los cambios de estado que le corresponden.
+
 ## Version 1.0.76 (2026-10-25)
 
 - Órdenes de trabajo: las reglas de los estados (orden, fase, si exige técnico, qué fecha completa, color, alerta y estado inicial) y las transiciones (quién puede pasar a quién, si exige motivo y qué puede hacer un técnico) están en la base, en `estado_ot` y `transicion_estado_ot`, y el código ya no nombra ningún estado.
