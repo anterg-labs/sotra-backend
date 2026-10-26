@@ -263,7 +263,7 @@ public class AnaliticaDAO
             .ToListAsync(cancelacion);
     }
 
-    /// <summary>Órdenes que siguen abiertas (creada, asignada, en ejecución o pausada) con el tiempo que llevan en su estado actual.</summary>
+    /// <summary>Órdenes que siguen abiertas (estados de fase pendiente o en curso) con el tiempo que llevan en su estado actual.</summary>
     public async Task<List<OrdenAbiertaFila>> ListarOrdenesAbiertasAsync(FiltroAnalitica filtro, CancellationToken cancelacion)
     {
         var (_, parametros) = Condiciones(filtro, "o");

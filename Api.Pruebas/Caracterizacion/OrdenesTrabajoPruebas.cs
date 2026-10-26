@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using NUnit.Framework;
@@ -383,6 +383,20 @@ public class OrdenesTrabajoPruebas : PruebaBase
         var enEjecucion = orden.GetProperty("historialEstados").EnumerateArray()
             .Count(h => h.GetProperty("estado").GetString() == "en_ejecucion");
         Assert.That(enEjecucion, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task ElListadoFiltradoPorFaseDevuelveLasOrdenesDeTodosLosEstadosDeLaFase()
+    {
+        var id = await CrearOrdenAsignadaAsync();
+
+        var pendientes = await (await Cliente.GetAsync("/api/v1/ordenes-trabajo?fase=pendiente&tamanoPagina=100")).LeerJsonAsync();
+        var enCurso = await (await Cliente.GetAsync("/api/v1/ordenes-trabajo?fase=en_curso&tamanoPagina=100")).LeerJsonAsync();
+
+        var estadosPendientes = pendientes.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("estado").GetString()).Distinct();
+        Assert.That(estadosPendientes, Is.SubsetOf(new[] { "creada", "asignada" }));
+        Assert.That(pendientes.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("id").GetInt64()), Does.Contain(id));
+        Assert.That(enCurso.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("id").GetInt64()), Does.Not.Contain(id));
     }
 
     [Test]

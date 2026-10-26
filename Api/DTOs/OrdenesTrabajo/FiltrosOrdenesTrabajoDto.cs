@@ -1,4 +1,4 @@
-namespace Api.DTOs.OrdenesTrabajo;
+﻿namespace Api.DTOs.OrdenesTrabajo;
 
 public class FiltrosOrdenesTrabajoDto
 {
@@ -7,6 +7,8 @@ public class FiltrosOrdenesTrabajoDto
     public long? ActivoId { get; init; }
     public long? TecnicoId { get; init; }
     public string? Estado { get; init; }
+    /// <summary>Fase del estado (`estado_ot.fase`): agrupa varios estados, por ejemplo `en_curso`.</summary>
+    public string? Fase { get; init; }
     public string? Prioridad { get; init; }
     public string? Tipo { get; init; }
     public DateOnly? FechaDesde { get; init; }

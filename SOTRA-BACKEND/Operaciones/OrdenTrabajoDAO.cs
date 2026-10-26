@@ -90,6 +90,14 @@ public class OrdenTrabajoDAO
                 .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() == estado);
         }
 
+        if (!string.IsNullOrEmpty(filtro.Fase))
+        {
+            var fase = filtro.Fase;
+            consulta = consulta.Where(o => o.HistorialEstadoOts
+                .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() == fase);
+        }
+
         consulta = AplicarPrioridad(consulta, filtro.Prioridad);
 
         if (filtro.EsPreventivo is { } esPreventivo) consulta = consulta.Where(o => o.Tipo == esPreventivo);
