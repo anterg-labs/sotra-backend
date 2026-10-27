@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Version 1.0.83 (2026-10-27)
+
+- Documentos técnicos: la subida de un documento para las sugerencias de IA guarda el PDF y responde enseguida; los fragmentos y embeddings se generan en segundo plano, de a un documento por vez. Antes, un manual grande tardaba minutos dentro del pedido y Cloudflare lo cortaba a los 100 segundos (`524`), sin guardar nada.
+- Documentos técnicos: cada documento informa `estadoProcesamiento` (`pendiente`, `procesando`, `listo` o `error`) y, si falló, `codigoErrorProcesamiento` y `mensajeErrorProcesamiento`. Al arrancar, la API retoma los que quedaron pendientes o a medio procesar.
+- Documentos técnicos: `POST /documentos-tecnicos/{id}/reprocesar` responde `202` y pone el documento en la cola; mientras tanto, las sugerencias siguen usando los fragmentos anteriores.
+- Base de datos: columnas `estado_procesamiento` y `error_procesamiento` en `vectorial.documento_tecnico`, en `02-vectorial.sql` y en `database/cambios/2026-10-27-documento-tecnico-estado-procesamiento.sql` para bases existentes.
+
 ## Version 1.0.82 (2026-10-26)
 
 - IA: se quita Ollama. Los embeddings `bge-m3` corren dentro de la API con ONNX (como el reranker) y el resumen de las sugerencias lo redacta un proveedor externo con API compatible con OpenAI, por defecto Groq con `openai/gpt-oss-20b` (`IA_API_URL`, `IA_API_MODELO`, `IA_API_CLAVE`, `IA_API_ESFUERZO`). Funciona en un servidor sin GPU.

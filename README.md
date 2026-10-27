@@ -425,7 +425,7 @@ La API implementa los módulos restantes que consume el frontend:
 
 - `/api/v1/repuestos`: `GET`, `GET /alertas-stock`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}`, `PATCH /{id}/stock-minimo` y `POST /{id}/ingresos`, `/egresos` y `/ajustes`.
 - `/api/v1/ordenes-trabajo`: `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `PATCH /{id}/estado`, `PATCH /{id}/tecnico` y `POST /sugerencia`. El `GET` es paginado y acepta búsqueda y filtros (ver "Listados paginados").
-- `/api/v1/documentos-tecnicos`: `GET`, `POST`, `PUT /{id}`, `PATCH /{id}/vigencia`, `GET /{id}/archivo` y `DELETE /{id}`.
+- `/api/v1/documentos-tecnicos`: `GET`, `POST`, `PUT /{id}`, `PATCH /{id}/vigencia`, `POST /{id}/reprocesar`, `GET /{id}/archivo` y `DELETE /{id}`. Un documento para las sugerencias de IA se procesa en segundo plano: el `POST` responde con `estadoProcesamiento = pendiente` y el documento pasa a `listo` (o a `error`, con `codigoErrorProcesamiento` y `mensajeErrorProcesamiento`) cuando termina.
 - `/api/v1/reportes/indicadores`: `GET`.
 
 Las órdenes usan las tablas existentes del esquema `operativo`. La fecha prevista se conserva en la observación del primer registro de `historial_estado_ot`, y las sugerencias se guardan en `historial_recomendaciones_ia`. El responsable (`id_usuario_responsable`) es el usuario que crea la orden (ver "Usuario actual"). Si el pedido no trae token (con `AUTH_OBLIGATORIA=false`) o el usuario de Keycloak no está registrado en SOTRA, `OrdenTrabajoDAO.Crear` asigna el primer usuario activo con el rol activo "Jefe de mantenimiento" y responde `400` si no hay ninguno. `Actualizar` conserva el responsable de la orden.

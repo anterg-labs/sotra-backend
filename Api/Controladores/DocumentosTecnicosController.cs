@@ -113,7 +113,10 @@ public class DocumentosTecnicosController : ControllerBase
         }
     }
 
-    /// <summary>Vuelve a procesar el PDF guardado con la versión actual, por ejemplo después de mejorar la extracción.</summary>
+    /// <summary>
+    /// Pone el PDF guardado en la cola para procesarlo con la versión actual, por ejemplo después de mejorar la
+    /// extracción. Responde 202 enseguida; <c>estadoProcesamiento</c> dice cuándo terminó.
+    /// </summary>
     [HttpPost("{id:long}/reprocesar")]
     [Authorize(Policy = Politicas.DocumentoGestionar)]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
@@ -122,7 +125,7 @@ public class DocumentosTecnicosController : ControllerBase
         try
         {
             var documento = await _servicio.ReprocesarAsync(id, cancellationToken);
-            return documento is null ? NotFound() : Ok(documento);
+            return documento is null ? NotFound() : Accepted(documento);
         }
         catch (InvalidDataException excepcion)
         {

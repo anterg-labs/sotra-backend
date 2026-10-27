@@ -40,6 +40,7 @@ public class DocumentosTecnicosPruebas : PruebaBase
         var id = documento.GetProperty("id").GetInt64();
         Assert.That(documento.GetProperty("usaSugerenciasIA").GetBoolean(), Is.False);
         Assert.That(documento.GetProperty("cantidadFragmentos").GetInt32(), Is.EqualTo(0));
+        Assert.That(documento.GetProperty("estadoProcesamiento").GetString(), Is.EqualTo("listo"));
 
         var detalle = await Cliente.GetAsync($"/api/v1/documentos-tecnicos/{id}");
         Assert.That(detalle.StatusCode, Is.EqualTo(HttpStatusCode.OK));

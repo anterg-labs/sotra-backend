@@ -37,6 +37,9 @@ CREATE TABLE vectorial.documento_tecnico (
     descripcion text,
     vigente boolean DEFAULT true NOT NULL,
     modelo_maquina_id bigint,
+    estado_procesamiento character varying(20) DEFAULT 'listo'::character varying NOT NULL,
+    error_procesamiento character varying(50),
+    CONSTRAINT "CK_DOCUMENTO_TECNICO_ESTADO_PROCESAMIENTO" CHECK (((estado_procesamiento)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('procesando'::character varying)::text, ('listo'::character varying)::text, ('error'::character varying)::text]))),
     CONSTRAINT "CK_DOCUMENTO_TECNICO_TIPO" CHECK (((tipo)::text = ANY (ARRAY[('normativa'::character varying)::text, ('procedimiento_interno'::character varying)::text, ('manual_tecnico'::character varying)::text, ('politica_seguridad'::character varying)::text, ('otro'::character varying)::text])))
 );
 

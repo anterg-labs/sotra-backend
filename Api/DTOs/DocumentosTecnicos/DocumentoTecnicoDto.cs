@@ -15,4 +15,12 @@ public class DocumentoTecnicoDto
     public bool UsaSugerenciasIA { get; init; }
     public int CantidadFragmentos { get; init; }
     public DateTime CreadoEn { get; init; }
+
+    /// <summary><c>pendiente</c>, <c>procesando</c>, <c>listo</c> o <c>error</c>. Sin IA, siempre <c>listo</c>.</summary>
+    public required string EstadoProcesamiento { get; init; }
+
+    /// <summary>Código del último error del procesamiento; <c>null</c> si no hubo.</summary>
+    public string? CodigoErrorProcesamiento { get; init; }
+
+    public string? MensajeErrorProcesamiento { get; init; }
 }
