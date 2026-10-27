@@ -64,7 +64,7 @@ public class SugerenciasPruebas : PruebaBase
     }
 
     [Test]
-    public async Task SiElServicioDeIaNoResponderResponde502ConUnMensajeClaroYRapido()
+    public async Task SinLosModelosLocalesDeIaResponde502ConUnMensajeClaroYRapido()
     {
         var reloj = Stopwatch.StartNew();
 

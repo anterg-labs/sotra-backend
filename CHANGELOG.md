@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## Version 1.0.75 (2026-10-26)
+
+- IA: se quita Ollama. Los embeddings `bge-m3` corren dentro de la API con ONNX (como el reranker) y el resumen de las sugerencias lo redacta un proveedor externo con API compatible con OpenAI, por defecto Groq con `openai/gpt-oss-20b` (`IA_API_URL`, `IA_API_MODELO`, `IA_API_CLAVE`, `IA_API_ESFUERZO`). Funciona en un servidor sin GPU.
+- IA: si el proveedor no responde en 20 segundos, rechaza el pedido o falta la clave, la sugerencia se arma con el texto del manual sin resumir. La respuesta incluye `modo` (`ia`, `sin_ia` o `descartada`) para que el frontend avise cuando el asistente no está disponible; el modo queda en `historial_recomendaciones_ia`.
+- IA: el `502 SERVICIO_IA_NO_DISPONIBLE` ahora indica que faltan los modelos locales; el proveedor externo ya no produce errores en las sugerencias.
+- IA: las secciones de los manuales se reconocen también por sus títulos numerados ("4.2 Cambio del filtro"), y un título al final de un fragmento ya no recibe como cuerpo el texto de la sección anterior.
+- IA: las instrucciones del resumen piden conservar las obligaciones de seguridad como obligaciones.
+- IA: la distancia máxima de la búsqueda ya no descarta los fragmentos que contienen las palabras de la consulta; el reranker decide si responden. Antes, procedimientos como "5.1 Engrase del brazo" quedaban sin encontrar porque su fragmento mezclaba varios temas.
+- Base de datos: columna `modo` en `historial_recomendaciones_ia`, en el SQL inicial y en `database/cambios/2026-10-24-historial-ia-modo.sql` para bases existentes.
+- Los documentos técnicos cargados antes de esta versión deben volver a subirse para usar los nuevos embeddings y el nuevo divisor de secciones.
+- Docker: `compose.yml` descarga los modelos de IA locales (servicio `modelos-ia`, revisiones fijas de Hugging Face) y el backend ya no depende de una carpeta del equipo (`RERANKER_CARPETA`). Se elimina `compose.ia.yml`.
+- Docker: se restaura `Dockerfile.dev`, que `compose.dev.yml` necesita para la recarga en caliente.
+- Herramienta `ComparadorIa` para comparar proveedores de IA con el corpus de evaluación.
+- IA: la búsqueda de sugerencias usa solo la documentación del activo de la orden, de su modelo y la general (`activoId` en `POST /ordenes-trabajo/sugerencia`); ya no cita manuales de otras máquinas.
+- IA: al procesar un PDF se quitan los encabezados y pies que se repiten en las páginas, para que una sección no se corte en el cambio de página. Los títulos en mayúsculas y los de procedimiento se reconocen, y los pasos numerados ya no se toman como títulos.
+- IA: el proveedor redacta un título en español para la sugerencia (el título original queda en "Fuente") y responde `SIN_INFORMACION` si la sección no trata la tarea; en ese caso la API devuelve `422`. Las páginas de índice ya no se usan como respuesta.
+- IA: búsqueda entre idiomas: con manuales en inglés, una sección con puntaje del reranker entre −2 y 0 se acepta si su distancia coseno a la consulta es de 0,40 o menos. Reglas de vocabulario técnico para la traducción.
+- IA: límite de llamadas al proveedor para toda la API (`IA_API_LLAMADAS_POR_MINUTO`, 10 por defecto). La que se pasa usa el texto del manual con aviso (`modo = sin_ia`).
+- Documentos técnicos: `POST /documentos-tecnicos/{id}/reprocesar` vuelve a procesar el PDF guardado con el divisor actual (`pdf-v5`), sin volver a subirlo.
+- Base de datos: se elimina `orden_trabajo.id_recomendacion_ia`, que nada escribía (`database/cambios/2026-10-25-orden-sin-id-recomendacion-ia.sql`; los vínculos que hubiera pasan al historial).
+- Datos: cliente SUPER CONSTRUCTURA SLA con 6 activos SANY y los modelos SY335, SY235 y SY155H (`database/cambios/2026-10-25-cliente-super-constructura-activos-sany.sql`).
+
 ## Version 1.0.74 (2026-10-24)
 
 - Usuarios: un campo vacío (nombre, apellido o teléfono) ya no repite el mensaje «es obligatorio» dos veces en la respuesta de error del alta y la modificación.

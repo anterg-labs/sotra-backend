@@ -22,7 +22,8 @@ public partial class HistorialRecomendacionIa
 
     public string Resultado { get; set; } = null!;
 
-    public virtual OrdenTrabajo? IdOrdenNavigation { get; set; }
+    /// <summary>Cómo se redactó: "ia", "sin_ia" (proveedor caído) o "descartada" (no pasó el control de números).</summary>
+    public string Modo { get; set; } = "ia";
 
-    public virtual ICollection<OrdenTrabajo> OrdenTrabajos { get; set; } = new List<OrdenTrabajo>();
+    public virtual OrdenTrabajo? IdOrdenNavigation { get; set; }
 }

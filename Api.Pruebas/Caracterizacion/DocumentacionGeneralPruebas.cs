@@ -205,7 +205,7 @@ public class DocumentacionGeneralPruebas : PruebaBase
     {
         var palabra = "zorrinoxyz" + DatosDePrueba.Sufijo().Replace("-", "").ToLowerInvariant();
         await using var baseDatos = Api.Servicios.BaseVectorial.CrearConexion();
-        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!);
+        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!);
 
         var documentoVectorialId = Convert.ToInt64(await new Npgsql.NpgsqlCommand(
             "INSERT INTO vectorial.documentos (nombre, huella, version_proceso) VALUES ('prueba', 'h', 'v') RETURNING id",
@@ -228,7 +228,7 @@ public class DocumentacionGeneralPruebas : PruebaBase
             await documento.ExecuteNonQueryAsync();
         }
 
-        var vigente = await servicio.BuscarIdsPorPalabrasAsync(palabra, CancellationToken.None);
+        var vigente = await servicio.BuscarIdsPorPalabrasAsync(palabra, null, CancellationToken.None);
 
         await using (var obsoleto = baseDatos.CreateCommand(
             "UPDATE vectorial.documento_tecnico SET vigente = false WHERE documento_vectorial_id = $1"))
@@ -237,10 +237,131 @@ public class DocumentacionGeneralPruebas : PruebaBase
             await obsoleto.ExecuteNonQueryAsync();
         }
 
-        var obsoletoEncontrado = await servicio.BuscarIdsPorPalabrasAsync(palabra, CancellationToken.None);
+        var obsoletoEncontrado = await servicio.BuscarIdsPorPalabrasAsync(palabra, null, CancellationToken.None);
 
         Assert.That(vigente, Has.Count.EqualTo(1), "un documento vigente sí aparece en la búsqueda");
         Assert.That(obsoletoEncontrado, Is.Empty, "un documento obsoleto no debe usarse para las sugerencias");
+    }
+
+    private async Task<long> CrearActivoAsync(long clienteId, long modeloId)
+    {
+        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/activos", DatosDePrueba.ActivoNuevo(clienteId, modeloId));
+        respuesta.EnsureSuccessStatusCode();
+        return (await respuesta.LeerJsonAsync()).GetProperty("id").GetInt64();
+    }
+
+    private static async Task<long> CrearDocumentoConFragmentoAsync(Npgsql.NpgsqlDataSource baseDatos, string texto,
+        long? activoId, long? modeloId)
+    {
+        await using var conexion = await baseDatos.OpenConnectionAsync();
+        var documentoVectorialId = Convert.ToInt64(await new Npgsql.NpgsqlCommand(
+            "INSERT INTO vectorial.documentos (nombre, huella, version_proceso) VALUES ('alcance', 'h', 'v') RETURNING id",
+            conexion).ExecuteScalarAsync());
+        long fragmentoId;
+        await using (var fragmento = new Npgsql.NpgsqlCommand(
+            "INSERT INTO vectorial.fragmentos (documento_id, posicion, pagina, texto) VALUES ($1, 0, 1, $2) RETURNING id", conexion))
+        {
+            fragmento.Parameters.AddWithValue(documentoVectorialId);
+            fragmento.Parameters.AddWithValue(texto);
+            fragmentoId = Convert.ToInt64(await fragmento.ExecuteScalarAsync());
+        }
+
+        await using var documento = new Npgsql.NpgsqlCommand("""
+            INSERT INTO vectorial.documento_tecnico
+                (nombre_archivo, usa_sugerencias_ia, cantidad_fragmentos, archivo, creado_en, documento_vectorial_id,
+                 vigente, activo_id, modelo_maquina_id)
+            VALUES ('alcance.pdf', true, 1, '\x25504446', now(), $1, true, $2, $3)
+            """, conexion);
+        documento.Parameters.AddWithValue(documentoVectorialId);
+        documento.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)activoId ?? DBNull.Value);
+        documento.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bigint, (object?)modeloId ?? DBNull.Value);
+        await documento.ExecuteNonQueryAsync();
+        return fragmentoId;
+    }
+
+    [Test]
+    public async Task ConActivoLaBusquedaUsaSoloLaDocumentacionDeEsaMaquinaYLaGeneral()
+    {
+        var palabra = "carpinchoxyz" + DatosDePrueba.Sufijo().Replace("-", "").ToLowerInvariant();
+        var texto = "El procedimiento menciona " + palabra + " con claridad.";
+        var (clienteId, modeloId) = await DatosDePrueba.CrearClienteYModeloAsync(Cliente);
+        var tipo = await DatosDePrueba.CrearTipoMaquinaAsync(Cliente);
+        var otroModeloId = (await DatosDePrueba.CrearModeloMaquinaAsync(Cliente, tipo.GetProperty("id").GetInt64()))
+            .GetProperty("id").GetInt64();
+        var activoId = await CrearActivoAsync(clienteId, modeloId);
+        var activoDelMismoModeloId = await CrearActivoAsync(clienteId, modeloId);
+        var activoDeOtroModeloId = await CrearActivoAsync(clienteId, otroModeloId);
+        await using var baseDatos = Api.Servicios.BaseVectorial.CrearConexion();
+        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!);
+
+        var delActivo = await CrearDocumentoConFragmentoAsync(baseDatos, texto, activoId, null);
+        var deOtroActivoDelModelo = await CrearDocumentoConFragmentoAsync(baseDatos, texto, activoDelMismoModeloId, null);
+        var delModelo = await CrearDocumentoConFragmentoAsync(baseDatos, texto, null, modeloId);
+        var general = await CrearDocumentoConFragmentoAsync(baseDatos, texto, null, null);
+        var deOtraMaquina = await CrearDocumentoConFragmentoAsync(baseDatos, texto, activoDeOtroModeloId, null);
+        var deOtroModelo = await CrearDocumentoConFragmentoAsync(baseDatos, texto, null, otroModeloId);
+
+        var conActivo = await servicio.BuscarIdsPorPalabrasAsync(palabra, activoId, CancellationToken.None);
+        var sinActivo = await servicio.BuscarIdsPorPalabrasAsync(palabra, null, CancellationToken.None);
+
+        Assert.That(conActivo, Is.EquivalentTo(new[] { delActivo, deOtroActivoDelModelo, delModelo, general }),
+            "con activo se usan sus manuales, los de su modelo y los generales");
+        Assert.That(sinActivo, Is.EquivalentTo(new[] { delActivo, deOtroActivoDelModelo, delModelo, general, deOtraMaquina, deOtroModelo }),
+            "sin activo se busca en toda la documentación vigente");
+    }
+
+    [Test]
+    public async Task UnFragmentoLejanoSoloPasaSiCoincidePorPalabras()
+    {
+        await using var baseDatos = Api.Servicios.BaseVectorial.CrearConexion();
+        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!);
+        var documentoVectorialId = Convert.ToInt64(await new Npgsql.NpgsqlCommand(
+            "INSERT INTO vectorial.documentos (nombre, huella, version_proceso) VALUES ('lejano', 'h', 'v') RETURNING id",
+            await baseDatos.OpenConnectionAsync()).ExecuteScalarAsync());
+
+        // El fragmento y la consulta tienen vectores perpendiculares: distancia coseno 1, mucho más que el máximo.
+        var vectorDelFragmento = new float[Api.Servicios.ServicioEmbeddings.DimensionesDelEmbedding];
+        vectorDelFragmento[0] = 1;
+        var vectorDeLaConsulta = new float[Api.Servicios.ServicioEmbeddings.DimensionesDelEmbedding];
+        vectorDeLaConsulta[1] = 1;
+        long fragmentoId;
+        await using (var fragmento = baseDatos.CreateCommand(
+            "INSERT INTO vectorial.fragmentos (documento_id, posicion, pagina, texto, embedding) VALUES ($1, 0, 1, 'Engrase del brazo', $2) RETURNING id"))
+        {
+            fragmento.Parameters.AddWithValue(documentoVectorialId);
+            fragmento.Parameters.AddWithValue(new Pgvector.Vector(vectorDelFragmento));
+            fragmentoId = Convert.ToInt64(await fragmento.ExecuteScalarAsync());
+        }
+
+        var consulta = new Pgvector.Vector(vectorDeLaConsulta);
+        var soloPorParecido = await servicio.LeerFragmentosCercanosAsync([fragmentoId], [], consulta, CancellationToken.None);
+        var tambienPorPalabras = await servicio.LeerFragmentosCercanosAsync([fragmentoId], [fragmentoId], consulta, CancellationToken.None);
+
+        Assert.That(soloPorParecido, Is.Empty, "por parecido, un fragmento lejano se descarta");
+        Assert.That(tambienPorPalabras.Select(fragmento => fragmento.Id), Is.EqualTo(new[] { fragmentoId }),
+            "si contiene las palabras de la consulta, pasa al reranker aunque esté lejos");
+    }
+
+    [Test]
+    public async Task ReprocesarUnDocumentoInexistenteResponde404()
+    {
+        var respuesta = await Cliente.PostAsync($"/api/v1/documentos-tecnicos/{long.MaxValue}/reprocesar", null);
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task ReprocesarUnDocumentoQueNoUsaLaIaSeRechazaSinTocarlo()
+    {
+        var creado = await (await SubirAsync("sin-ia-" + DatosDePrueba.Sufijo() + ".pdf")).LeerJsonAsync();
+        var id = creado.GetProperty("id").GetInt64();
+
+        var respuesta = await Cliente.PostAsync($"/api/v1/documentos-tecnicos/{id}/reprocesar", null);
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That(await CodigoAsync(respuesta), Is.EqualTo("DOCUMENTO_SIN_SUGERENCIAS_IA"));
+        var documento = await (await Cliente.GetAsync($"/api/v1/documentos-tecnicos/{id}")).LeerJsonAsync();
+        Assert.That(documento.GetProperty("cantidadFragmentos").GetInt32(), Is.EqualTo(0));
     }
 
     [Test]

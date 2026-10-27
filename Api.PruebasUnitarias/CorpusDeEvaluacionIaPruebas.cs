@@ -35,6 +35,22 @@ public class CorpusDeEvaluacionIaPruebas
     }
 
     [Test]
+    public void ElManualDeEvaluacionSeDivideEnSusProcedimientos()
+    {
+        var nombre = "manual-retroexcavadora-rx200.pdf";
+        var fragmentos = DocumentoPdf.Extraer(File.ReadAllBytes(Path.Combine(RutaDelCorpus(), nombre)));
+        var fuentes = fragmentos.Select((fragmento, indice) =>
+            new FuenteDocumento(indice + 1, fragmento.Pagina, fragmento.Texto, nombre)).ToList();
+
+        var secciones = SeccionesCandidatas.Armar(fuentes);
+        var filtroHidraulico = secciones.Single(seccion => seccion.Titulo == "4.2 Cambio del filtro de aceite hidraulico");
+        var aceiteDelMotor = secciones.Single(seccion => seccion.Titulo == "4.3 Cambio de aceite del motor");
+
+        Assert.That(filtroHidraulico.Cuerpo, Does.Contain("ISO VG 46").And.Contain("25 Nm").And.Not.Contain("15W-40"));
+        Assert.That(aceiteDelMotor.Cuerpo, Does.Contain("15W-40").And.Contain("40 Nm").And.Not.Contain("ISO VG 46"));
+    }
+
+    [Test]
     public void LaGuiaDeSeguridadSeExtrae()
     {
         var fragmentos = DocumentoPdf.Extraer(File.ReadAllBytes(Path.Combine(RutaDelCorpus(), "guia-seguridad-taller.pdf")));

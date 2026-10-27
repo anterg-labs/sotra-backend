@@ -81,7 +81,27 @@ public static class SeccionesCandidatas
             }
         }
 
-        return opciones;
+        // Entre opciones equivalentes, el reranker suele dar puntajes casi iguales: va primero la que tiene en el
+        // título más palabras de la consulta ("cambio de aceite del motor" elige "Cambio de aceite del motor" antes
+        // que "Cambio del filtro de aceite hidráulico"). Con el mismo número se respeta el orden del reranker.
+        return opciones
+            .OrderByDescending(opcion => ContarRaicesEnElTitulo(raicesDeLaConsulta, opcion.Titulo))
+            .ToList();
+    }
+
+    private static int ContarRaicesEnElTitulo(List<string> raicesDeLaConsulta, string titulo)
+    {
+        var raicesDelTitulo = ObtenerRaices(titulo);
+        var cantidad = 0;
+        foreach (var raiz in raicesDeLaConsulta)
+        {
+            if (raicesDelTitulo.Contains(raiz))
+            {
+                cantidad++;
+            }
+        }
+
+        return cantidad;
     }
 
     private static List<SeccionDocumento> UnirSeccionesPartidas(List<FuenteDocumento> fuentes)
@@ -95,11 +115,28 @@ public static class SeccionesCandidatas
         foreach (var fuente in fuentesOrdenadas)
         {
             var seccionesDelFragmento = TextoDelManual.DividirEnSecciones(fuente);
+
+            // Si el solapamiento entre fragmentos repite el título de la sección abierta, el texto sin título del
+            // principio es una copia de lo anterior y no su continuación: se descarta, y la sección repetida, que
+            // trae el cuerpo completo, reemplaza a la abierta en QuitarRepetidas.
+            var repiteLaSeccionAbierta = posicionSeccionAbierta != -1
+                && EsFragmentoSiguiente(secciones[posicionSeccionAbierta], fuente)
+                && TieneTitulo(seccionesDelFragmento, secciones[posicionSeccionAbierta].Titulo);
+            if (repiteLaSeccionAbierta)
+            {
+                posicionSeccionAbierta = -1;
+            }
+
             for (var indice = 0; indice < seccionesDelFragmento.Count; indice++)
             {
                 var seccion = seccionesDelFragmento[indice];
                 var esElPrimerTrozo = indice == 0;
                 var noTieneTitulo = seccion.Titulo.Length == 0;
+                if (esElPrimerTrozo && noTieneTitulo && repiteLaSeccionAbierta)
+                {
+                    continue;
+                }
+
                 var hayUnaSeccionAbierta = posicionSeccionAbierta != -1;
                 var esContinuacion = false;
                 if (esElPrimerTrozo && noTieneTitulo && hayUnaSeccionAbierta)
@@ -130,6 +167,60 @@ public static class SeccionesCandidatas
         }
 
         return secciones;
+    }
+
+    /// <summary>
+    /// Completa una sección que llega al final de su fragmento con el fragmento siguiente. Si el solapamiento repite
+    /// el título, se usa el cuerpo repetido cuando es más largo; si el siguiente empieza sin título, es la continuación.
+    /// </summary>
+    public static SeccionDocumento CompletarConFragmentoSiguiente(SeccionDocumento seccion,
+        List<SeccionDocumento> seccionesSiguientes)
+    {
+        if (seccionesSiguientes.Count == 0)
+        {
+            return seccion;
+        }
+
+        if (seccion.Titulo.Length > 0)
+        {
+            foreach (var siguiente in seccionesSiguientes)
+            {
+                if (siguiente.Titulo != seccion.Titulo)
+                {
+                    continue;
+                }
+
+                if (siguiente.Cuerpo.Length <= seccion.Cuerpo.Length)
+                {
+                    return seccion;
+                }
+
+                return new SeccionDocumento(seccion.FragmentoId, seccion.Pagina, seccion.Documento,
+                    seccion.Titulo, seccion.Contexto, siguiente.Cuerpo, seccion.LlegaAlFinal);
+            }
+        }
+
+        if (seccionesSiguientes[0].Titulo.Length > 0)
+        {
+            return seccion;
+        }
+
+        var cuerpoCompleto = TextoDelManual.UnirContinuacion(seccion.Cuerpo, seccionesSiguientes[0].Cuerpo);
+        return new SeccionDocumento(seccion.FragmentoId, seccion.Pagina, seccion.Documento,
+            seccion.Titulo, seccion.Contexto, cuerpoCompleto, seccion.LlegaAlFinal);
+    }
+
+    private static bool TieneTitulo(List<SeccionDocumento> secciones, string titulo)
+    {
+        foreach (var seccion in secciones)
+        {
+            if (seccion.Titulo == titulo)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int CompararPorId(FuenteDocumento primera, FuenteDocumento segunda)

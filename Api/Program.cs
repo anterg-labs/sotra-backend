@@ -61,7 +61,9 @@ builder.Services.AddOptions<OpcionesDeCacheDeAnalitica>()
     .ValidateOnStart();
 builder.Services.AddSingleton<CacheDeAnalitica>();
 builder.Services.AddScoped<EvidenciaOtDAO>();
-builder.Services.AgregarClienteOllama();
+builder.Services.AgregarGeneradorDeTexto();
+builder.Services.AddScoped<RedactorDeSugerencias>();
+builder.Services.AddSingleton<ServicioEmbeddings>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();

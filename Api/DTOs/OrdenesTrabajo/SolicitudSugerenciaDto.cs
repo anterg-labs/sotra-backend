@@ -15,4 +15,7 @@ public class SolicitudSugerenciaDto
     public int Numero { get; init; } = 1;
 
     public Guid? Sesion { get; init; }
+
+    /// <summary>Activo de la orden. Si viene, la búsqueda usa solo la documentación de esa máquina y la general.</summary>
+    public long? ActivoId { get; init; }
 }

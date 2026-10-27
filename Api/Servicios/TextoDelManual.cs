@@ -6,6 +6,9 @@ public static class TextoDelManual
 {
     public const string MarcaDeSubtitulo = "¶";
 
+    /// <summary>Encierra los títulos numerados ("§4.2 Cambio del filtro§"); la pone DocumentoPdf al extraer.</summary>
+    public const string MarcaDeTituloNumerado = "§";
+
     private const int LargoMaximoDeSeccionUsadaComoContexto = 150;
     private const int LargoMaximoDeResumenExtractivo = 500;
     private const int CaracteresParaDetectarRepeticion = 40;
@@ -46,6 +49,24 @@ public static class TextoDelManual
 
     private static readonly Regex PatronInicioDeReferenciaCruzada = new("^(?:\\(\\d|[“”\"])");
 
+    // Exige un número o una mayúscula pegados a la marca de apertura: una marca de cierre suelta, que queda cuando un
+    // título se parte entre dos fragmentos, va seguida de un espacio y no se empareja con la del título siguiente.
+    private static readonly Regex PatronTituloNumeradoMarcado = new(
+        MarcaDeTituloNumerado + "(\\d{1,2}\\.(?:\\d{1,2}\\.?)*\\s+[^" + MarcaDeTituloNumerado + ".]{2,100}"
+        + "|(?:\\d{1,4}\\s+)?\\p{Lu}[^" + MarcaDeTituloNumerado + ".:;!?]{1,80})" + MarcaDeTituloNumerado);
+
+    // Línea de puntos de un índice ("6.6 Engine Oil Pressure - Measure......6-17").
+    private static readonly Regex PatronLineaDePuntos = new("\\.{5,}");
+    private const int LineasDePuntosDeUnIndice = 3;
+
+    /// <summary>
+    /// Un fragmento del índice del manual comparte palabras con casi cualquier consulta, pero no explica nada.
+    /// </summary>
+    public static bool EsIndice(string texto)
+    {
+        return PatronLineaDePuntos.Matches(texto).Count >= LineasDePuntosDeUnIndice;
+    }
+
     public static string LimpiarRuido(string texto)
     {
         var normalizado = DocumentoPdf.Normalizar(texto);
@@ -71,7 +92,7 @@ public static class TextoDelManual
             inicioPrimerTitulo = titulos[0].Inicio;
         }
 
-        var textoAntesDelPrimerTitulo = texto.Substring(0, inicioPrimerTitulo).Trim();
+        var textoAntesDelPrimerTitulo = QuitarMarcasDeTitulo(texto.Substring(0, inicioPrimerTitulo));
         if (textoAntesDelPrimerTitulo.Length > 0)
         {
             var noHayTitulos = titulos.Count == 0;
@@ -91,7 +112,7 @@ public static class TextoDelManual
                 llegaAlFinal = false;
             }
 
-            var cuerpo = texto.Substring(titulo.Fin, finCuerpo - titulo.Fin).Trim(' ', ',');
+            var cuerpo = QuitarMarcasDeTitulo(texto.Substring(titulo.Fin, finCuerpo - titulo.Fin)).Trim(' ', ',');
             secciones.Add(new SeccionDocumento(fuente.Id, fuente.Pagina, fuente.Documento,
                 titulo.Texto, contexto, cuerpo, llegaAlFinal));
 
@@ -125,7 +146,13 @@ public static class TextoDelManual
 
     public static string QuitarMarcasInternas(string texto)
     {
-        var sinMarcas = texto.Replace(MarcaDeSubtitulo, " ");
+        var sinMarcas = texto.Replace(MarcaDeSubtitulo, " ").Replace(MarcaDeTituloNumerado, " ");
+        return PatronEspacios.Replace(sinMarcas, " ").Trim();
+    }
+
+    private static string QuitarMarcasDeTitulo(string texto)
+    {
+        var sinMarcas = texto.Replace(MarcaDeTituloNumerado, " ");
         return PatronEspacios.Replace(sinMarcas, " ").Trim();
     }
 
@@ -143,9 +170,16 @@ public static class TextoDelManual
             return "";
         }
 
+        // Se busca la primera letra y no el primer carácter, para los títulos numerados ("4.2 Cambio...").
         var minusculas = titulo.ToLowerInvariant();
-        var primeraLetra = char.ToUpperInvariant(minusculas[0]);
-        return primeraLetra + minusculas.Substring(1);
+        var posicionPrimeraLetra = 0;
+        while (posicionPrimeraLetra < minusculas.Length - 1 && !char.IsLetter(minusculas[posicionPrimeraLetra]))
+        {
+            posicionPrimeraLetra++;
+        }
+
+        var primeraLetra = char.ToUpperInvariant(minusculas[posicionPrimeraLetra]);
+        return minusculas.Substring(0, posicionPrimeraLetra) + primeraLetra + minusculas.Substring(posicionPrimeraLetra + 1);
     }
 
     public static string RecortarEnOracion(string texto, int largoMaximo)
@@ -173,9 +207,16 @@ public static class TextoDelManual
 
     private static List<TituloEncontrado> BuscarTitulos(string texto)
     {
-        var titulos = new List<TituloEncontrado>();
+        var titulos = BuscarTitulosNumerados(texto);
+        var titulosNumerados = new List<TituloEncontrado>(titulos);
         foreach (Match coincidencia in PatronTitulo.Matches(texto))
         {
+            // Un título numerado en mayúsculas ("§4.2 CAMBIO DE ACEITE§") ya se tomó entero con su número.
+            if (EstaDentroDeUnTitulo(coincidencia.Index, titulosNumerados))
+            {
+                continue;
+            }
+
             var palabrasTitulo = TomarPalabrasAntesDeUnAviso(coincidencia.Value);
             QuitarPalabrasInvalidasDelFinal(palabrasTitulo);
 
@@ -197,7 +238,33 @@ public static class TextoDelManual
             titulos.Add(new TituloEncontrado(inicioTitulo, finTitulo, titulo));
         }
 
+        titulos.Sort((primero, segundo) => primero.Inicio.CompareTo(segundo.Inicio));
         return titulos;
+    }
+
+    private static List<TituloEncontrado> BuscarTitulosNumerados(string texto)
+    {
+        var titulos = new List<TituloEncontrado>();
+        foreach (Match coincidencia in PatronTituloNumeradoMarcado.Matches(texto))
+        {
+            var finConMarca = coincidencia.Index + coincidencia.Length;
+            titulos.Add(new TituloEncontrado(coincidencia.Index, finConMarca, coincidencia.Groups[1].Value.Trim()));
+        }
+
+        return titulos;
+    }
+
+    private static bool EstaDentroDeUnTitulo(int posicion, List<TituloEncontrado> titulos)
+    {
+        foreach (var titulo in titulos)
+        {
+            if (posicion >= titulo.Inicio && posicion < titulo.Fin)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static List<string> TomarPalabrasAntesDeUnAviso(string textoEnMayusculas)

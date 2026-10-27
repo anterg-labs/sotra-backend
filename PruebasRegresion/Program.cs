@@ -74,7 +74,7 @@ Verificar(listado.Select(x => x.Id).SequenceEqual(listado.Select(x => x.Id).Orde
 var json = JsonSerializer.Serialize(listado[0], new JsonSerializerOptions(JsonSerializerDefaults.Web));
 using var documento = JsonDocument.Parse(json);
 Verificar(documento.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet().SetEquals(
-    new[] { "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "roles" }), "JSON conserva contrato de salida");
+    new[] { "id", "nombre", "apellido", "correo", "telefono", "estado", "fechaIngreso", "cantidadOrdenesAsignadas", "roles" }), "JSON conserva contrato de salida");
 Verificar(documento.RootElement.GetProperty("fechaIngreso").GetString() == "2024-02-29", "JSON fecha ISO sin hora");
 Verificar(documento.RootElement.GetProperty("roles")[0].GetProperty("id").GetInt64() == 3, "JSON conserva roles");
 Verificar(await dao.DarBajaLogicaUsuarioAsync(id, CancellationToken.None), "Baja logica funciona");

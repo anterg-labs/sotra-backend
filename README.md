@@ -66,8 +66,11 @@ Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattribute
 | `API_PORT` | Puerto donde se publica la API (`8081`). |
 | `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi`. |
 | `FRONTEND_ORIGIN` | Origen permitido por CORS. |
-| `OLLAMA_BASE_URL` | Ollama, que corre en la máquina: `http://host.docker.internal:11434`. |
-| `RERANKER_CARPETA` | Carpeta con `model_quantized.onnx` y `tokenizer.json`, relativa a `compose.yml`. Se monta en `/modelos`. |
+| `RERANKER_*_RUTA`, `EMBEDDINGS_*_RUTA` | Solo para `dotnet run` fuera de Docker: rutas a una copia local de los modelos. En Docker no se configuran (ver "Modelos de IA y base de datos local"). |
+| `IA_API_URL`, `IA_API_MODELO` | Proveedor que redacta los resúmenes, con API compatible con OpenAI. Vacíos: Groq (`https://api.groq.com/openai/v1/`) con `openai/gpt-oss-20b`. |
+| `IA_API_CLAVE` | Clave del proveedor (console.groq.com). Nunca se sube al repositorio. Sin clave, las sugerencias muestran el texto del manual sin resumir, con aviso. |
+| `IA_API_ESFUERZO` | Se envía como `reasoning_effort` (`low` para GPT-OSS). Vacío para proveedores que no lo aceptan. |
+| `IA_API_LLAMADAS_POR_MINUTO` | Llamadas por minuto al proveedor para toda la API (por defecto `10`), en ventana deslizante. La que se pasa no espera ni llama al proveedor: la sugerencia sale con el texto del manual y `modo = sin_ia`. El reintento de un fallo pasajero no cuenta como otra llamada. |
 | `KC_*` | Keycloak (ver "Keycloak"). |
 | `AUTH_OBLIGATORIA` | `true` exige token de Keycloak en los endpoints protegidos; `false` los deja abiertos mientras el frontend integra el login. |
 | `PROXIES_CONFIANZA` | Direcciones o redes CIDR de los proxies que reenvían `X-Forwarded-For` (por ejemplo Nginx), para que el límite de solicitudes use la IP de cada persona. |
@@ -107,17 +110,17 @@ Construir y levantar todo:
 docker compose up -d --build
 ```
 
-La API queda en `http://localhost:8081` y la consola de Keycloak en `http://localhost:9080/admin`. El backend y Keycloak esperan a que `db-datos` termine. El backend llega a Ollama por `host.docker.internal`, que `compose.yml` define también para Linux (`host-gateway`).
+La API queda en `http://localhost:8081` y la consola de Keycloak en `http://localhost:9080/admin`. El backend y Keycloak esperan a que `db-datos` termine.
 
 El backend de `compose.yml` se ejecuta compilado, sin recarga automática: después de cambiar código hay que reconstruirlo con `docker compose up -d --build backend`.
 
-**Desarrollo con recarga en caliente (lo que se usa a diario):** `compose.dev.yml` es una capa sobre `compose.yml` que solo cambia el servicio `backend` (`Dockerfile.dev`, código montado y `dotnet watch`); base, datos, Keycloak y variables son los mismos. `compose.ia.yml` es otra capa opcional que agrega Ollama, el modelo de embeddings y el reranker en contenedores.
+**Desarrollo con recarga en caliente (lo que se usa a diario):** `compose.dev.yml` es una capa sobre `compose.yml` que solo cambia el servicio `backend` (`Dockerfile.dev`, código montado y `dotnet watch`); base, datos, Keycloak y variables son los mismos. Los modelos de IA locales los descarga `compose.yml` (servicio `modelos-ia`) en las dos formas de levantar el sistema.
 
 ```bash
-docker compose -f compose.yml -f compose.dev.yml -f compose.ia.yml up -d --build
+docker compose -f compose.yml -f compose.dev.yml up -d --build
 ```
 
-Sin la IA en contenedores, omitir `-f compose.ia.yml` (la API usa `OLLAMA_BASE_URL` y `RERANKER_CARPETA` del `.env`). Después de cambiar código no hace falta reconstruir. Si Keycloak recién se importó, hay que copiar el secreto de `sotra-backend-admin` a `KEYCLOAK_ADMIN_SECRETO` (ver la sección de Keycloak). Las variables del entorno del contenedor tienen prioridad sobre el `.env` del repositorio. El `Dockerfile` restaura los paquetes NuGet en una capa aparte, así que la reconstrucción no los vuelve a descargar salvo que cambien.
+Después de cambiar código no hace falta reconstruir. Si Keycloak recién se importó, hay que copiar el secreto de `sotra-backend-admin` a `KEYCLOAK_ADMIN_SECRETO` (ver la sección de Keycloak). Las variables del entorno del contenedor tienen prioridad sobre el `.env` del repositorio. El `Dockerfile` restaura los paquetes NuGet en una capa aparte, así que la reconstrucción no los vuelve a descargar salvo que cambien.
 
 #### Carga automática de datos
 
@@ -226,7 +229,7 @@ Gmail permite unos 500 correos por día.
 >
 > Para poder iniciar sesión sin correo, definir la contraseña a mano en la consola de Keycloak (`http://localhost:9080/admin`, realm `sotra` → Users → el usuario → Credentials → Set password, con *Temporary* desactivado). Los 4 usuarios de prueba (`admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`) ya existen en el Keycloak local con una contraseña definida de este modo.
 >
-> Para habilitar los correos: generar la contraseña de aplicación como se explica arriba, completar `KC_SMTP_USER` (la misma dirección que `KC_SMTP_FROM`) y `KC_SMTP_PASSWORD` en el `.env`, y recrear Keycloak (`docker compose -f compose.yml -f compose.dev.yml -f compose.ia.yml up -d --force-recreate keycloak`). Si el realm ya existía, la configuración de correo importada no se vuelve a aplicar: cambiarla también en la consola (Realm settings → Email).
+> Para habilitar los correos: generar la contraseña de aplicación como se explica arriba, completar `KC_SMTP_USER` (la misma dirección que `KC_SMTP_FROM`) y `KC_SMTP_PASSWORD` en el `.env`, y recrear Keycloak (`docker compose -f compose.yml -f compose.dev.yml up -d --force-recreate keycloak`). Si el realm ya existía, la configuración de correo importada no se vuelve a aplicar: cambiarla también en la consola (Realm settings → Email).
 
 Para probarlo: crear en el realm `sotra` un usuario con un correo real, abrir `http://localhost:9080/realms/sotra/account`, elegir **¿Has olvidado tu contraseña?**, escribir ese correo y abrir el enlace que llega (puede caer en spam). El enlace vence a los 5 minutos.
 
@@ -399,8 +402,8 @@ No se agregan tablas. Las bases nuevas exigen un único registro mediante `CHECK
 Todo lo que necesita el backend vive dentro de `sotra-backend/`; no hay carpetas auxiliares en la raíz del trabajo.
 
 - **Base de datos:** `docker compose up -d db` (o `docker compose up -d` para base, datos iniciales y API) usa `compose.yml`, el esquema de `database/init/` y las variables del `.env`. Los cambios incrementales están en `database/cambios/` y se aplican a mano.
-- **Modelos de IA:** `compose.ia.yml` define el volumen `sotra_modelos_reranker` (reranker ONNX y tokenizador, ~560 MB) y `sotra_modelos_ollama` (modelos de Ollama). El servicio `reranker-modelo` los descarga la primera vez, el backend los monta en `/modelos` (solo lectura) y `.env.example` ya apunta a `RERANKER_MODELO_RUTA=/modelos/model_quantized.onnx`.
-- Para ver o reponer el volumen: `docker volume inspect sotra_modelos_reranker`; si se borra, `docker compose -f compose.yml -f compose.ia.yml up -d` lo vuelve a llenar.
+- **Modelos de IA:** no dependen de archivos del equipo. El servicio `modelos-ia` de `compose.yml` descarga al volumen `sotra_modelos_reranker` el reranker (~560 MB) y los embeddings `bge-m3` (`embeddings/`, ~570 MB), ambos ONNX cuantizados con su tokenizador y de revisiones fijas de Hugging Face. Solo baja lo que falta: la primera vez tarda unos minutos y después termina al instante. El backend espera a que termine y monta el volumen en `/modelos` (solo lectura). El volumen `sotra_modelos_ollama` de versiones anteriores ya no se usa y se puede borrar con `docker volume rm sotra_modelos_ollama`.
+- Para ver o reponer el volumen: `docker volume inspect sotra_modelos_reranker`; si se borra, `docker compose up -d` lo vuelve a llenar.
 
 ## Orden de los listados
 
@@ -410,15 +413,15 @@ Cada listado paginado define su lista cerrada de columnas ordenables: `ColumnasO
 
 Los errores explícitos de los controladores se crean con `this.RespuestaDeError(estado, codigo, mensaje)` (`Api/Infraestructura/RespuestasDeError.cs`): `ProblemDetails` con `codigo` estable, `mensaje` e `idCorrelacion`, igual que el manejo global. No se devuelven objetos anónimos como error. Prueba: `Api.Pruebas/Caracterizacion/FormatoDeErroresPruebas.cs`.
 
-## Resiliencia de Ollama
+## Resiliencia del proveedor de IA
 
-`ServicioOllama` recibe un `HttpClient` de `IHttpClientFactory` (`Api/Infraestructura/ConfiguracionDeOllama.cs`) con `Microsoft.Extensions.Http.Resilience` 10.11.0 (MIT, mantenido por Microsoft; agrega Polly 8 como dependencia). Reintenta hasta 2 veces con retroceso exponencial solo los fallos transitorios (error de conexión, 408, 429 y 5xx; un 4xx no se reintenta), tiene un límite de 5 minutos por intento y 10 en total, y corta el circuito 30 segundos cuando fallan la mitad de las solicitudes de una muestra de al menos 5. Con el circuito abierto la API responde `502 SERVICIO_IA_NO_DISPONIBLE` de inmediato en vez de esperar. `ServicioReranker` no usa HTTP (ONNX local), así que no lleva esta política. Pruebas: `Api.PruebasUnitarias/ClienteOllamaPruebas.cs`.
+`GeneradorDeTextoPorApi` recibe un `HttpClient` de `IHttpClientFactory` (`Api/Infraestructura/ConfiguracionDeGeneradorDeTexto.cs`) con `Microsoft.Extensions.Http.Resilience` 10.11.0 (MIT, mantenido por Microsoft; agrega Polly 8 como dependencia). Reintenta una vez los fallos transitorios (error de conexión, 408, 429 y 5xx; un 4xx no se reintenta), espera como máximo 15 segundos por intento y 20 en total, y corta el circuito 30 segundos cuando fallan la mitad de las solicitudes de una muestra de al menos 5. Si el proveedor no responde, rechaza el pedido o falta `IA_API_CLAVE`, `RedactorDeSugerencias` usa el texto del manual sin resumir y la respuesta lleva `modo = "sin_ia"`: una sugerencia nunca falla por el proveedor. Una clave inválida, un modelo inexistente o la falta de clave quedan en el log como error; una caída o una demora, como advertencia. Los embeddings y el reranker no usan HTTP (ONNX dentro de la API). Pruebas: `Api.PruebasUnitarias/GeneradorDeTextoPorApiPruebas.cs` y `RedactorDeSugerenciasPruebas.cs`.
 
 ## Observabilidad (OpenTelemetry)
 
 Trazas y métricas con OpenTelemetry, **apagadas por defecto**: no cambian nada hasta definir un destino. Se activan con `OTEL_EXPORTER_OTLP_ENDPOINT` (por ejemplo el receptor OTLP de Grafana Alloy del VPS, `http://127.0.0.1:4318` con `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`) o con `Observabilidad__Habilitada=true`; se apagan con `Observabilidad__Habilitada=false`. El destino, los encabezados de autenticación, el muestreo y el nombre del servicio (`OTEL_SERVICE_NAME`, por defecto `sotra-api`) usan las variables estándar `OTEL_*`. Código en `Api/Infraestructura/Observabilidad.cs`.
 
-- **Trazas:** cada solicitud HTTP entrante (sin `/health`), las llamadas salientes (`HttpClient`, Ollama) y cada comando a PostgreSQL (fuente `Npgsql`).
+- **Trazas:** cada solicitud HTTP entrante (sin `/health`), las llamadas salientes (`HttpClient`, proveedor de IA) y cada comando a PostgreSQL (fuente `Npgsql`).
 - **Métricas estándar:** ASP.NET Core (solicitudes, duración, errores), `HttpClient`, tiempo de ejecución .NET (GC, hilos, memoria), Npgsql (conexiones, comandos) y EF Core.
 - **Métricas de SOTRA** (medidor `Sotra.Api`): `sotra.acciones` (altas, modificaciones, bajas, movimientos y cambios de estado, por recurso, acción y clase de resultado), `sotra.sugerencias_ia.duracion` (histograma en segundos, por resultado `ok`, `sin_contexto`, `no_disponible` o `error`), `sotra.reportes_generados` (por tipo y formato) y `sotra.entradas_rechazadas`. Además, `RecolectorDeMetricasDeNegocio` (solo si la observabilidad está habilitada) mide cada 60 segundos, con un límite de 10 segundos, medidores observables: `sotra.ordenes.por_estado` (etiqueta `estado`), `sotra.ordenes.horas_hasta_el_cierre` (promedio de los últimos 7 días, en horas), `sotra.repuestos.con_stock_bajo` y `sotra.repuestos.sin_stock`. Si una medición falla, conserva la anterior y registra una advertencia. Prueba: `Api.Pruebas/Caracterizacion/MetricasDeNegocioPruebas.cs`.
 - **Logs:** cada línea lleva `IdCorrelacion` y `TraceId`, para pasar de un log a su traza.
@@ -528,7 +531,7 @@ El usuario que registra la evidencia (`id_usuario`) es el del token (ver "Usuari
 
 El equipo decidió que la validación se hace en el formulario de la orden: las sugerencias que quedan en la orden son las aceptadas y las que el usuario quitó son las descartadas (ver `ACLARACIONES-FUNCIONALIDADES.md`). Todas quedan registradas en `historial_recomendaciones_ia` para analizar el modelo; este historial no se muestra al usuario. Requiere las columnas del punto 4 de `SUGERENCIAS-SQL.md` (ya aplicadas en la base local).
 
-- `POST /api/v1/ordenes-trabajo/sugerencia` recibe además `sesion` (UUID que crea el formulario). Después de generar la sugerencia, `OrdenTrabajoDAO.RegistrarSugerenciaGenerada` la guarda sin orden, con `sesion`, `consulta` (la descripción), `numero_intento`, `fecha_generacion` y `resultado = pendiente`.
+- `POST /api/v1/ordenes-trabajo/sugerencia` recibe además `sesion` (UUID que crea el formulario). Después de generar la sugerencia, `OrdenTrabajoDAO.RegistrarSugerenciaGenerada` la guarda sin orden, con `sesion`, `consulta` (la descripción), `numero_intento`, `fecha_generacion`, `resultado = pendiente` y `modo` (`ia`, `sin_ia` o `descartada`; ver "Sugerencias"). Las bases existentes reciben la columna `modo` con `database/cambios/2026-10-24-historial-ia-modo.sql`.
 - `POST` y `PUT` de órdenes reciben `sesion`. Al guardar, `ReemplazarSugerencias` asocia a la orden las sugerencias pendientes de esa sesión: las que siguen en la lista quedan `aceptada` (y `estado = true`), el resto `descartada`. Las sugerencias que ya tenía la orden y no cambiaron se conservan; las quitadas al editar pasan a `estado = false`.
 - Las sugerencias de formularios abandonados quedan con `resultado = pendiente` y sin orden.
 - `GET /api/v1/ordenes-trabajo` acepta `conSugerencias=true` para listar solo las órdenes con recomendaciones.
@@ -587,22 +590,27 @@ El código está en `Api/Servicios/`, un archivo por responsabilidad:
 | `TextoDelManual.cs` | Limpiar el ruido del PDF y dividir el texto en secciones por sus títulos. |
 | `AdvertenciasDelManual.cs` | Separar las advertencias del resto de la sección. |
 | `SeccionesCandidatas.cs` | Unir secciones partidas, quitar repetidas y detectar opciones ambiguas. |
-| `RedaccionDeSugerencia.cs` | Instrucciones para Qwen, guardia de números y formato final de la respuesta. |
-| `ServicioOllama.cs` / `ServicioReranker.cs` | Llamadas a Ollama (bge-m3 y Qwen) y al reranker ONNX. |
+| `RedaccionDeSugerencia.cs` | Instrucciones para el modelo, guardia de números y formato final de la respuesta. |
+| `RedactorDeSugerencias.cs` | Pide el resumen al proveedor y decide el modo (`ia`, `sin_ia` o `descartada`). |
+| `GeneradorDeTextoPorApi.cs` | Llamada al proveedor externo (Groq por defecto) con el formato de chat de OpenAI. |
+| `ServicioEmbeddings.cs` / `ServicioReranker.cs` | Embeddings `bge-m3` y reranker, los dos con ONNX dentro de la API. |
 
 Pasos:
 
-1. **Recuperación:** la descripción se convierte en vector con `bge-m3`. Después se hacen dos búsquedas simples y se combinan en C#:
+1. **Recuperación:** la descripción se convierte en vector con `bge-m3` (`ServicioEmbeddings`, ONNX dentro de la API: el vector del primer token, normalizado). Después se hacen dos búsquedas simples y se combinan en C#:
    - `BuscarIdsPorParecidoAsync`: los 30 fragmentos con el embedding más parecido (operador `<=>` de pgvector, distancia coseno).
    - `BuscarIdsPorPalabrasAsync`: los 30 fragmentos que mejor contienen las palabras de la consulta (búsqueda de texto de PostgreSQL en español).
    - `CombinarRankings`: cada fragmento suma `1 / (60 + posición)` por cada lista en la que aparece (fusión de rankings RRF). Así, un fragmento que está alto en las dos listas queda primero.
-   - `LeerFragmentosCercanosAsync`: se descartan los que están demasiado lejos (`DistanciaMaximaPermitida`) y se quedan los 18 de mayor puntaje.
+   - `LeerFragmentosCercanosAsync`: se descartan los que llegaron solo por parecido y están demasiado lejos (`DistanciaMaximaPermitida`); los que contienen las palabras de la consulta pasan igual, porque un fragmento largo que mezcla procedimientos queda lejos de cualquier consulta y el reranker decide después. Se quedan los 18 de mayor puntaje.
 2. **Limpieza:** se quitan encabezados de página con número (por ejemplo `MANTENIMIENTO PROCEDIMIENTO DE MANTENIMIENTO 4-67`), marcadores de sección pegados a los títulos (`ACEITE4 ADVERTENCIA`) y viñetas mal extraídas (`l `). Los números técnicos (horas, litros, medidas) no se tocan.
-3. **Secciones:** cada fragmento se corta en secciones usando los títulos en mayúsculas del propio PDF. Si una sección sigue en el fragmento siguiente, se une. Un título corto seguido de otro (por ejemplo "Mantenimiento cada 2000 horas") se pasa como contexto de la sección siguiente. Las secciones repetidas se descartan.
+3. **Secciones:** cada fragmento se corta en secciones usando los títulos del propio PDF: los títulos en mayúsculas y los numerados con línea propia ("4.2 Cambio del filtro"), que `DocumentoPdf` marca al extraer, antes de unir las líneas. Si el solapamiento entre fragmentos repite un título, se usa la copia que trae el cuerpo completo. Si una sección sigue en el fragmento siguiente, se une. Un título corto seguido de otro (por ejemplo "Mantenimiento cada 2000 horas") se pasa como contexto de la sección siguiente. Las secciones repetidas se descartan.
 4. **Reranking:** `bge-reranker-v2-m3` lee juntos la consulta y cada sección, y le da un puntaje de qué tan bien la responde. Es más preciso que el embedding porque compara los dos textos a la vez. En `ServicioReranker`: `ArmarLotes` agrupa las secciones de a 4, `ArmarSecuencia` une los tokens de la consulta y de la sección con los separadores que espera el modelo, `CalcularPuntajes` arma los tensores y ejecuta el modelo ONNX, y `CompararDeMayorAMenorPuntaje` ordena el resultado. Si la mejor sección tiene puntaje negativo, responde `422` (`SIN_CONTEXTO_TECNICO`).
 5. **Ambigüedad:** si otras secciones relevantes (a menos de 3 puntos de la mejor) contienen en su título las mismas palabras de la consulta que la mejor, la consulta no alcanza para distinguirlas y se listan como opciones en "Aclaración". La comparación usa raíces de palabras sin tildes, sin reglas ni palabras propias de un documento.
 6. **Advertencias:** se copian literalmente del manual (bloques `ADVERTENCIA`, `PRECAUCIÓN`, `PELIGRO`, `AVISO`, `IMPORTANTE`), sin pasar por el modelo. Una advertencia termina en el siguiente paso numerado, en otra palabra de aviso o en un subtítulo en minúsculas del PDF (por ejemplo "Comprobación 4 …" o "Sustitución • …"); lo que sigue vuelve al cuerpo de la sección. Si una advertencia es larga, se corta al final de una oración.
-7. **Resumen:** si al quitar las advertencias queda menos de `LargoMinimoDeSeccion` caracteres, se resume la sección completa, para que la respuesta nunca quede vacía. Qwen (`qwen2.5:7b`, temperatura 0) resume la sección elegida en 2 a 4 oraciones con instrucciones de no agregar nada. Si el resumen contiene un número que no está en el texto del manual, o si Ollama falla, se descarta y se usa un extracto limpio del manual.
+7. **Resumen:** si al quitar las advertencias queda menos de `LargoMinimoDeSeccion` caracteres, se resume la sección completa, para que la respuesta nunca quede vacía. El proveedor externo (por defecto Groq con `openai/gpt-oss-20b`, temperatura 0) resume la sección elegida en 2 a 4 oraciones, con instrucciones de no agregar nada y de conservar las obligaciones como obligaciones. La respuesta trae `modo`:
+   - `ia`: el resumen pasó el control de números.
+   - `descartada`: el resumen tenía un número que no está en el manual; se usa un extracto limpio del manual, sin aviso.
+   - `sin_ia`: el proveedor no respondió, rechazó el pedido o no hay clave; se usa el extracto y el frontend avisa que el asistente no está disponible.
 8. **Formato:** el texto empieza directamente con la respuesta, sin título (si la sección tiene contexto del manual, como "Mantenimiento cada 2000 horas…", se copia literal en la primera línea). Después siguen `Advertencias:` (si hay), `Aclaración:` (si es ambigua) y `Fuente:` (documento, página y sección). No se agrega un aviso de revisión: por decisión del equipo, quien usa la pantalla ya sabe que se trata de una sugerencia. Esto se aparta del paso 9 de la Especificación de Requerimientos y de ENDPOINTS-BACKEND.md, que piden indicar que es información de apoyo.
 
 ### Qué significa cada constante
@@ -618,24 +626,27 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 | `AdvertenciasDelManual` | `MaximoDeAdvertencias` / `LargoMaximoDeAdvertencia` | 4 / 350 | Cuántas advertencias se muestran y cuánto texto como máximo cada una. |
 | `AdvertenciasDelManual` | `LargoMinimoDeVinetaDeAdvertencia` | 60 | Una viñeta más corta, o con ":", se considera un dato (capacidad, herramienta) y no una advertencia. |
 | `SeccionesCandidatas` | `LetrasDeRaiz` | 5 | Cuántas letras se comparan para decidir si dos palabras son la misma ("cambio" y "cambiar" → "cambi"). |
-| `ServicioDocumentosTecnicos` | `FragmentosPorPedidoDeEmbeddings` | 8 | Cuántos fragmentos se mandan juntos a Ollama al procesar un PDF. |
+| `ServicioDocumentosTecnicos` | `FragmentosPorPedidoDeEmbeddings` | 8 | Cada cuántos fragmentos se revisa si el pedido se canceló mientras se calculan los embeddings de un PDF. |
 | `ServicioSugerencias` | `ResultadosPorTipoDeBusqueda` | 30 | Candidatos que trae cada búsqueda (vectorial y textual) antes de combinarlas. |
 | `ServicioSugerencias` | `ConstanteDeFusionDeRankings` | 60 | Constante estándar de la fusión RRF: puntaje = 1 / (60 + posición). |
-| `ServicioSugerencias` | `DistanciaMaximaPermitida` | 0.45 | Distancia coseno máxima: un fragmento más lejano se considera no relacionado. |
+| `ServicioSugerencias` | `DistanciaMaximaPermitida` | 0.45 | Distancia coseno máxima para los fragmentos que llegaron solo por parecido; los que coinciden por palabras no se filtran. |
 | `ServicioSugerencias` | `MaximoDeFragmentosRecuperados` | 18 | Fragmentos que pasan a la etapa de secciones. |
 | `ServicioSugerencias` | `MargenDePuntajeParaSeccionesRelevantes` | 3 | Una sección es relevante si su puntaje del reranker está a menos de 3 puntos de la mejor. |
 | `SeccionesCandidatas` | `LargoMinimoDeSeccion` | 80 | Secciones más cortas (índices, listas de títulos) se descartan. |
-| `RedaccionDeSugerencia` | `LargoMaximoDeTextoParaQwen` | 3000 | Caracteres del manual que recibe Qwen como máximo. |
-| `RedaccionDeSugerencia` | `LargoMinimoDeResumen` / `LargoMaximoDeResumen` | 20 / 1200 | Un resumen de Qwen fuera de ese largo se descarta. |
-| `ServicioOllama` | `ModeloDeEmbeddings` / `ModeloDeGeneracion` | `bge-m3` / `qwen2.5:7b` | Modelos que se piden a Ollama. |
-| `ServicioOllama` | `DimensionesDelEmbedding` | 1024 | Largo del vector que devuelve `bge-m3`; debe coincidir con `VECTOR(1024)` de la tabla. |
+| `RedaccionDeSugerencia` | `LargoMaximoDeTextoParaElModelo` | 3000 | Caracteres del manual que recibe el modelo como máximo. |
+| `RedaccionDeSugerencia` | `LargoMinimoDeResumen` / `LargoMaximoDeResumen` | 20 / 1200 | Un resumen fuera de ese largo se descarta. |
+| `GeneradorDeTextoPorApi` | `UrlPorDefecto` / `ModeloPorDefecto` | Groq / `openai/gpt-oss-20b` | Proveedor y modelo cuando `IA_API_URL` e `IA_API_MODELO` están vacíos. |
+| `GeneradorDeTextoPorApi` | `TokensMaximosDeRespuesta` | 1024 | Tokens de salida; holgado porque, en los modelos que razonan, el razonamiento también cuenta. |
+| `ConfiguracionDeGeneradorDeTexto` | `SegundosMaximosPorIntento` / `SegundosMaximosEnTotal` | 15 / 20 | Pasado ese tiempo se usa el texto del manual sin resumir (`modo = sin_ia`). |
+| `ServicioEmbeddings` | `DimensionesDelEmbedding` | 1024 | Largo del vector de `bge-m3`; debe coincidir con `VECTOR(1024)` de la tabla. |
+| `ServicioEmbeddings` | `TokensMaximosPorTexto` / `TextosPorLote` | 1024 / 1 | Tokens por texto (un fragmento de 1400 caracteres usa unos 500) y textos por ejecución del modelo. De a uno, porque en el modelo cuantizado el relleno de un lote cambia el vector. |
 | `ServicioReranker` | `TokenDeInicio` / `TokenSeparador` | 0 / 2 | Tokens especiales que el modelo del reranker espera al inicio y entre la consulta y el texto. |
 | `ServicioReranker` | `TokensMaximosPorPar` | 512 | Límite de tokens que acepta el reranker para consulta + texto. |
 | `OrdenTrabajoMapeador` | `PrioridadBajaEnBase` / `Media` / `Alta` | 1 / 3 / 5 | Cómo se guardan en la base las prioridades `baja`, `media` y `alta` de la API. |
 
 `numero` (1, 2, 3…) recorre las opciones: con una consulta ambigua, cada nueva solicitud devuelve la siguiente opción.
 
-Requisito: Ollama debe tener `qwen2.5:7b` además de `bge-m3` (`ollama pull qwen2.5:7b`, unos 4,7 GB). En CPU, cada sugerencia tarda entre 25 segundos y 1 minuto; la primera, algo más, porque carga el modelo en memoria (unos 5 GB de RAM).
+Requisitos: la clave del proveedor en `IA_API_CLAVE`; los modelos ONNX los descarga `compose.yml`. No hace falta GPU: el resumen lo hace el proveedor externo y la búsqueda corre en CPU. Los dos modelos locales ocupan alrededor de 1,2 GB de RAM y se cargan con la primera sugerencia. Los documentos procesados antes de esta versión tienen embeddings de Ollama y fragmentos sin los títulos numerados marcados (`version_proceso` anterior a `pdf-v4`): hay que volver a subirlos.
 
 ## Acceso a datos asíncrono y cancelación
 
@@ -687,11 +698,13 @@ Los datos de la base, incluida la configuración de Keycloak, quedan en el volum
 
 Si `POST /api/v1/ordenes-trabajo/sugerencia` responde `502`, mirar el campo `codigo`:
 
-- `SERVICIO_IA_NO_DISPONIBLE`: Ollama no responde. Comprobar que corre y que `OLLAMA_BASE_URL` es alcanzable **desde el contenedor** del backend: en `compose.yml` apunta a `host.docker.internal`, así que Ollama debe escuchar en el equipo anfitrión (por defecto el puerto 11434, con los modelos `bge-m3` y `qwen2.5:7b`). `curl http://localhost:11434/api/tags` debe responder. El detalle queda en el log como advertencia.
+- `SERVICIO_IA_NO_DISPONIBLE`: faltan los modelos locales (embeddings o reranker). En Docker, revisar que el servicio `modelos-ia` terminó bien (`docker compose logs modelos-ia` debe decir "Modelos de IA listos"). Fuera de Docker, que las variables `RERANKER_*_RUTA` y `EMBEDDINGS_*_RUTA` apunten a los archivos. El log lo registra como error. El proveedor externo nunca produce un `502`: si falla, la sugerencia sale con `modo = sin_ia`.
 - `SUGERENCIA_FALLIDA`: otro error en la búsqueda, el reranker o la generación; el log del backend trae la excepción (`LogError`) con el identificador de correlación.
 - `422 SIN_CONTEXTO_TECNICO`: el servicio funciona, pero ningún documento técnico procesado cubre la tarea.
 
-Las pruebas de integración apuntan `OLLAMA_BASE_URL` a un puerto cerrado para comprobar el `502` sin depender de Ollama.
+Si las sugerencias salen siempre con `modo = sin_ia`, revisar `IA_API_CLAVE` y el log: una clave inválida o un modelo inexistente quedan como error.
+
+Las pruebas de integración corren sin modelos locales ni clave del proveedor: comprueban el `502` sin descargar modelos ni llamar a servicios externos.
 
 ## Pruebas unitarias (`Api.PruebasUnitarias`)
 

@@ -8,7 +8,9 @@ namespace Api.Servicios;
 
 public class ServicioDocumentosTecnicos : IAsyncDisposable
 {
-    private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v3:1400:200";
+    // pdf-v5: quita encabezados, pies y etiquetas de figura repetidos. Los documentos procesados con una versión
+    // anterior se actualizan con POST /documentos-tecnicos/{id}/reprocesar.
+    private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v5:1400:200";
     private const int FragmentosPorPedidoDeEmbeddings = 8;
 
     private const string ColumnasDeDocumento = """
@@ -34,12 +36,12 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         ["creadoEn"] = "documento.creado_en",
     };
 
-    private readonly ServicioOllama _ollama;
+    private readonly ServicioEmbeddings _embeddings;
     private readonly NpgsqlDataSource _baseDatos;
 
-    public ServicioDocumentosTecnicos(ServicioOllama ollama)
+    public ServicioDocumentosTecnicos(ServicioEmbeddings embeddings)
     {
-        _ollama = ollama;
+        _embeddings = embeddings;
         _baseDatos = BaseVectorial.CrearConexion();
     }
 
@@ -127,7 +129,7 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         if (usaSugerenciasIa)
         {
             fragmentos = ExtraerFragmentos(archivo);
-            vectores = await CrearVectoresAsync(fragmentos, cancellationToken);
+            vectores = CrearVectores(fragmentos, cancellationToken);
         }
 
         var huella = Convert.ToHexString(SHA256.HashData(archivo));
@@ -189,6 +191,89 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ActivoId));
         comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ModeloMaquinaId));
         return await comando.ExecuteNonQueryAsync(cancellationToken) == 0 ? null : await ObtenerAsync(id, cancellationToken);
+    }
+
+    /// <summary>
+    /// Vuelve a extraer los fragmentos del PDF guardado con la versión actual del procesamiento y reemplaza los
+    /// anteriores. El documento conserva su id y sus datos generales. Devuelve <c>null</c> si no existe.
+    /// </summary>
+    public async Task<DocumentoTecnicoDto?> ReprocesarAsync(long id, CancellationToken cancellationToken)
+    {
+        await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+        byte[]? archivo = null;
+        string nombreArchivo;
+        long? documentoVectorialAnterior = null;
+        await using (var leer = _baseDatos.CreateCommand("""
+            SELECT archivo, nombre_archivo, usa_sugerencias_ia, documento_vectorial_id
+            FROM vectorial.documento_tecnico WHERE id = $1
+            """))
+        {
+            leer.Parameters.AddWithValue(id);
+            await using var lector = await leer.ExecuteReaderAsync(cancellationToken);
+            if (!await lector.ReadAsync(cancellationToken))
+            {
+                return null;
+            }
+
+            if (!lector.GetBoolean(2))
+            {
+                throw new ConflictoDeDatosException("DOCUMENTO_SIN_SUGERENCIAS_IA",
+                    "El documento no se usa para las sugerencias de IA: no hay nada que reprocesar.");
+            }
+
+            if (!lector.IsDBNull(0))
+            {
+                archivo = (byte[])lector[0];
+            }
+
+            nombreArchivo = lector.GetString(1);
+            if (!lector.IsDBNull(3))
+            {
+                documentoVectorialAnterior = lector.GetInt64(3);
+            }
+        }
+
+        if (archivo is null || archivo.Length == 0)
+        {
+            throw new ConflictoDeDatosException("DOCUMENTO_SIN_ARCHIVO",
+                "El documento no tiene el PDF guardado. Hay que volver a subirlo.");
+        }
+
+        var fragmentos = ExtraerFragmentos(archivo);
+        var vectores = CrearVectores(fragmentos, cancellationToken);
+        var huella = Convert.ToHexString(SHA256.HashData(archivo));
+
+        await using var conexion = await _baseDatos.OpenConnectionAsync(cancellationToken);
+        await using var transaccion = await conexion.BeginTransactionAsync(cancellationToken);
+        var documentoVectorialNuevo = await InsertarFragmentosAsync(conexion, transaccion,
+            nombreArchivo, huella, fragmentos, vectores, cancellationToken);
+
+        await using (var actualizar = new NpgsqlCommand("""
+            UPDATE vectorial.documento_tecnico
+            SET documento_vectorial_id = $2, cantidad_fragmentos = $3
+            WHERE id = $1
+            """, conexion, transaccion))
+        {
+            actualizar.Parameters.AddWithValue(id);
+            actualizar.Parameters.AddWithValue(documentoVectorialNuevo);
+            actualizar.Parameters.AddWithValue(fragmentos.Count);
+            await actualizar.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // Otro documento técnico puede compartir los fragmentos anteriores (el mismo PDF subido dos veces).
+        if (documentoVectorialAnterior.HasValue)
+        {
+            await using var borrar = new NpgsqlCommand("""
+                DELETE FROM vectorial.documentos
+                WHERE id = $1
+                  AND NOT EXISTS (SELECT 1 FROM vectorial.documento_tecnico WHERE documento_vectorial_id = $1)
+                """, conexion, transaccion);
+            borrar.Parameters.AddWithValue(documentoVectorialAnterior.Value);
+            await borrar.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaccion.CommitAsync(cancellationToken);
+        return await ObtenerAsync(id, cancellationToken);
     }
 
     /// <summary>Marca un documento como vigente u obsoleto. Las sugerencias de IA solo usan los vigentes.</summary>
@@ -282,24 +367,21 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         return fragmentos;
     }
 
-    private async Task<List<float[]>> CrearVectoresAsync(List<FragmentoDocumento> fragmentos,
-        CancellationToken cancellationToken)
+    // Los embeddings se calculan en la API por lotes; entre lote y lote se respeta la cancelación del pedido.
+    private List<float[]> CrearVectores(List<FragmentoDocumento> fragmentos, CancellationToken cancellationToken)
     {
         var vectores = new List<float[]>();
-        var textosDelPedido = new List<string>();
-        foreach (var fragmento in fragmentos)
+        for (var inicio = 0; inicio < fragmentos.Count; inicio += FragmentosPorPedidoDeEmbeddings)
         {
-            textosDelPedido.Add(fragmento.Texto);
-            if (textosDelPedido.Count == FragmentosPorPedidoDeEmbeddings)
+            cancellationToken.ThrowIfCancellationRequested();
+            var textosDelLote = new List<string>();
+            var fin = Math.Min(inicio + FragmentosPorPedidoDeEmbeddings, fragmentos.Count);
+            for (var posicion = inicio; posicion < fin; posicion++)
             {
-                vectores.AddRange(await _ollama.CrearEmbeddingsAsync(textosDelPedido, cancellationToken));
-                textosDelPedido = new List<string>();
+                textosDelLote.Add(fragmentos[posicion].Texto);
             }
-        }
 
-        if (textosDelPedido.Count > 0)
-        {
-            vectores.AddRange(await _ollama.CrearEmbeddingsAsync(textosDelPedido, cancellationToken));
+            vectores.AddRange(_embeddings.Crear(textosDelLote));
         }
 
         return vectores;
