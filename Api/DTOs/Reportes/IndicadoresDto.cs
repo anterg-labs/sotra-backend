@@ -9,7 +9,6 @@ public class IndicadoresDto
     public List<CantidadPorGrupoDto> OrdenesPorEstado { get; init; } = new();
     public List<CantidadPorGrupoDto> OrdenesPorPrioridad { get; init; } = new();
     public List<CantidadPorGrupoDto> OrdenesPorTipo { get; init; } = new();
-    public List<CantidadPorGrupoDto> OrdenesPorTecnico { get; init; } = new();
     public List<CantidadPorGrupoDto> ActivosConMasIntervenciones { get; init; } = new();
     public List<RepuestoDto> RepuestosBajoStock { get; init; } = new();
     public double? PromedioHorasHastaInicio { get; init; }

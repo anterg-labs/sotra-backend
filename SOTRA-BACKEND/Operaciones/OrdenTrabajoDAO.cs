@@ -192,10 +192,6 @@ public class OrdenTrabajoDAO
         _contexto.Activos.AsNoTracking().Where(a => a.IdActivo == id)
             .Select(a => string.IsNullOrWhiteSpace(a.Nombre) ? a.NumSerie : a.Nombre).FirstOrDefaultAsync(cancelacion);
 
-    public Task<string?> ObtenerNombreDeTecnicoAsync(long id, CancellationToken cancelacion) =>
-        _contexto.Usuarios.AsNoTracking().Where(u => u.IdUsuario == id).Select(u => u.Nombre + " " + u.Apellido)
-            .FirstOrDefaultAsync(cancelacion);
-
     private static IQueryable<OrdenTrabajo> AplicarPrioridad(IQueryable<OrdenTrabajo> consulta, string? prioridad)
     {
         return prioridad switch

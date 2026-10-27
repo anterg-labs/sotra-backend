@@ -274,7 +274,7 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 | `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, jefe_mantenimiento, panolero |
 | `repuesto.gestionar` | `POST`, `PUT`, `PATCH /repuestos`, `PATCH /repuestos/{id}/stock-minimo` | administrador, panolero |
 | `stock.registrar_movimiento` | `POST /repuestos/{id}/ingresos`, `/egresos` y `/ajustes` | administrador, panolero |
-| `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` y `/csv`, y el dashboard analítico (`/reportes/tendencias`, `/tiempos`, `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria`) | administrador, jefe_mantenimiento |
+| `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` y `/csv`, y el dashboard analítico (`/reportes/tendencias`, `/tiempos`, `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria`, `/desempeno`) | administrador, jefe_mantenimiento |
 | `terminos.administrar` | `POST /terminos` | administrador |
 
 `GET /terminos/vigente`, el estado y la aceptación de los términos no tienen política propia: alcanza con una sesión iniciada.
@@ -546,7 +546,7 @@ El equipo decidió que la validación se hace en el formulario de la orden: las 
 
 Dashboard de RF007-01, sin permisos. `ReportesController` no tiene DAO propio: usa `OrdenTrabajoDAO.ListarTodo` y `RepuestoDAO.ListarTodo`, pasa cada orden por `OrdenTrabajoMapeador.ADto` (así el estado, la prioridad y el tipo son los mismos textos que devuelve `/ordenes-trabajo`) y cuenta en memoria.
 
-Respuesta: `totalOrdenes`; `ordenesPorEstado`, `ordenesPorPrioridad`, `ordenesPorTipo`, `ordenesPorTecnico` y `activosConMasIntervenciones` como listas de `{ "nombre": "...", "cantidad": 0 }`; y `repuestosBajoStock` como lista de `RepuestoDto`. Solo aparecen los grupos con al menos una orden. Las órdenes sin técnico no se cuentan por técnico. Los activos se ordenan de mayor a menor y se devuelven los 5 primeros. Un repuesto tiene bajo stock si está activo y su `cantidad` es menor o igual a su `cantidadMinima`.
+Respuesta: `totalOrdenes`; `ordenesPorEstado`, `ordenesPorPrioridad`, `ordenesPorTipo` y `activosConMasIntervenciones` como listas de `{ "nombre": "...", "cantidad": 0 }`; y `repuestosBajoStock` como lista de `RepuestoDto`. Solo aparecen los grupos con al menos una orden. Los activos se ordenan de mayor a menor y se devuelven los 5 primeros. Un repuesto tiene bajo stock si está activo y su `cantidad` es menor o igual a su `cantidadMinima`.
 
 También devuelve `promedioHorasHastaInicio` y `promedioHorasHastaCierre` (horas promedio entre la creación y `fechaInicio` o `fechaCierre`, con un decimal; `null` si ninguna orden tiene esa fecha), `ordenesAltaPrioridadPendientes` (prioridad `alta` y estado distinto de `en_revision`, `cerrado` y `eliminado`), `ordenesPendientesDeValidacion` (estado `en_revision`) y `ordenesRecientes` (las 5 órdenes más nuevas, con el mismo formato que `GET /ordenes-trabajo`).
 
@@ -576,8 +576,7 @@ Tipos de reporte (`tipoReporte`):
 | `ordenes-trabajo` | Una fila por orden: número, fecha de creación, cliente, activo, técnico, tipo, prioridad y estado |
 | `activos-intervenidos` | Activos con su cliente y la cantidad de órdenes |
 | `repuestos-utilizados` | Repuestos asociados a las órdenes y en cuántas órdenes se usó cada uno |
-| `actividad-tecnicos` | Por técnico: órdenes asignadas, en revisión o cerradas, y pendientes |
-| `indicadores` | Resumen (total y tiempos promedio), órdenes por estado, prioridad y tipo, actividad por técnico y activos intervenidos |
+| `indicadores` | Resumen (total y tiempos promedio), órdenes por estado, prioridad y tipo y activos intervenidos |
 
 Acepta los mismos filtros que `/indicadores` y además `prioridad` (`baja`, `media` o `alta`), que también vale para `/indicadores`. Errores: `400` con `TIPO_REPORTE_INVALIDO` si el tipo no existe y `RANGO_FECHAS_INVALIDO` si las fechas están invertidas.
 
@@ -740,9 +739,11 @@ Rendimiento: `OrdenTrabajoDAO.Filtrar` es la base compartida del listado y de lo
 
 ## Dashboard analítico
 
-`AnaliticaController` expone `GET /api/v1/reportes/tendencias`, `/tiempos` (con duración, tiempo por etapa y cumplimiento de fechas previstas), `/reincidencias`, `/repuestos-usados` y `/alertas-maquinaria` (contratos en `Documentacion/Flujo de datos SOTRA.md`, sección 16). Todo se calcula en la base con `GROUP BY`, `percentile_cont` y funciones de ventana (`LAG` y `LEAD`) en `AnaliticaDAO`, con consultas SQL constantes y parámetros tipados (`@desde`, `@clienteId`, etc.): no se arma SQL con texto de la persona. Los umbrales de las alertas y los días de reincidencia se configuran con la sección `AlertasMaquinaria` (variables `AlertasMaquinaria__SinAsignarHoras`, `__AsignadaSinIniciarHoras`, `__PausadaHoras`, `__MaquinaDetenidaAltaHoras`, `__MaquinaDetenidaMediaHoras`, `__MaquinaDetenidaBajaHoras` y `__ReincidenciaDias`), validada al iniciar (`OpcionesDeAlertasDeMaquinaria`). Los valores por defecto son provisionales hasta acordarlos con el área de postventa.
+`AnaliticaController` expone `GET /api/v1/reportes/tendencias`, `/tiempos` (con duración, tiempo por etapa y cumplimiento de fechas previstas), `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria` y `/desempeno` (contratos en `Documentacion/Flujo de datos SOTRA.md`, sección 16). Todo se calcula en la base con `GROUP BY`, `percentile_cont` y funciones de ventana (`LAG` y `LEAD`) en `AnaliticaDAO`, con consultas SQL constantes y parámetros tipados (`@desde`, `@clienteId`, etc.): no se arma SQL con texto de la persona. Los umbrales de las alertas y los días de reincidencia se configuran con la sección `AlertasMaquinaria` (variables `AlertasMaquinaria__SinAsignarHoras`, `__AsignadaSinIniciarHoras`, `__PausadaHoras`, `__MaquinaDetenidaAltaHoras`, `__MaquinaDetenidaMediaHoras`, `__MaquinaDetenidaBajaHoras` y `__ReincidenciaDias`), validada al iniciar (`OpcionesDeAlertasDeMaquinaria`). Los valores por defecto son provisionales hasta acordarlos con el área de postventa.
 
-**Caché corta.** Las cinco consultas (`tendencias`, `tiempos`, `repuestos-usados`, `reincidencias` y `alertas-maquinaria`) reutilizan el resultado 30 segundos para los mismos filtros (`CacheAnalitica__Segundos`, de 0 a 600; con 0 queda apagada), así que un dato nuevo puede tardar hasta ese tiempo en verse. Las solicitudes simultáneas con los mismos filtros comparten un único cálculo, un error no se guarda y cancelar una solicitud no interrumpe el cálculo de las demás. Código en `Api/Infraestructura/CacheDeAnalitica.cs`; pruebas en `Api.PruebasUnitarias/CacheDeAnaliticaPruebas.cs`.
+**Desempeño operativo (RD-10, 1.0.86).** `GET /api/v1/reportes/desempeno` resume, en el período y con los mismos filtros, las órdenes (creadas, cerradas, eliminadas, abiertas, preventivas y correctivas), los tiempos de respuesta, ejecución y revisión, las pausas y devoluciones con sus motivos más frecuentes, las reasignaciones como dato del proceso y, por tipo de máquina y por activo, las órdenes, la ejecución promedio y las horas de parada. Se resuelve en la base (`AnaliticaDAO`) identificando pausas y devoluciones por la fase de los estados y por `transicion_estado_ot.exige_motivo`, no por nombres. **No evalúa personas:** no hay desglose por técnico (decisión del 2026-10-27). Contrato y ejemplo en `Flujo de datos SOTRA.md`, sección 16.7; las pruebas están en `AnaliticaPruebas`.
+
+**Caché corta.** Las seis consultas (`tendencias`, `tiempos`, `repuestos-usados`, `reincidencias`, `alertas-maquinaria` y `desempeno`) reutilizan el resultado 30 segundos para los mismos filtros (`CacheAnalitica__Segundos`, de 0 a 600; con 0 queda apagada), así que un dato nuevo puede tardar hasta ese tiempo en verse. Las solicitudes simultáneas con los mismos filtros comparten un único cálculo, un error no se guarda y cancelar una solicitud no interrumpe el cálculo de las demás. Código en `Api/Infraestructura/CacheDeAnalitica.cs`; pruebas en `Api.PruebasUnitarias/CacheDeAnaliticaPruebas.cs`.
 
 ## Auditoría de acciones
 

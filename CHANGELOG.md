@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Version 1.0.88 (2026-10-27)
+
+- Reportes: se elimina todo análisis por persona. Ya no existe el reporte de actividad por técnico (`actividad-tecnicos` responde `400 TIPO_REPORTE_INVALIDO`), los indicadores no traen `ordenesPorTecnico` y los reportes y la analítica no filtran por técnico (un `tecnicoId` se ignora).
+
+## Version 1.0.87 (2026-10-27)
+
+- Reportes: nuevo `GET /api/v1/reportes/desempeno` con el desempeño operativo de órdenes, procesos y maquinaria (órdenes por estado, tiempos de respuesta, ejecución y revisión, pausas y devoluciones con sus motivos, reasignaciones y horas de parada por tipo de máquina y por activo). No evalúa el desempeño de las personas.
+
 ## Version 1.0.86 (2026-10-26)
 
 - Órdenes de trabajo: la orden informa quién la creó (`responsableId` y `nombreResponsable`).
