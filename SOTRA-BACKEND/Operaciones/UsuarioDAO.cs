@@ -133,6 +133,22 @@ public class UsuarioDAO
         return usuario;
     }
 
+    /// <summary>Cambia solo nombre, apellido y teléfono de un usuario (su propio perfil); <c>null</c> si no existe.</summary>
+    public async Task<Usuario?> ActualizarDatosPersonalesAsync(
+        long idUsuario, string nombre, string apellido, string telefono, CancellationToken cancelacion)
+    {
+        var usuario = await _contexto.Usuarios.Include(u => u.IdRols)
+            .FirstOrDefaultAsync(u => u.IdUsuario == idUsuario, cancelacion);
+        if (usuario is null) return null;
+
+        await VerificarTelefonoDisponibleAsync(telefono, idUsuario, cancelacion);
+        usuario.Nombre = nombre;
+        usuario.Apellido = apellido;
+        usuario.Telefono = telefono;
+        await _contexto.SaveChangesAsync(cancelacion);
+        return usuario;
+    }
+
     public async Task<bool> ActualizarUsuarioAsync(
         Usuario usuario, IEnumerable<long>? idsRol, CancellationToken cancelacion)
     {
