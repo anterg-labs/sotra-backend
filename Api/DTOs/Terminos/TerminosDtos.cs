@@ -20,9 +20,9 @@ public class TerminosDto
 
 public class TerminosPublicarDto
 {
+    /// <summary>Texto.</summary>
     [Required(ErrorMessage = "El texto es obligatorio."), StringLength(20000, MinimumLength = 20,
         ErrorMessage = "El texto debe tener entre 20 y 20000 caracteres.")]
-    /// <summary>Texto.</summary>
     public required string Texto { get; init; }
 
 
