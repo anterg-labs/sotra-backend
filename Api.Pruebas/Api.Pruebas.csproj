@@ -26,4 +26,7 @@
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Api.PruebasUnitarias\ReglasDePrueba.cs" Link="ReglasDePrueba.cs" />
+  </ItemGroup>
 </Project>

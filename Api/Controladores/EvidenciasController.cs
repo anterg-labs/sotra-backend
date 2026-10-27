@@ -1,4 +1,4 @@
-using Api.Infraestructura;
+﻿using Api.Infraestructura;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
@@ -72,8 +72,8 @@ public class EvidenciasController : ControllerBase
             return Forbid();
         }
 
-        var estadoOrden = OrdenTrabajoMapeador.ADto(orden).Estado;
-        if (estadoOrden == "cerrada" || estadoOrden == "cancelada")
+        var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancellationToken);
+        if (reglas.EsFinal(OrdenTrabajoMapeador.ADto(orden, reglas).Estado))
         {
             return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o cancelada no admite nuevas evidencias.");
         }

@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Version 1.0.75 (2026-10-26)
+## Version 1.0.82 (2026-10-26)
 
 - IA: se quita Ollama. Los embeddings `bge-m3` corren dentro de la API con ONNX (como el reranker) y el resumen de las sugerencias lo redacta un proveedor externo con API compatible con OpenAI, por defecto Groq con `openai/gpt-oss-20b` (`IA_API_URL`, `IA_API_MODELO`, `IA_API_CLAVE`, `IA_API_ESFUERZO`). Funciona en un servidor sin GPU.
 - IA: si el proveedor no responde en 20 segundos, rechaza el pedido o falta la clave, la sugerencia se arma con el texto del manual sin resumir. La respuesta incluye `modo` (`ia`, `sin_ia` o `descartada`) para que el frontend avise cuando el asistente no está disponible; el modo queda en `historial_recomendaciones_ia`.
@@ -12,6 +12,7 @@
 - Los documentos técnicos cargados antes de esta versión deben volver a subirse para usar los nuevos embeddings y el nuevo divisor de secciones.
 - Docker: `compose.yml` descarga los modelos de IA locales (servicio `modelos-ia`, revisiones fijas de Hugging Face) y el backend ya no depende de una carpeta del equipo (`RERANKER_CARPETA`). Se elimina `compose.ia.yml`.
 - Docker: se restaura `Dockerfile.dev`, que `compose.dev.yml` necesita para la recarga en caliente.
+- Base de datos: `sotra-dump.sql` regenerado con estos cambios.
 - Herramienta `ComparadorIa` para comparar proveedores de IA con el corpus de evaluación.
 - IA: la búsqueda de sugerencias usa solo la documentación del activo de la orden, de su modelo y la general (`activoId` en `POST /ordenes-trabajo/sugerencia`); ya no cita manuales de otras máquinas.
 - IA: al procesar un PDF se quitan los encabezados y pies que se repiten en las páginas, para que una sección no se corte en el cambio de página. Los títulos en mayúsculas y los de procedimiento se reconocen, y los pasos numerados ya no se toman como títulos.
@@ -21,6 +22,34 @@
 - Documentos técnicos: `POST /documentos-tecnicos/{id}/reprocesar` vuelve a procesar el PDF guardado con el divisor actual (`pdf-v5`), sin volver a subirlo.
 - Base de datos: se elimina `orden_trabajo.id_recomendacion_ia`, que nada escribía (`database/cambios/2026-10-25-orden-sin-id-recomendacion-ia.sql`; los vínculos que hubiera pasan al historial).
 - Datos: cliente SUPER CONSTRUCTURA SLA con 6 activos SANY y los modelos SY335, SY235 y SY155H (`database/cambios/2026-10-25-cliente-super-constructura-activos-sany.sql`).
+
+## Version 1.0.81 (2026-10-26)
+
+- Seguridad: un técnico ya no puede cerrar, cancelar ni devolver una orden; la API responde `403` (`TRANSICION_NO_PERMITIDA`) y solo le muestra los cambios de estado que le corresponden.
+
+## Version 1.0.80 (2026-10-25)
+
+- Órdenes de trabajo: el listado acepta el filtro `fase` y trae las órdenes de todos los estados de esa fase, además del filtro por `estado`.
+
+## Version 1.0.79 (2026-10-25)
+
+- Reportes y alertas: las órdenes abiertas, terminadas y pendientes de validación se calculan por la fase del estado y cada alerta por el código que define la base, sin nombres de estado en el código.
+
+## Version 1.0.77 (2026-10-25)
+
+- Órdenes de trabajo: las reglas de los estados (orden, fase, si exige técnico, qué fecha completa, color, alerta y estado inicial) y las transiciones (quién puede pasar a quién, si exige motivo y qué puede hacer un técnico) están ahora en la base, en `estado_ot` y `transicion_estado_ot`, y el código ya no nombra ningún estado.
+- API: la orden devuelve `transiciones` en lugar de `estadosSiguientes`, y el catálogo de estados suma `orden`, `fase` y `tono`.
+- Base de datos: SQL incremental y `01-init.sql` con las columnas y la tabla nuevas; el despliegue se detiene con un mensaje claro si hay estados sin reglas. Se actualiza `sotra-dump.sql`.
+
+## Version 1.0.76 (2026-10-25)
+
+- Órdenes de trabajo: los estados y sus etiquetas salen de la tabla `estado_ot` y los entrega `GET /api/v1/ordenes-trabajo/estados`, en el orden del ciclo de vida; si una etiqueta falta, se arma una legible.
+- Base de datos: el catálogo `estado_ot` incluye `cancelada` y las etiquetas, en `01-init.sql` y en el cambio para bases existentes, que se aplica solo en el despliegue.
+- Base de datos: se agrega `sotra-dump.sql` en la raíz, un dump sin PDF ni embeddings.
+
+## Version 1.0.75 (2026-10-25)
+
+- Documentación: el README resume lo que hay que hacer para pasar a producción: aplicar los SQL de `database/cambios/` en el despliegue.
 
 ## Version 1.0.74 (2026-10-24)
 

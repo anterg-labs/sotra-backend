@@ -1,28 +1,14 @@
 # Backend de SOTRA
 
-> ## ⚠️ Producción todavía no aplica los cambios de base de datos (pendiente de decisión)
+> ## Para pasar a producción: aplicar los cambios de base de datos
 >
-> Cuando se agrega un cambio a la base (por ejemplo, el índice único del teléfono de usuarios y de clientes), su SQL va en `database/cambios/`. Para que llegue a una base que ya existe, el despliegue tiene que copiar esos archivos al servidor y ejecutar el servicio `db-datos` (`database/init/cargar-datos.sh`), que aplica los que falten y los registra en `public.cambios_aplicados`.
+> Los cambios de la base están en `database/cambios/*.sql`. El despliegue local (`docker compose up -d`) y el de staging (`05-staging-backend.yml`) los aplican solos con el servicio `db-datos`. El despliegue a producción (`03-production.yml`) solo actualiza el backend: no copia ni ejecuta esos archivos. Para pasar a producción hay que:
 >
-> | Ambiente | ¿Aplica solo los SQL de `database/cambios/`? | Dónde |
-> |---|---|---|
-> | Local | Sí | `docker compose up -d` ejecuta `db-datos` |
-> | Staging | Sí | `.github/workflows/05-staging-backend.yml` copia los SQL al VPS y ejecuta `db-datos` antes de actualizar el backend |
-> | **Producción** | **No** | `.github/workflows/03-production.yml` solo baja la imagen nueva del backend y la reinicia (`pull backend` y `up -d --no-deps backend`) |
->
-> **Consecuencia:** el backend nuevo de producción arrancaría contra una base sin los cambios. Por ejemplo, sin el índice `UK_TELEFONO_USUARIO_NORMALIZADO` ni `UK_TELEFONO_CLIENTE_NORMALIZADO` no habría error, pero la base no impediría teléfonos duplicados con y sin cero. Lo mismo vale para cualquier otro SQL de `database/cambios/`.
->
-> **Dato que no se pudo verificar:** `compose.production.yml` vive en el VPS y no en este repositorio, así que no se sabe si ya declara el servicio `db-datos` con el volumen `./database/cambios:/cambios:ro`.
->
-> **Pendiente de decisión:** copiar a `03-production.yml` los pasos de staging (copiar los SQL al VPS y ejecutar `db-datos` antes de actualizar el backend). No se hizo porque el despliegue a producción está desactivado (`ENABLE_VPS_DEPLOY`) y los pasos dependen del `compose.production.yml` del VPS. Mientras tanto, antes de activar el despliegue de producción hay que aplicar a mano los SQL pendientes de `database/cambios/` (y comprobar que no haya teléfonos duplicados con y sin cero). Este aviso se retira cuando producción aplique los cambios sola.
->
-> **Cómo se soluciona (pasos):**
->
-> 1. **En el VPS, `compose.production.yml`:** declarar el servicio `db-datos` igual que en `compose.yml` (imagen `pgvector/pgvector:pg18`, entrypoint `["sh", "/datos/cargar-datos.sh"]`, `restart: "no"`, `depends_on` de la base saludable, las variables `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` y las de Keycloak, y los volúmenes `./database/init:/datos:ro` y `./database/cambios:/cambios:ro`). Sin el volumen de `cambios`, el cargador avisa «no existe /cambios» y no aplica nada.
-> 2. **En `03-production.yml`, job `deploy`:** igual que en `05-staging-backend.yml`, agregar antes de actualizar el backend: (a) `actions/checkout` para tener los archivos; (b) validar que existan `database/init/01-init.sql`, `02-vectorial.sql` y `cargar-datos.sh`; (c) crear por SSH `$VPS_APP_PATH/database/init` y `database/cambios`; (d) `scp` de `database/init/{01-init.sql,02-vectorial.sql,cargar-datos.sh}` y de `database/cambios/*.sql` al VPS; (e) por SSH, `docker compose --env-file .env.production -f compose.production.yml up -d database && ... run --rm db-datos` y, solo si eso termina bien, `pull backend` y `up -d --no-deps backend`. Si un SQL falla, `db-datos` termina con error, el job se detiene y el backend nuevo no arranca.
-> 3. **Respaldo antes de aplicar:** agregar un paso que haga `pg_dump` de la base de producción (guardado fuera del contenedor) justo antes de `db-datos`, para poder volver atrás si un SQL deja la base mal.
-> 4. **Primera ejecución en producción:** si la base se creó con el cargador anterior y no tiene la tabla `public.cambios_aplicados`, la primera ejecución aplica **todos** los archivos de `database/cambios/` una sola vez (incluido `2026-10-17-terminos-documento-unico.sql`, que borra datos; ver el aviso de staging más abajo). Antes de activar el despliegue hay que revisar qué contiene hoy la base y, si algunos cambios ya estaban aplicados a mano, registrarlos en `public.cambios_aplicados`.
-> 5. **Activar:** probar el flujo primero con staging (los mismos pasos) y recién después poner `ENABLE_VPS_DEPLOY=true`. Comprobar con `docker compose logs db-datos` y con `SELECT archivo FROM public.cambios_aplicados`.
+> 1. **Declarar `db-datos` en el `compose.production.yml` del VPS** (no está en este repositorio), igual que en `compose.yml`, con los volúmenes `./database/init:/datos:ro` y `./database/cambios:/cambios:ro`.
+> 2. **Completar el job `deploy` de `03-production.yml`** como en `05-staging-backend.yml`, antes de actualizar el backend: `actions/checkout`, copiar por `scp` `database/init/{01-init.sql,02-vectorial.sql,cargar-datos.sh}` y `database/cambios/*.sql` al VPS, y ejecutar `docker compose ... up -d database && docker compose ... run --rm db-datos`. Solo si termina bien, `pull backend` y `up -d --no-deps backend`.
+> 3. **Hacer un respaldo (`pg_dump`) de la base de producción** justo antes de ejecutar `db-datos`.
+> 4. **Revisar la primera ejecución:** si la base no tiene la tabla `public.cambios_aplicados`, se aplicarán de una vez todos los archivos de `database/cambios/`, incluido `2026-10-17-terminos-documento-unico.sql`, que borra datos. Registrar antes en esa tabla los cambios que ya estén aplicados, y comprobar que no haya teléfonos duplicados con y sin cero.
+> 5. **Probar el flujo en staging y recién entonces poner `ENABLE_VPS_DEPLOY=true`.** Verificar con `docker compose logs db-datos` y `SELECT archivo FROM public.cambios_aplicados`.
 
 > ## ⚠️ Leer antes del próximo despliegue a staging
 >
@@ -133,7 +119,9 @@ Antes de iniciar el backend, `compose.yml` ejecuta el servicio de una sola vez `
 
 Los cambios de estructura nuevos se entregan en dos lugares a la vez: se incorporan a `01-init.sql` (bases nuevas) y se agrega un archivo idempotente en `database/cambios/` (bases existentes). El contenedor necesita `database/cambios` montado en `/cambios`; `compose.yml` ya lo hace y el flujo de staging copia esos archivos al servidor.
 
-**Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 14 personas usuarias con los 4 roles (entre ellas `admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`, que coinciden con los usuarios de prueba del realm de Keycloak), 6 clientes, 7 tipos y 10 modelos de máquina, 14 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Los usuarios no tienen contraseña en SOTRA: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
+**Dump exportado.** En la raíz de este repositorio queda `sotra-dump.sql`, un dump de PostgreSQL (`pg_dump`, esquema `operativo`, estructura y datos) **sin PDF ni embeddings**: sin el esquema `vectorial` (documentos y vectores), sin el esquema `keycloak` y sin las tablas de control de la carga. Se genera a partir de una base descartable creada con `01-init.sql` y se regenera cada vez que cambia la base, sin tocar la base local con datos. Para restaurarlo en una base vacía: `psql -U USUARIO -d BASE -f sotra-dump.sql`.
+
+**Datos de arranque.** `01-init.sql` trae la estructura completa (con los índices de rendimiento y las restricciones vigentes) y datos listos para usar y probar, sin PDF ni embeddings (el esquema `vectorial` se crea vacío con `02-vectorial.sql`): 14 personas usuarias con los 4 roles (entre ellas `admin.prueba`, `jefe.prueba`, `tecnico.prueba` y `panolero.prueba@sotra.test`, que coinciden con los usuarios de prueba del realm de Keycloak), 7 clientes (entre ellos SUPER CONSTRUCTURA SLA, con 6 excavadoras SANY), 7 tipos y 13 modelos de máquina, 20 activos, 14 repuestos en todos los estados de stock (normal, bajo, sin stock e inactivo), 26 movimientos de stock coherentes con las existencias, 14 órdenes de trabajo en todos los estados con su historial, 4 observaciones y 4 sugerencias de IA, y los términos y condiciones vigentes (aceptados por 5 personas). Los usuarios no tienen contraseña en SOTRA: el acceso lo resuelve Keycloak. Toda tabla o restricción nueva debe incorporarse también a `01-init.sql` para que quien levante el proyecto parta de una base al día.
 
 Para agregar un cambio: editar `01-init.sql`, crear el SQL en `database/cambios/` y volver a ejecutar `docker compose up -d`. Para ver qué hizo la carga: `docker compose logs db-datos`.
 
@@ -496,9 +484,13 @@ RF004-02 y RF004-07. **Requiere ampliar la tabla `operativo.movimiento_stock`:**
 
 La especificación también pide filtrar repuestos por "categoría", pero el repuesto no tiene ese dato en la base; queda pendiente de definir.
 
+### Catálogo de estados (`GET /api/v1/ordenes-trabajo/estados`)
+
+Los estados de las órdenes, sus etiquetas y sus reglas salen de la base: `operativo.estado_ot` (`nombre` es el valor, `descripcion` la etiqueta y `orden`, `fase`, `exige_tecnico`, `completa_fecha`, `tono`, `codigo_alerta` y `es_inicial` el comportamiento) y `operativo.transicion_estado_ot` (cada cambio permitido, con `exige_motivo`, `puede_tecnico`, `accion`, `principal` y `al_asignar_tecnico`). El código no nombra ningún estado: `ReglasDeEstadoOrden` solo aplica lo que dice la base. El endpoint los devuelve en el orden del ciclo de vida, `[{ "valor": "en_ejecucion", "etiqueta": "En ejecución", "orden": 3, "fase": "en_curso", "tono": "info" }, …]`, solo los activos; si una fila no tiene etiqueta, se arma una con el nombre (`En ejecucion`). Lo consumen el filtro del listado, los reportes, los formularios y las etiquetas del frontend, que no tienen listas propias. Una prueba de integración comprueba que la base tenga exactamente el ciclo de vida del documento (sección 13.1 de `Flujo de datos SOTRA.md`) y las pruebas unitarias recorren las 196 combinaciones de estado, técnico y motivo. Los siete estados vienen en `01-init.sql` y, para bases existentes, en `database/cambios/2026-10-25-estado-ot-catalogo-completo.sql` (agrega `cancelada` y las etiquetas), que el despliegue aplica solo.
+
 ### Ciclo de vida de la orden (`PATCH /api/v1/ordenes-trabajo/{id}/estado` y `/tecnico`)
 
-RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones permitidas están en `OrdenTrabajoDAO.TransicionesPermitidas` y se validan tanto en `PATCH /estado` como en `PUT`:
+RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones permitidas están en la tabla `transicion_estado_ot` y se validan tanto en `PATCH /estado` como en `PUT`:
 
 | Estado actual | Puede pasar a |
 |---|---|
@@ -511,9 +503,9 @@ RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones 
 
 - `PATCH /{id}/estado` recibe `{ "estado": "...", "motivo": "..." }`. El motivo es obligatorio al pausar, cancelar, cerrar o reasignar una orden finalizada, y se guarda en `historial_estado_ot.observacion` (no hace falta cambiar la base). `asignada` y `en_ejecucion` exigen técnico asignado. `PUT` acepta el mismo motivo en `motivoEstado`.
 - `PATCH /{id}/tecnico` recibe `{ "tecnicoId": 0 }`. Valida que sea un usuario activo con rol Técnico, pasa la orden de `creada` a `asignada` y registra en el historial "Técnico asignado: Nombre Apellido".
-- Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
+- Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `403` `TRANSICION_NO_PERMITIDA` (un técnico pide un cambio que no es suyo, como cerrar); `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
 - Ediciones simultáneas: `OrdenTrabajoDto.Version` (hash SHA-256 truncado del DTO, calculado en `OrdenTrabajoMapeador`) se devuelve también como `ETag` en `GET /ordenes-trabajo/{id}` y `PUT`. El `PUT` acepta `If-Match` y lo compara dentro del bloqueo de fila de `OrdenTrabajoDAO.Actualizar`; si no coincide responde `412` `ORDEN_MODIFICADA` sin cambiar nada. Sin el encabezado (o con `*`) no se verifica. CORS permite `If-Match` y expone `ETag`.
-- `OrdenTrabajoDto` incluye `estadosSiguientes` (los estados a los que puede pasar) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
+- `OrdenTrabajoDto` incluye `transiciones` (los cambios posibles desde el estado actual, con `exigeMotivo`, `puedeTecnico`, `accion` y `principal`) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
 
 El historial todavía no registra el usuario responsable del cambio: `historial_estado_ot` no tiene una columna para eso.
 

@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.Json;
 using Api.DTOs.OrdenesTrabajo;
 using SOTRA_BACKEND.Modelos;
@@ -13,9 +13,10 @@ public static class OrdenTrabajoMapeador
     private const short PrioridadAltaEnBase = 5;
     private const string FormatoDeFecha = "yyyy-MM-dd";
 
-    public static OrdenTrabajoDto ADto(OrdenTrabajo orden)
+    /// <param name="soloTecnico">Quien pide es solo técnico: ve únicamente las transiciones que puede hacer.</param>
+    public static OrdenTrabajoDto ADto(OrdenTrabajo orden, ReglasDeEstadoOrden reglas, bool soloTecnico = false)
     {
-        var estado = "creada";
+        var estado = reglas.Inicial.Nombre;
         var fechaPrevista = DateOnly.FromDateTime(orden.FechaCreada).ToString(FormatoDeFecha);
 
         var ultimoEstado = orden.HistorialEstadoOts
@@ -123,7 +124,10 @@ public static class OrdenTrabajoMapeador
             FechaCierre = orden.FechaCierre,
             Sugerencias = sugerencias,
             Repuestos = repuestos,
-            EstadosSiguientes = OrdenTrabajoDAO.ObtenerEstadosSiguientes(estado),
+            Transiciones = reglas.TransicionesDesde(estado)
+                .Where(t => !soloTecnico || t.PuedeTecnico)
+                .Select(t => new TransicionOrdenDto(t.Destino, t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal))
+                .ToList(),
             HistorialEstados = historialEstados
         };
         dto.Version = CalcularVersion(dto);

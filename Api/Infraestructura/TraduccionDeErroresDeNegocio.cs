@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using SOTRA_BACKEND.Operaciones;
 
@@ -48,6 +48,8 @@ public static class TraduccionDeErroresDeNegocio
             "La orden de trabajo no existe."),
         [ErrorDeOrdenException.TransicionInvalida] = new(StatusCodes.Status400BadRequest, ErrorDeOrdenException.TransicionInvalida,
             "La orden no puede pasar a ese estado desde su estado actual."),
+        [ErrorDeOrdenException.TransicionNoPermitida] = new(StatusCodes.Status403Forbidden, ErrorDeOrdenException.TransicionNoPermitida,
+            "Tu rol no puede hacer ese cambio de estado."),
         [ErrorDeOrdenException.TecnicoObligatorio] = new(StatusCodes.Status400BadRequest, ErrorDeOrdenException.TecnicoObligatorio,
             "Asigná un técnico antes de pasar la orden a ese estado."),
         [ErrorDeOrdenException.TecnicoYaAsignado] = new(StatusCodes.Status409Conflict, ErrorDeOrdenException.TecnicoYaAsignado,

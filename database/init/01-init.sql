@@ -100,7 +100,17 @@ CREATE TABLE operativo.estado_ot (
     id_estado_ot bigint NOT NULL,
     nombre character varying(60) NOT NULL,
     descripcion text,
-    estado boolean CONSTRAINT estado_ot_activo_not_null NOT NULL
+    estado boolean CONSTRAINT estado_ot_activo_not_null NOT NULL,
+    orden smallint NOT NULL,
+    fase character varying(20) NOT NULL,
+    exige_tecnico boolean DEFAULT false NOT NULL,
+    completa_fecha character varying(10),
+    tono character varying(12) NOT NULL,
+    codigo_alerta character varying(40),
+    es_inicial boolean DEFAULT false NOT NULL,
+    CONSTRAINT "CK_ESTADO_OT_FASE" CHECK (fase IN ('pendiente', 'en_curso', 'por_validar', 'cerrada', 'cancelada')),
+    CONSTRAINT "CK_ESTADO_OT_COMPLETA_FECHA" CHECK (completa_fecha IS NULL OR completa_fecha IN ('inicio', 'cierre')),
+    CONSTRAINT "CK_ESTADO_OT_TONO" CHECK (tono IN ('neutro', 'info', 'alerta', 'exito', 'peligro', 'destacado'))
 );
 
 
@@ -782,13 +792,14 @@ COPY operativo.activo (id_activo, id_cliente, num_serie, descripcion, id_modelo_
 -- Data for Name: estado_ot; Type: TABLE DATA; Schema: operativo; Owner: postgres
 --
 
-COPY operativo.estado_ot (id_estado_ot, nombre, descripcion, estado) FROM stdin;
-1	creada	\N	t
-2	en_ejecucion	\N	t
-3	asignada	\N	t
-4	pausada	\N	t
-5	finalizada	\N	t
-6	cerrada	\N	t
+COPY operativo.estado_ot (id_estado_ot, nombre, descripcion, estado, orden, fase, exige_tecnico, completa_fecha, tono, codigo_alerta, es_inicial) FROM stdin;
+1	creada	Creada	t	1	pendiente	f	\N	neutro	sin_asignar	t
+2	en_ejecucion	En ejecución	t	3	en_curso	t	inicio	info	\N	f
+3	asignada	Asignada	t	2	pendiente	t	\N	info	demorada_para_iniciar	f
+4	pausada	Pausada	t	4	en_curso	f	\N	alerta	pausada_demasiado	f
+5	finalizada	Finalizada	t	5	por_validar	f	\N	destacado	\N	f
+6	cerrada	Cerrada	t	6	cerrada	f	cierre	exito	\N	f
+7	cancelada	Cancelada	t	7	cancelada	f	\N	neutro	\N	f
 \.
 
 
@@ -1109,7 +1120,7 @@ SELECT pg_catalog.setval('operativo."SEC_CLIENTE_ID"', 7, true);
 -- Name: SEC_ESTADO_OT_ID; Type: SEQUENCE SET; Schema: operativo; Owner: postgres
 --
 
-SELECT pg_catalog.setval('operativo."SEC_ESTADO_OT_ID"', 6, true);
+SELECT pg_catalog.setval('operativo."SEC_ESTADO_OT_ID"', 7, true);
 
 
 --
@@ -1837,3 +1848,43 @@ BEGIN
     END LOOP;
 END
 $validacion$;
+
+-- Reglas de los estados de las órdenes en la base (transiciones e índices); ver database/cambios/2026-10-25-estado-ot-reglas-en-la-base.sql.
+CREATE UNIQUE INDEX "UK_ESTADO_OT_ORDEN" ON operativo.estado_ot (orden);
+CREATE UNIQUE INDEX "UK_ESTADO_OT_INICIAL" ON operativo.estado_ot (es_inicial) WHERE es_inicial;
+
+CREATE TABLE IF NOT EXISTS operativo.transicion_estado_ot (
+    id_estado_origen bigint NOT NULL,
+    id_estado_destino bigint NOT NULL,
+    exige_motivo boolean NOT NULL DEFAULT false,
+    puede_tecnico boolean NOT NULL DEFAULT false,
+    accion character varying(40),
+    principal boolean NOT NULL DEFAULT false,
+    al_asignar_tecnico boolean NOT NULL DEFAULT false,
+    CONSTRAINT "PK_TRANSICION_ESTADO_OT" PRIMARY KEY (id_estado_origen, id_estado_destino),
+    CONSTRAINT "FK_TRANSICION_ESTADO_OT_ORIGEN" FOREIGN KEY (id_estado_origen) REFERENCES operativo.estado_ot (id_estado_ot),
+    CONSTRAINT "FK_TRANSICION_ESTADO_OT_DESTINO" FOREIGN KEY (id_estado_destino) REFERENCES operativo.estado_ot (id_estado_ot),
+    CONSTRAINT "CK_TRANSICION_ESTADO_OT_DISTINTOS" CHECK (id_estado_origen <> id_estado_destino)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "UK_TRANSICION_AL_ASIGNAR_TECNICO" ON operativo.transicion_estado_ot (id_estado_origen) WHERE al_asignar_tecnico;
+
+-- Ciclo de vida de la sección 13.1 de «Flujo de datos SOTRA.md».
+INSERT INTO operativo.transicion_estado_ot
+    (id_estado_origen, id_estado_destino, exige_motivo, puede_tecnico, accion, principal, al_asignar_tecnico)
+SELECT origen.id_estado_ot, destino.id_estado_ot, v.exige_motivo, v.puede_tecnico, v.accion, v.principal, v.al_asignar_tecnico
+FROM (VALUES
+    ('creada', 'asignada', false, false, NULL, false, true),
+    ('creada', 'cancelada', true, false, NULL, false, false),
+    ('asignada', 'en_ejecucion', false, true, 'Iniciar', true, false),
+    ('asignada', 'cancelada', true, false, NULL, false, false),
+    ('en_ejecucion', 'pausada', true, true, 'Pausar', false, false),
+    ('en_ejecucion', 'finalizada', false, true, 'Finalizar', true, false),
+    ('pausada', 'en_ejecucion', false, true, 'Reanudar', true, false),
+    ('pausada', 'cancelada', true, false, NULL, false, false),
+    ('finalizada', 'cerrada', true, false, NULL, false, false),
+    ('finalizada', 'asignada', true, false, NULL, false, false)
+) AS v(origen, destino, exige_motivo, puede_tecnico, accion, principal, al_asignar_tecnico)
+JOIN operativo.estado_ot AS origen ON origen.nombre = v.origen
+JOIN operativo.estado_ot AS destino ON destino.nombre = v.destino
+ON CONFLICT (id_estado_origen, id_estado_destino) DO NOTHING;

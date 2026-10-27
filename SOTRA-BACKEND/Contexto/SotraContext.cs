@@ -25,6 +25,8 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<EstadoOt> EstadoOts { get; set; }
 
+    public virtual DbSet<TransicionEstadoOt> TransicionEstadoOts { get; set; }
+
     public virtual DbSet<HistorialEstadoOt> HistorialEstadoOts { get; set; }
 
     public virtual DbSet<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; }
@@ -180,6 +182,48 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.Nombre)
                 .HasMaxLength(60)
                 .HasColumnName("nombre");
+            entity.Property(e => e.Orden).HasColumnName("orden");
+            entity.Property(e => e.Fase)
+                .HasMaxLength(20)
+                .HasColumnName("fase");
+            entity.Property(e => e.ExigeTecnico).HasColumnName("exige_tecnico");
+            entity.Property(e => e.CompletaFecha)
+                .HasMaxLength(10)
+                .HasColumnName("completa_fecha");
+            entity.Property(e => e.Tono)
+                .HasMaxLength(12)
+                .HasColumnName("tono");
+            entity.Property(e => e.CodigoAlerta)
+                .HasMaxLength(40)
+                .HasColumnName("codigo_alerta");
+            entity.Property(e => e.EsInicial).HasColumnName("es_inicial");
+        });
+
+        modelBuilder.Entity<TransicionEstadoOt>(entity =>
+        {
+            entity.HasKey(e => new { e.IdEstadoOrigen, e.IdEstadoDestino }).HasName("PK_TRANSICION_ESTADO_OT");
+
+            entity.ToTable("transicion_estado_ot", EsquemaOperativo);
+
+            entity.Property(e => e.IdEstadoOrigen).HasColumnName("id_estado_origen");
+            entity.Property(e => e.IdEstadoDestino).HasColumnName("id_estado_destino");
+            entity.Property(e => e.ExigeMotivo).HasColumnName("exige_motivo");
+            entity.Property(e => e.PuedeTecnico).HasColumnName("puede_tecnico");
+            entity.Property(e => e.Accion)
+                .HasMaxLength(40)
+                .HasColumnName("accion");
+            entity.Property(e => e.Principal).HasColumnName("principal");
+            entity.Property(e => e.AlAsignarTecnico).HasColumnName("al_asignar_tecnico");
+
+            entity.HasOne(d => d.IdEstadoOrigenNavigation).WithMany(p => p.TransicionesDeOrigen)
+                .HasForeignKey(d => d.IdEstadoOrigen)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TRANSICION_ESTADO_OT_ORIGEN");
+
+            entity.HasOne(d => d.IdEstadoDestinoNavigation).WithMany(p => p.TransicionesDeDestino)
+                .HasForeignKey(d => d.IdEstadoDestino)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TRANSICION_ESTADO_OT_DESTINO");
         });
 
         modelBuilder.Entity<HistorialEstadoOt>(entity =>
