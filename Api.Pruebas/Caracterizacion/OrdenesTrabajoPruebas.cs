@@ -29,7 +29,7 @@ public class OrdenesTrabajoPruebas : PruebaBase
             observaciones = "",
             fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)),
             sugerencias = Array.Empty<string>(),
-            repuestosIds = repuestosIds ?? [],
+            repuestos = (repuestosIds ?? []).Select(id => new { repuestoId = id, cantidad = 1 }),
         });
         respuesta.EnsureSuccessStatusCode();
         return await respuesta.LeerJsonAsync();
@@ -448,7 +448,7 @@ public class OrdenesTrabajoPruebas : PruebaBase
             observaciones = "",
             fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)),
             sugerencias = Array.Empty<string>(),
-            repuestosIds = Array.Empty<long>(),
+            repuestos = Array.Empty<object>(),
             estado,
             motivoEstado,
         });

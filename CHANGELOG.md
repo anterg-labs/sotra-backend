@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Version 1.0.85 (2026-10-26)
+
+- Repuestos en órdenes: cada repuesto de una orden tiene cantidad. Al asignarlo queda reservado (ninguna otra orden puede usar esas unidades, pero siguen en la empresa), pasa a entregado cuando la orden entra en progreso y el stock baja recién al cerrar la orden, con un egreso a nombre de quien la cerró. Si la orden se elimina o se quita el repuesto, vuelve a estar libre.
+- Stock: asignar más de lo disponible se rechaza con un mensaje según el caso (sin stock, reservado por otras órdenes o entregado). Un egreso o ajuste manual no puede dejar el stock por debajo de lo reservado y entregado. Las alertas de stock bajo siguen sobre el stock en la empresa.
+- API: `repuestos` (repuesto y cantidad) reemplaza a `repuestosIds` en el alta y la modificación de órdenes; nuevo `PUT /api/v1/ordenes-trabajo/{id}/repuestos`; los repuestos informan `cantidadReservada`, `cantidadEntregada` y `cantidadDisponible`; la orden trae `historialRepuestos` con quién hizo cada cambio.
+- Seguridad: el jefe de mantenimiento consulta Repuestos y, junto con el administrador y el pañolero, asigna repuestos y cambia cantidades en las órdenes; el técnico no.
+- Base de datos: `ot_repuesto` guarda cantidad, estado y el movimiento que descuenta el stock; nueva tabla `historial_repuesto_ot`; los datos existentes se migran solos con 1 unidad y el estado de su orden. El dump exportado se regeneró.
+
 ## Version 1.0.84 (2026-10-26)
 
 - Órdenes de trabajo: los estados pasan a ser `pendiente`, `en_progreso`, `en_revision`, `cerrado`, `pausado` y `eliminado` (baja lógica); asignar un técnico ya no es un estado. Los estados anteriores se convierten solos en el despliegue sin perder historial.

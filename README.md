@@ -267,10 +267,11 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 | `ot.crear` | `POST /ordenes-trabajo`, `POST /ordenes-trabajo/sugerencia` | administrador, jefe_mantenimiento |
 | `ot.editar` | `PUT /ordenes-trabajo/{id}` | administrador, jefe_mantenimiento |
 | `ot.asignar_tecnico` | `PATCH /ordenes-trabajo/{id}/tecnico` | administrador, jefe_mantenimiento |
+| `ot.gestionar_repuestos` | `PUT /ordenes-trabajo/{id}/repuestos` | administrador, jefe_mantenimiento, panolero |
 | `ot.registrar_avance` | `PATCH /ordenes-trabajo/{id}/estado`, `POST` de evidencias | administrador, jefe_mantenimiento, tecnico |
 | `documento.consultar` | `GET /documentos-tecnicos` y su archivo | administrador, jefe_mantenimiento, tecnico |
 | `documento.gestionar` | `POST`, `DELETE /documentos-tecnicos` | administrador, jefe_mantenimiento |
-| `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, panolero |
+| `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, jefe_mantenimiento, panolero |
 | `repuesto.gestionar` | `POST`, `PUT`, `PATCH /repuestos`, `PATCH /repuestos/{id}/stock-minimo` | administrador, panolero |
 | `stock.registrar_movimiento` | `POST /repuestos/{id}/ingresos`, `/egresos` y `/ajustes` | administrador, panolero |
 | `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` y `/csv`, y el dashboard analítico (`/reportes/tendencias`, `/tiempos`, `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria`) | administrador, jefe_mantenimiento |
@@ -470,6 +471,20 @@ Los listados y detalles paginados de activos incluyen `nombreCliente` y `nombreM
 - `GET /api/v1/movimientos-stock` (`FiltrosMovimientosStockDto`): `buscar` (código o nombre del repuesto, o motivo), `repuestoId`, `tipo`, `fechaDesde`, `fechaHasta`, `ubicacion` y `usuarioId`. Ordenados del más nuevo al más viejo.
 
 `PaginaDto` también tiene `ErrorDePaginacion()` (el cuerpo del `400`) y `Contiene(texto, buscado)` (comparación sin distinguir mayúsculas), que usan todos los controladores paginados.
+
+### Repuestos en las órdenes: cantidad, reserva, entrega y descuento (1.0.84)
+
+Cada repuesto de una orden tiene `cantidad` y `estado` en `operativo.ot_repuesto` (`reservado`, `entregado`, `descontado`, `liberado`) y cada cambio queda en `operativo.historial_repuesto_ot` con quién lo hizo y cuándo. La lógica está en `SOTRA-BACKEND/Operaciones/ReservasDeRepuestos.cs`, que `OrdenTrabajoDAO` usa dentro de la misma transacción que el alta, la modificación y el cambio de estado:
+
+- **Reservar:** `POST /ordenes-trabajo` y `PUT /ordenes-trabajo/{id}` reciben `repuestos: [{ "repuestoId", "cantidad" }]` (reemplaza a `repuestosIds`); `PUT /ordenes-trabajo/{id}/repuestos` (permiso `ot.gestionar_repuestos`: administrador, jefe y pañolero; el técnico no) cambia solo los repuestos. Se bloquean las filas de `repuesto` (`FOR UPDATE`, en orden de `id`) y se comprueba el disponible: stock − reservado − entregado de otras órdenes. Si no alcanza: `409` con `STOCK_INSUFICIENTE` (falta stock), `STOCK_RESERVADO` (está reservado por otras órdenes) o `STOCK_ENTREGADO` (entregado a otras órdenes en curso), y no se guarda nada de la solicitud.
+- **Entregar:** al entrar la orden en el estado que completa `fechaInicio` (`estado_ot.completa_fecha = 'inicio'`), lo reservado pasa a entregado. Lo que se agrega a una orden ya iniciada queda entregado al instante.
+- **Descontar:** al entrar en el estado que completa `fechaCierre`, lo entregado se descuenta del stock con un egreso por repuesto («Consumo de la orden de trabajo N° X», con el usuario que cerró), enlazado en `ot_repuesto.id_movimiento`. Si el stock físico no alcanza, la orden no se cierra (`409 STOCK_INSUFICIENTE`).
+- **Liberar:** al quitar un repuesto, bajar su cantidad o llevar la orden a la fase `eliminada`, las unidades (reservadas o entregadas) quedan libres; no se descuenta nada.
+- **Movimientos manuales:** un egreso o ajuste que deje el stock por debajo de lo reservado y entregado responde `409 STOCK_COMPROMETIDO`.
+- **Listado y detalle de repuestos:** `RepuestoDto` agrega `cantidadReservada`, `cantidadEntregada` y `cantidadDisponible` (ordenables). Las alertas de stock bajo y sin stock siguen calculándose sobre `cantidad` (el stock físico).
+- **Orden:** la respuesta trae, por repuesto, `cantidad` y `estado`, y `historialRepuestos`. Los liberados no se listan.
+
+Los datos anteriores se migran con `database/cambios/2026-10-26-repuestos-en-ordenes-reserva.sql` (1 unidad por fila y el estado de su orden). Las pruebas de integración (`ReservasDeRepuestosPruebas`) cubren la reserva, la entrega, el descuento, la liberación, los mensajes de stock y la concurrencia.
 
 ### Movimientos de stock (`/api/v1/movimientos-stock` y `POST /api/v1/repuestos/{id}/ingresos`, `/egresos` y `/ajustes`)
 

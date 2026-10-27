@@ -33,7 +33,7 @@ public class OrdenTrabajoCrearDto
     public List<string> Sugerencias { get; init; } = new();
 
     [Required]
-    public List<long> RepuestosIds { get; init; } = new();
+    public List<RepuestoPedidoDto> Repuestos { get; init; } = new();
 
     // El alta ignora el estado recibido: la orden nace en el estado inicial del catálogo.
     public string? Estado { get; init; }

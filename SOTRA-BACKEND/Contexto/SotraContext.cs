@@ -31,6 +31,8 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<HistorialTecnicoOt> HistorialTecnicoOts { get; set; }
 
+    public virtual DbSet<HistorialRepuestoOt> HistorialRepuestoOts { get; set; }
+
     public virtual DbSet<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; }
 
     public virtual DbSet<ModeloMaquina> ModeloMaquinas { get; set; }
@@ -266,6 +268,44 @@ public partial class SotraContext : DbContext
                 .HasForeignKey(d => d.IdOrden)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ORDEN_TRABAJO_HISTORIAL_ESTADO_OT");
+        });
+
+        modelBuilder.Entity<HistorialRepuestoOt>(entity =>
+        {
+            entity.HasKey(e => e.IdHRepuestoOt).HasName("PK_HISTORIAL_REPUESTO_OT");
+
+            entity.ToTable("historial_repuesto_ot", EsquemaOperativo);
+
+            entity.Property(e => e.IdHRepuestoOt).ValueGeneratedOnAdd().HasColumnName("id_h_repuesto_ot");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
+            entity.Property(e => e.Accion).HasMaxLength(12).HasColumnName("accion");
+            entity.Property(e => e.CantidadAnterior).HasColumnName("cantidad_anterior");
+            entity.Property(e => e.CantidadNueva).HasColumnName("cantidad_nueva");
+            entity.Property(e => e.EstadoAnterior).HasMaxLength(12).HasColumnName("estado_anterior");
+            entity.Property(e => e.EstadoNuevo).HasMaxLength(12).HasColumnName("estado_nuevo");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.FechaHora).HasColumnName("fecha_hora");
+            entity.Property(e => e.IdMovimiento).HasColumnName("id_movimiento");
+            entity.Property(e => e.Observacion).HasColumnName("observacion");
+
+            entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.HistorialRepuestoOts)
+                .HasForeignKey(d => d.IdOrden)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_HISTORIAL_REPUESTO_OT_ORDEN");
+
+            entity.HasOne(d => d.IdRepuestoNavigation).WithMany()
+                .HasForeignKey(d => d.IdRepuesto)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_HISTORIAL_REPUESTO_OT_REPUESTO");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithMany()
+                .HasForeignKey(d => d.IdUsuario)
+                .HasConstraintName("FK_HISTORIAL_REPUESTO_OT_USUARIO");
+
+            entity.HasOne(d => d.IdMovimientoNavigation).WithMany()
+                .HasForeignKey(d => d.IdMovimiento)
+                .HasConstraintName("FK_HISTORIAL_REPUESTO_OT_MOVIMIENTO");
         });
 
         modelBuilder.Entity<HistorialTecnicoOt>(entity =>
@@ -529,6 +569,13 @@ public partial class SotraContext : DbContext
                 .HasColumnName("id_ot_repuesto");
             entity.Property(e => e.IdOrden).HasColumnName("id_orden");
             entity.Property(e => e.IdRepuesto).HasColumnName("id_repuesto");
+            entity.Property(e => e.Cantidad).HasColumnName("cantidad").HasDefaultValue(1);
+            entity.Property(e => e.Estado).HasMaxLength(12).HasColumnName("estado").HasDefaultValue("reservado");
+            entity.Property(e => e.IdMovimiento).HasColumnName("id_movimiento");
+
+            entity.HasOne(d => d.IdMovimientoNavigation).WithMany()
+                .HasForeignKey(d => d.IdMovimiento)
+                .HasConstraintName("FK_OT_REPUESTO_MOVIMIENTO");
 
             entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.OtRepuestos)
                 .HasForeignKey(d => d.IdOrden)

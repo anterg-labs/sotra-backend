@@ -113,15 +113,36 @@ public static class OrdenTrabajoMapeador
             .ToList();
 
         var repuestos = new List<RepuestoOrdenDto>();
-        foreach (var relacion in orden.OtRepuestos.OrderBy(item => item.IdOtRepuesto))
+        foreach (var relacion in orden.OtRepuestos.Where(item => item.Estado != EstadosRepuestoOrden.Liberado).OrderBy(item => item.IdOtRepuesto))
         {
             repuestos.Add(new RepuestoOrdenDto
             {
                 Id = relacion.IdRepuestoNavigation.IdRepuesto,
                 Codigo = relacion.IdRepuestoNavigation.Codigo,
-                Nombre = relacion.IdRepuestoNavigation.Nombre
+                Nombre = relacion.IdRepuestoNavigation.Nombre,
+                Cantidad = relacion.Cantidad,
+                Estado = relacion.Estado
             });
         }
+
+        var historialRepuestos = orden.HistorialRepuestoOts
+            .OrderBy(item => item.FechaHora)
+            .ThenBy(item => item.IdHRepuestoOt)
+            .Select(item => new HistorialRepuestoDto
+            {
+                RepuestoId = item.IdRepuesto,
+                Codigo = item.IdRepuestoNavigation.Codigo,
+                Nombre = item.IdRepuestoNavigation.Nombre,
+                Accion = item.Accion,
+                CantidadAnterior = item.CantidadAnterior,
+                CantidadNueva = item.CantidadNueva,
+                EstadoAnterior = item.EstadoAnterior,
+                EstadoNuevo = item.EstadoNuevo,
+                FechaHora = item.FechaHora,
+                UsuarioId = item.IdUsuario,
+                NombreUsuario = NombreCompleto(item.IdUsuarioNavigation)
+            })
+            .ToList();
 
         var dto = new OrdenTrabajoDto
         {
@@ -148,7 +169,8 @@ public static class OrdenTrabajoMapeador
                 .Select(t => new TransicionOrdenDto(t.Destino, t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal))
                 .ToList(),
             HistorialEstados = historialEstados,
-            HistorialTecnicos = historialTecnicos
+            HistorialTecnicos = historialTecnicos,
+            HistorialRepuestos = historialRepuestos
         };
         dto.Version = CalcularVersion(dto);
         return dto;

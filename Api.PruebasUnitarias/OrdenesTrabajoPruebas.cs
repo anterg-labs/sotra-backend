@@ -376,6 +376,69 @@ public class OrdenesTrabajoPruebas
         });
     }
 
+    [Test]
+    public void ADto_MuestraCantidadYEstadoDeCadaRepuestoYNoListaLosLiberados()
+    {
+        var orden = CrearOrden(("pendiente", 0, null));
+        orden.OtRepuestos.Add(new OtRepuesto
+        {
+            IdOtRepuesto = 1,
+            Cantidad = 3,
+            Estado = "reservado",
+            IdRepuestoNavigation = new Repuesto { IdRepuesto = 11, Codigo = "A", Nombre = "Primero" },
+        });
+        orden.OtRepuestos.Add(new OtRepuesto
+        {
+            IdOtRepuesto = 2,
+            Cantidad = 5,
+            Estado = "liberado",
+            IdRepuestoNavigation = new Repuesto { IdRepuesto = 22, Codigo = "B", Nombre = "Segundo" },
+        });
+
+        var repuestos = OrdenTrabajoMapeador.ADto(orden, Reglas).Repuestos;
+
+        Assert.That(repuestos, Has.Count.EqualTo(1));
+        Assert.That((repuestos[0].Codigo, repuestos[0].Cantidad, repuestos[0].Estado), Is.EqualTo(("A", 3, "reservado")));
+    }
+
+    [Test]
+    public void ADto_EnElHistorialDeRepuestosMuestraQueSeHizoConCuantasUnidadesQuienYCuando()
+    {
+        var orden = CrearOrden(("pendiente", 0, null));
+        var jefe = new Usuario { IdUsuario = 4, Nombre = "Ana", Apellido = "Pérez", Mail = "", Telefono = "" };
+        var repuesto = new Repuesto { IdRepuesto = 11, Codigo = "A", Nombre = "Primero" };
+        orden.HistorialRepuestoOts.Add(new HistorialRepuestoOt
+        {
+            IdHRepuestoOt = 2,
+            IdRepuesto = 11,
+            IdRepuestoNavigation = repuesto,
+            Accion = "modificar",
+            CantidadAnterior = 4,
+            CantidadNueva = 3,
+            EstadoAnterior = "reservado",
+            EstadoNuevo = "reservado",
+            FechaHora = Base.AddMinutes(20),
+            IdUsuario = 4,
+            IdUsuarioNavigation = jefe,
+        });
+        orden.HistorialRepuestoOts.Add(new HistorialRepuestoOt
+        {
+            IdHRepuestoOt = 1,
+            IdRepuesto = 11,
+            IdRepuestoNavigation = repuesto,
+            Accion = "reservar",
+            CantidadNueva = 4,
+            EstadoNuevo = "reservado",
+            FechaHora = Base.AddMinutes(10),
+        });
+
+        var historial = OrdenTrabajoMapeador.ADto(orden, Reglas).HistorialRepuestos;
+
+        Assert.That(historial.Select(item => item.Accion), Is.EqualTo(new[] { "reservar", "modificar" }));
+        Assert.That(historial[0].NombreUsuario, Is.Null);
+        Assert.That((historial[1].CantidadAnterior, historial[1].CantidadNueva, historial[1].NombreUsuario), Is.EqualTo(((int?)4, 3, "Ana Pérez")));
+    }
+
     // Versión (ETag)
 
     [Test]

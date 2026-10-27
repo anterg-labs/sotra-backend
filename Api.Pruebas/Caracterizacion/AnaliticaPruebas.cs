@@ -22,7 +22,7 @@ public class AnaliticaPruebas : PruebaBase
             prioridad = "media",
             descripcion = "Orden para analítica",
             fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow),
-            repuestosIds = repuestosIds ?? [],
+            repuestos = (repuestosIds ?? []).Select(id => new { repuestoId = id, cantidad = 1 }),
         });
         respuesta.EnsureSuccessStatusCode();
         return (await respuesta.LeerJsonAsync()).GetProperty("id").GetInt64();
