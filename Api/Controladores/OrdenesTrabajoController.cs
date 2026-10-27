@@ -157,7 +157,7 @@ public class OrdenesTrabajoController : ControllerBase
         var ordenActualizada = await _ordenTrabajoDao.ActualizarAsync(id, cambios,
             solicitud.FechaPrevistaEjecucion, solicitud.RepuestosIds,
             solicitud.Sugerencias, solicitud.Estado, solicitud.MotivoEstado, solicitud.Sesion,
-            coincideConVersion, cancelacion);
+            coincideConVersion, await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         if (ordenActualizada is null)
         {
             return NotFound();
@@ -187,7 +187,8 @@ public class OrdenesTrabajoController : ControllerBase
             motivo = motivo.Trim();
         }
 
-        var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, User.EsSoloTecnico(), cancelacion);
+        var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, User.EsSoloTecnico(),
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 
@@ -201,7 +202,8 @@ public class OrdenesTrabajoController : ControllerBase
             return NotFound();
         }
 
-        var ordenActualizada = await _ordenTrabajoDao.AsignarTecnicoAsync(orden, solicitud.TecnicoId, cancelacion);
+        var ordenActualizada = await _ordenTrabajoDao.AsignarTecnicoAsync(orden, solicitud.TecnicoId,
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
     }
 

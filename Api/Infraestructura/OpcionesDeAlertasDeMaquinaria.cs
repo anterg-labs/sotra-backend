@@ -7,15 +7,15 @@ public sealed class OpcionesDeAlertasDeMaquinaria
 {
     public const string Seccion = "AlertasMaquinaria";
 
-    /// <summary>Horas que una orden puede quedar en «creada» antes de avisar que falta asignarla.</summary>
+    /// <summary>Horas que una orden puede quedar «pendiente» sin técnico antes de avisar que falta asignarla.</summary>
     [Range(0, 100_000)]
     public int SinAsignarHoras { get; init; } = 24;
 
-    /// <summary>Horas que una orden puede quedar «asignada» sin iniciarse.</summary>
+    /// <summary>Horas que una orden «pendiente» con técnico puede quedar sin iniciarse (desde la última asignación).</summary>
     [Range(0, 100_000)]
     public int AsignadaSinIniciarHoras { get; init; } = 48;
 
-    /// <summary>Horas máximas en «pausada».</summary>
+    /// <summary>Horas máximas en «pausado».</summary>
     [Range(0, 100_000)]
     public int PausadaHoras { get; init; } = 72;
 

@@ -4,30 +4,29 @@ namespace Api.PruebasUnitarias;
 
 /// <summary>
 /// Red de seguridad de las reglas de estado de las órdenes: la matriz de la sección 13.1 de «Flujo de datos SOTRA.md»,
-/// escrita aparte del código, contra las 49 combinaciones de estado actual y nuevo, con y sin técnico y con y sin motivo.
+/// escrita aparte del código, contra las 36 combinaciones de estado actual y nuevo, con y sin técnico y con y sin motivo.
 /// </summary>
 public class MatrizDeEstadosPruebas
 {
-    private static readonly string[] Estados = ["creada", "asignada", "en_ejecucion", "pausada", "finalizada", "cerrada", "cancelada"];
+    private static readonly string[] Estados = ["pendiente", "en_progreso", "en_revision", "cerrado", "pausado", "eliminado"];
 
     // Sección 13.1: «Estado actual → puede pasar a».
     private static readonly Dictionary<string, string[]> Permitidas = new()
     {
-        ["creada"] = ["asignada", "cancelada"],
-        ["asignada"] = ["en_ejecucion", "cancelada"],
-        ["en_ejecucion"] = ["pausada", "finalizada"],
-        ["pausada"] = ["en_ejecucion", "cancelada"],
-        ["finalizada"] = ["cerrada", "asignada"],
-        ["cerrada"] = [],
-        ["cancelada"] = [],
+        ["pendiente"] = ["en_progreso", "eliminado"],
+        ["en_progreso"] = ["en_revision", "pausado"],
+        ["pausado"] = ["en_progreso", "eliminado"],
+        ["en_revision"] = ["cerrado", "pendiente"],
+        ["cerrado"] = [],
+        ["eliminado"] = [],
     };
 
-    // «asignada y en_ejecucion exigen técnico asignado».
-    private static readonly string[] ExigenTecnico = ["asignada", "en_ejecucion"];
+    // «en_progreso exige técnico asignado».
+    private static readonly string[] ExigenTecnico = ["en_progreso"];
 
-    // «El motivo es obligatorio al pasar a pausada, cancelada o cerrada, y al reasignar una orden finalizada».
+    // «El motivo es obligatorio al pasar a pausado o eliminado, y al devolver una orden de en_revision a pendiente».
     private static bool ExigeMotivo(string actual, string nuevo) =>
-        nuevo is "pausada" or "cancelada" or "cerrada" || (actual == "finalizada" && nuevo == "asignada");
+        nuevo is "pausado" or "eliminado" || (actual == "en_revision" && nuevo == "pendiente");
 
     private static string? Esperado(string actual, string nuevo, bool conTecnico, bool conMotivo)
     {
@@ -94,9 +93,9 @@ public class MatrizDeEstadosPruebas
     }
 
     [Test]
-    public void LaMatrizCubreLosSieteEstadosYSusCuarentaYNueveParejas()
+    public void LaMatrizCubreLosSeisEstadosYSusTreintaYSeisParejas()
     {
-        Assert.That(Combinaciones().Count(), Is.EqualTo(7 * 7 * 4));
+        Assert.That(Combinaciones().Count(), Is.EqualTo(6 * 6 * 4));
         Assert.That(Reglas.Estados.Select(estado => estado.Nombre), Is.EquivalentTo(Estados));
     }
 }

@@ -31,6 +31,8 @@ public partial class OrdenTrabajo
 
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
 
+    public virtual ICollection<HistorialTecnicoOt> HistorialTecnicoOts { get; set; } = new List<HistorialTecnicoOt>();
+
     public virtual ICollection<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; } = new List<HistorialRecomendacionIa>();
 
     public virtual Activo IdActivoNavigation { get; set; } = null!;

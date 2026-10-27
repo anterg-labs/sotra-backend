@@ -22,6 +22,7 @@ public class OrdenTrabajoDto
     public List<RepuestoOrdenDto> Repuestos { get; init; } = new();
     public List<TransicionOrdenDto> Transiciones { get; init; } = new();
     public List<HistorialEstadoDto> HistorialEstados { get; init; } = new();
+    public List<HistorialTecnicoDto> HistorialTecnicos { get; init; } = new();
 
     /// <summary>Huella del contenido actual: cambia con cualquier modificación. Es el valor del encabezado <c>ETag</c>.</summary>
     public string Version { get; internal set; } = "";

@@ -41,7 +41,7 @@ public static class TraduccionDeErroresDeNegocio
         [ErrorDeOrdenException.OrdenCerrada] = new(StatusCodes.Status409Conflict, ErrorDeOrdenException.OrdenCerrada,
             "La orden cerrada no se puede modificar."),
         [ErrorDeOrdenException.OrdenNoModificable] = new(StatusCodes.Status409Conflict, ErrorDeOrdenException.OrdenNoModificable,
-            "La orden cerrada o cancelada no se puede modificar."),
+            "La orden cerrada o eliminada no se puede modificar."),
         [ErrorDeOrdenException.OrdenModificada] = new(StatusCodes.Status412PreconditionFailed, ErrorDeOrdenException.OrdenModificada,
             "Otra persona modificó la orden mientras la editabas. Recargala para ver los cambios."),
         [ErrorDeOrdenException.OrdenInexistente] = new(StatusCodes.Status404NotFound, "RECURSO_NO_ENCONTRADO",

@@ -11,27 +11,24 @@ public static class ReglasDePrueba
 {
     public static readonly IReadOnlyList<EstadoDeOrden> EstadosDocumentados =
     [
-        new(1, "creada", "Creada", 1, "pendiente", false, null, "neutro", "sin_asignar", true),
-        new(3, "asignada", "Asignada", 2, "pendiente", true, null, "info", "demorada_para_iniciar", false),
-        new(2, "en_ejecucion", "En ejecución", 3, "en_curso", true, "inicio", "info", null, false),
-        new(4, "pausada", "Pausada", 4, "en_curso", false, null, "alerta", "pausada_demasiado", false),
-        new(5, "finalizada", "Finalizada", 5, "por_validar", false, null, "destacado", null, false),
-        new(6, "cerrada", "Cerrada", 6, "cerrada", false, "cierre", "exito", null, false),
-        new(7, "cancelada", "Cancelada", 7, "cancelada", false, null, "neutro", null, false),
+        new(1, "pendiente", "Pendiente", 1, "pendiente", false, null, "neutro", "demorada_para_iniciar", true),
+        new(2, "en_progreso", "En progreso", 2, "en_curso", true, "inicio", "info", null, false),
+        new(5, "en_revision", "En revisión", 3, "por_validar", false, null, "destacado", null, false),
+        new(6, "cerrado", "Cerrado", 4, "cerrada", false, "cierre", "exito", null, false),
+        new(4, "pausado", "Pausado", 5, "en_curso", false, null, "alerta", "pausada_demasiado", false),
+        new(7, "eliminado", "Eliminado", 6, "eliminada", false, null, "neutro", null, false),
     ];
 
     public static readonly IReadOnlyList<TransicionDeEstado> TransicionesDocumentadas =
     [
-        new("creada", "asignada", false, false, null, false, true),
-        new("creada", "cancelada", true, false, null, false, false),
-        new("asignada", "en_ejecucion", false, true, "Iniciar", true, false),
-        new("asignada", "cancelada", true, false, null, false, false),
-        new("en_ejecucion", "pausada", true, true, "Pausar", false, false),
-        new("en_ejecucion", "finalizada", false, true, "Finalizar", true, false),
-        new("pausada", "en_ejecucion", false, true, "Reanudar", true, false),
-        new("pausada", "cancelada", true, false, null, false, false),
-        new("finalizada", "cerrada", true, false, null, false, false),
-        new("finalizada", "asignada", true, false, null, false, false),
+        new("pendiente", "en_progreso", false, true, "Iniciar", true, false),
+        new("pendiente", "eliminado", true, false, null, false, false),
+        new("en_progreso", "en_revision", false, true, "Enviar a revisión", true, false),
+        new("en_progreso", "pausado", true, true, "Pausar", false, false),
+        new("pausado", "en_progreso", false, true, "Reanudar", true, false),
+        new("pausado", "eliminado", true, false, null, false, false),
+        new("en_revision", "cerrado", false, false, null, false, false),
+        new("en_revision", "pendiente", true, false, null, false, false),
     ];
 
     public static ReglasDeEstadoOrden Documentadas() => new(EstadosDocumentados, TransicionesDocumentadas);

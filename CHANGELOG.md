@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Version 1.0.84 (2026-10-26)
+
+- Órdenes de trabajo: los estados pasan a ser `pendiente`, `en_progreso`, `en_revision`, `cerrado`, `pausado` y `eliminado` (baja lógica); asignar un técnico ya no es un estado. Los estados anteriores se convierten solos en el despliegue sin perder historial.
+- Historial: cada cambio de estado guarda el estado anterior, la fecha y hora, quién lo hizo y el motivo, obligatorio al pausar, eliminar o devolver una orden de en revisión a pendiente. Cada asignación o cambio de técnico se guarda aparte para medir reasignaciones.
+- Órdenes eliminadas: no admiten cambios (`409 ORDEN_NO_MODIFICABLE`), tampoco por `PUT`.
+- Base de datos: nuevas columnas `id_estado_anterior` e `id_usuario` en `historial_estado_ot` y tabla `historial_tecnico_ot`; el dump exportado se regeneró.
+
 ## Version 1.0.83 (2026-10-26)
 
 - Clientes: `GET /api/v1/clientes` acepta `conActivos=true` para devolver solo los clientes con al menos un activo asociado.

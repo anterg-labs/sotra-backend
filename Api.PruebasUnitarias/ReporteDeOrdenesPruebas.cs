@@ -7,7 +7,7 @@ public class ReporteDeOrdenesPruebas
 {
     private static List<OrdenResumen> CrearOrdenes(int cantidad) =>
         Enumerable.Range(1, cantidad)
-            .Select(i => new OrdenResumen(i, DateTime.UtcNow, null, null, 1, "Cliente", 1, "Activo", null, null, false, 3, "creada"))
+            .Select(i => new OrdenResumen(i, DateTime.UtcNow, null, null, 1, "Cliente", 1, "Activo", null, null, false, 3, "pendiente"))
             .ToList();
 
     [Test]

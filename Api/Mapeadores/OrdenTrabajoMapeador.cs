@@ -88,10 +88,29 @@ public static class OrdenTrabajoMapeador
             historialEstados.Add(new HistorialEstadoDto
             {
                 Estado = historial.IdEstadoOtNavigation.Nombre,
+                EstadoAnterior = historial.IdEstadoAnteriorNavigation?.Nombre,
                 FechaHora = historial.FechaHora,
-                Observacion = observacion
+                Observacion = observacion,
+                UsuarioId = historial.IdUsuario,
+                NombreUsuario = NombreCompleto(historial.IdUsuarioNavigation)
             });
         }
+
+        var historialTecnicos = orden.HistorialTecnicoOts
+            .OrderBy(historial => historial.FechaHora)
+            .ThenBy(historial => historial.IdHTecnicoOt)
+            .Select(historial => new HistorialTecnicoDto
+            {
+                TecnicoAnteriorId = historial.IdTecnicoAnterior,
+                NombreTecnicoAnterior = NombreCompleto(historial.IdTecnicoAnteriorNavigation),
+                TecnicoId = historial.IdTecnicoNuevo,
+                NombreTecnico = NombreCompleto(historial.IdTecnicoNuevoNavigation),
+                FechaHora = historial.FechaHora,
+                UsuarioId = historial.IdUsuario,
+                NombreUsuario = NombreCompleto(historial.IdUsuarioNavigation),
+                Observacion = historial.Observacion
+            })
+            .ToList();
 
         var repuestos = new List<RepuestoOrdenDto>();
         foreach (var relacion in orden.OtRepuestos.OrderBy(item => item.IdOtRepuesto))
@@ -128,11 +147,15 @@ public static class OrdenTrabajoMapeador
                 .Where(t => !soloTecnico || t.PuedeTecnico)
                 .Select(t => new TransicionOrdenDto(t.Destino, t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal))
                 .ToList(),
-            HistorialEstados = historialEstados
+            HistorialEstados = historialEstados,
+            HistorialTecnicos = historialTecnicos
         };
         dto.Version = CalcularVersion(dto);
         return dto;
     }
+
+    private static string? NombreCompleto(Usuario? usuario) =>
+        usuario is null ? null : usuario.Nombre + " " + usuario.Apellido;
 
     private static string CalcularVersion(OrdenTrabajoDto dto)
     {

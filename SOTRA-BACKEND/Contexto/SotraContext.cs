@@ -29,6 +29,8 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<HistorialEstadoOt> HistorialEstadoOts { get; set; }
 
+    public virtual DbSet<HistorialTecnicoOt> HistorialTecnicoOts { get; set; }
+
     public virtual DbSet<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; }
 
     public virtual DbSet<ModeloMaquina> ModeloMaquinas { get; set; }
@@ -240,6 +242,16 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.IdMotivoEs).HasColumnName("id_motivo_es");
             entity.Property(e => e.IdOrden).HasColumnName("id_orden");
             entity.Property(e => e.Observacion).HasColumnName("observacion");
+            entity.Property(e => e.IdEstadoAnterior).HasColumnName("id_estado_anterior");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+
+            entity.HasOne(d => d.IdEstadoAnteriorNavigation).WithMany()
+                .HasForeignKey(d => d.IdEstadoAnterior)
+                .HasConstraintName("FK_HISTORIAL_ESTADO_OT_ANTERIOR");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithMany()
+                .HasForeignKey(d => d.IdUsuario)
+                .HasConstraintName("FK_HISTORIAL_ESTADO_OT_USUARIO");
 
             entity.HasOne(d => d.IdEstadoOtNavigation).WithMany(p => p.HistorialEstadoOts)
                 .HasForeignKey(d => d.IdEstadoOt)
@@ -254,6 +266,38 @@ public partial class SotraContext : DbContext
                 .HasForeignKey(d => d.IdOrden)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ORDEN_TRABAJO_HISTORIAL_ESTADO_OT");
+        });
+
+        modelBuilder.Entity<HistorialTecnicoOt>(entity =>
+        {
+            entity.HasKey(e => e.IdHTecnicoOt).HasName("PK_HISTORIAL_TECNICO_OT");
+
+            entity.ToTable("historial_tecnico_ot", EsquemaOperativo);
+
+            entity.Property(e => e.IdHTecnicoOt).ValueGeneratedOnAdd().HasColumnName("id_h_tecnico_ot");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.IdTecnicoAnterior).HasColumnName("id_tecnico_anterior");
+            entity.Property(e => e.IdTecnicoNuevo).HasColumnName("id_tecnico_nuevo");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.FechaHora).HasColumnName("fecha_hora");
+            entity.Property(e => e.Observacion).HasColumnName("observacion");
+
+            entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.HistorialTecnicoOts)
+                .HasForeignKey(d => d.IdOrden)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_HISTORIAL_TECNICO_OT_ORDEN");
+
+            entity.HasOne(d => d.IdTecnicoAnteriorNavigation).WithMany()
+                .HasForeignKey(d => d.IdTecnicoAnterior)
+                .HasConstraintName("FK_HISTORIAL_TECNICO_OT_ANTERIOR");
+
+            entity.HasOne(d => d.IdTecnicoNuevoNavigation).WithMany()
+                .HasForeignKey(d => d.IdTecnicoNuevo)
+                .HasConstraintName("FK_HISTORIAL_TECNICO_OT_NUEVO");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithMany()
+                .HasForeignKey(d => d.IdUsuario)
+                .HasConstraintName("FK_HISTORIAL_TECNICO_OT_USUARIO");
         });
 
         modelBuilder.Entity<HistorialRecomendacionIa>(entity =>
