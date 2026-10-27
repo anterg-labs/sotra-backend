@@ -68,6 +68,47 @@ public sealed class OrdenAbiertaFila
     public double HorasDesdeCreacion { get; set; }
 }
 
+public sealed class ResumenDeOrdenesFila
+{
+    public int Creadas { get; set; }
+    public int Cerradas { get; set; }
+    public int Eliminadas { get; set; }
+    public int Abiertas { get; set; }
+    public int Preventivas { get; set; }
+    public int Correctivas { get; set; }
+}
+
+public sealed class CambiosDeProcesoFila
+{
+    public int Cantidad { get; set; }
+    public int Ordenes { get; set; }
+    public double? PromedioHoras { get; set; }
+}
+
+public sealed class MotivoFila
+{
+    public string Texto { get; set; } = "";
+    public int Cantidad { get; set; }
+}
+
+public sealed class ReasignacionesFila
+{
+    public int Cantidad { get; set; }
+    public int Ordenes { get; set; }
+}
+
+public sealed class MaquinariaFila
+{
+    public long Id { get; set; }
+    public string Nombre { get; set; } = "";
+    public string? Cliente { get; set; }
+    public int Ordenes { get; set; }
+    public int Correctivas { get; set; }
+    public int Preventivas { get; set; }
+    public double? HorasPromedioEjecucion { get; set; }
+    public double HorasParada { get; set; }
+}
+
 /// <summary>Consultas agregadas del dashboard: se resuelven en la base con GROUP BY y funciones de ventana.</summary>
 public class AnaliticaDAO
 {
@@ -218,6 +259,133 @@ public class AnaliticaDAO
         LIMIT @limite
         """;
 
+    private const string ConsultaPrimeraRevision = """
+        (SELECT min(h.fecha_hora)
+         FROM operativo.historial_estado_ot AS h
+         JOIN operativo.estado_ot AS e ON e.id_estado_ot = h.id_estado_ot
+         WHERE h.id_orden = o.id_orden AND e.fase = 'por_validar')
+        """;
+
+    private const string SqlResumenDeOrdenes = $"""
+        SELECT count(*)::int AS "Creadas",
+               (count(*) FILTER (WHERE o.fecha_cierre IS NOT NULL))::int AS "Cerradas",
+               (count(*) FILTER (WHERE actual.fase = 'eliminada'))::int AS "Eliminadas",
+               (count(*) FILTER (WHERE actual.fase IN ('pendiente', 'en_curso', 'por_validar')))::int AS "Abiertas",
+               (count(*) FILTER (WHERE o.tipo))::int AS "Preventivas",
+               (count(*) FILTER (WHERE NOT o.tipo))::int AS "Correctivas"
+        FROM operativo.orden_trabajo AS o
+        LEFT JOIN LATERAL (
+            SELECT e.fase
+            FROM operativo.historial_estado_ot AS h
+            JOIN operativo.estado_ot AS e ON e.id_estado_ot = h.id_estado_ot
+            WHERE h.id_orden = o.id_orden
+            ORDER BY h.fecha_hora DESC, h.id_h_estado_ot DESC
+            LIMIT 1
+        ) AS actual ON TRUE
+        WHERE TRUE {FiltrosDeOrden}
+        """;
+
+    /// <summary>Horas entre dos fechas de la orden (<c>fecha_creada</c>, <c>fecha_inicio</c>, <c>fecha_revision</c> o <c>fecha_cierre</c>); son constantes del código, nunca texto de la solicitud.</summary>
+    private static string SqlHorasEntre(string desde, string hasta) => $"""
+        SELECT count(*)::int AS "Cantidad",
+               avg(horas)::float8 AS "Promedio",
+               (percentile_cont(0.5) WITHIN GROUP (ORDER BY horas))::float8 AS "Mediana",
+               (percentile_cont(0.9) WITHIN GROUP (ORDER BY horas))::float8 AS "Percentil90"
+        FROM (
+            SELECT EXTRACT(EPOCH FROM (b.{hasta} - b.{desde})) / 3600.0 AS horas
+            FROM (
+                SELECT o.fecha_creada, o.fecha_inicio, o.fecha_cierre, {ConsultaPrimeraRevision} AS fecha_revision
+                FROM operativo.orden_trabajo AS o
+                WHERE TRUE {FiltrosDeOrden}
+            ) AS b
+            WHERE b.{desde} IS NOT NULL AND b.{hasta} IS NOT NULL AND b.{hasta} >= b.{desde}
+        ) AS duraciones
+        """;
+
+    private static readonly string SqlRespuesta = SqlHorasEntre("fecha_creada", "fecha_inicio");
+    private static readonly string SqlEjecucion = SqlHorasEntre("fecha_inicio", "fecha_revision");
+    private static readonly string SqlRevision = SqlHorasEntre("fecha_revision", "fecha_cierre");
+
+    /// <summary>
+    /// Cambios de estado de un tipo de proceso. Una pausa es un cambio dentro de la fase en curso que la base marca como
+    /// «exige motivo»; una devolución es el paso de la fase por validar a la pendiente. Se identifican por fase y por las
+    /// reglas de la base, no por el nombre del estado.
+    /// </summary>
+    private static string SqlCambios(string condicion, string columnas, string final) => $"""
+        WITH cambios AS (
+            SELECT h.id_orden, h.fecha_hora, h.observacion, h.id_estado_anterior, h.id_estado_ot,
+                   LEAD(h.fecha_hora) OVER (PARTITION BY h.id_orden ORDER BY h.fecha_hora, h.id_h_estado_ot) AS siguiente
+            FROM operativo.historial_estado_ot AS h
+            JOIN operativo.orden_trabajo AS o ON o.id_orden = h.id_orden
+            WHERE TRUE {FiltrosDeOrden}
+        ), elegidos AS (
+            SELECT c.id_orden, c.observacion, EXTRACT(EPOCH FROM (c.siguiente - c.fecha_hora)) / 3600.0 AS horas
+            FROM cambios AS c
+            JOIN operativo.estado_ot AS ea ON ea.id_estado_ot = c.id_estado_anterior
+            JOIN operativo.estado_ot AS en ON en.id_estado_ot = c.id_estado_ot
+            LEFT JOIN operativo.transicion_estado_ot AS t ON t.id_estado_origen = c.id_estado_anterior AND t.id_estado_destino = c.id_estado_ot
+            WHERE {condicion}
+        )
+        SELECT {columnas} FROM elegidos {final}
+        """;
+
+    private const string CondicionPausa = "ea.fase = 'en_curso' AND en.fase = 'en_curso' AND COALESCE(t.exige_motivo, FALSE)";
+    private const string CondicionDevolucion = "ea.fase = 'por_validar' AND en.fase = 'pendiente'";
+
+    private static readonly string SqlTotalPausas = SqlCambios(CondicionPausa,
+        """count(*)::int AS "Cantidad", count(DISTINCT id_orden)::int AS "Ordenes", avg(horas)::float8 AS "PromedioHoras" """, "");
+    private static readonly string SqlTotalDevoluciones = SqlCambios(CondicionDevolucion,
+        """count(*)::int AS "Cantidad", count(DISTINCT id_orden)::int AS "Ordenes", NULL::float8 AS "PromedioHoras" """, "");
+    private static readonly string SqlMotivosDePausa = SqlCambios(CondicionPausa,
+        """COALESCE(min(btrim(observacion)), '') AS "Texto", count(*)::int AS "Cantidad" """,
+        "GROUP BY lower(btrim(COALESCE(observacion, ''))) ORDER BY 2 DESC, 1 LIMIT @limite");
+    private static readonly string SqlMotivosDeDevolucion = SqlCambios(CondicionDevolucion,
+        """COALESCE(min(btrim(observacion)), '') AS "Texto", count(*)::int AS "Cantidad" """,
+        "GROUP BY lower(btrim(COALESCE(observacion, ''))) ORDER BY 2 DESC, 1 LIMIT @limite");
+
+    private const string SqlReasignaciones = $"""
+        SELECT count(*)::int AS "Cantidad", count(DISTINCT t.id_orden)::int AS "Ordenes"
+        FROM operativo.historial_tecnico_ot AS t
+        JOIN operativo.orden_trabajo AS o ON o.id_orden = t.id_orden
+        WHERE t.id_tecnico_anterior IS NOT NULL AND t.id_tecnico_nuevo IS NOT NULL {FiltrosDeOrden}
+        """;
+
+    /// <summary>
+    /// Por máquina (tipo o activo): órdenes, correctivas y preventivas, horas promedio de ejecución de las correctivas
+    /// (de inicio a revisión) y horas de parada acumuladas (de la creación al cierre de las correctivas cerradas).
+    /// </summary>
+    private static string SqlMaquinaria(string idNombre, string agrupar, string orden, string limite) => $"""
+        SELECT {idNombre},
+               count(*)::int AS "Ordenes",
+               (count(*) FILTER (WHERE NOT o.tipo))::int AS "Correctivas",
+               (count(*) FILTER (WHERE o.tipo))::int AS "Preventivas",
+               (avg(EXTRACT(EPOCH FROM (rev.fecha - o.fecha_inicio)) / 3600.0)
+                   FILTER (WHERE NOT o.tipo AND o.fecha_inicio IS NOT NULL AND rev.fecha IS NOT NULL AND rev.fecha >= o.fecha_inicio))::float8 AS "HorasPromedioEjecucion",
+               COALESCE((sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0)
+                   FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::float8, 0) AS "HorasParada"
+        FROM operativo.orden_trabajo AS o
+        JOIN operativo.activo AS a ON a.id_activo = o.id_activo
+        JOIN operativo.cliente AS cl ON cl.id_cliente = a.id_cliente
+        JOIN operativo.modelo_maquina AS mm ON mm.id_modelo_maquina = a.id_modelo_maquina
+        JOIN operativo.tipo_maquina AS tm ON tm.id_tipo_maquina = mm.id_tipo_maquina
+        LEFT JOIN LATERAL (
+            SELECT min(h.fecha_hora) AS fecha
+            FROM operativo.historial_estado_ot AS h
+            JOIN operativo.estado_ot AS e ON e.id_estado_ot = h.id_estado_ot
+            WHERE h.id_orden = o.id_orden AND e.fase = 'por_validar'
+        ) AS rev ON TRUE
+        WHERE TRUE {FiltrosDeOrden}
+        GROUP BY {agrupar}
+        ORDER BY {orden}
+        {limite}
+        """;
+
+    private static readonly string SqlMaquinariaPorTipo = SqlMaquinaria(
+        """tm.id_tipo_maquina AS "Id", tm.nombre AS "Nombre", NULL::text AS "Cliente" """, "tm.id_tipo_maquina, tm.nombre", "2 DESC, tm.nombre", "");
+    private static readonly string SqlMaquinariaPorActivo = SqlMaquinaria(
+        """a.id_activo AS "Id", COALESCE(a.nombre, a.num_serie) AS "Nombre", cl.razon_social AS "Cliente" """,
+        "a.id_activo, a.nombre, a.num_serie, cl.razon_social", "7 DESC, 2 DESC, a.id_activo", "LIMIT @limite");
+
     private readonly SotraContext _contexto;
 
     public AnaliticaDAO(SotraContext contexto)
@@ -294,6 +462,44 @@ public class AnaliticaDAO
         parametros.Add(new NpgsqlParameter("limite", limite));
         return await _contexto.Database.SqlQueryRaw<RepuestoUsadoFila>(SqlRepuestosUsados, parametros.ToArray<object>())
             .ToListAsync(cancelacion);
+    }
+
+    public async Task<ResumenDeOrdenesFila> ObtenerResumenDeOrdenesAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<ResumenDeOrdenesFila>(SqlResumenDeOrdenes, filtro).SingleAsync(cancelacion);
+
+    /// <summary>Horas entre la creación y el inicio, el inicio y la primera revisión, y la primera revisión y el cierre.</summary>
+    public async Task<(DuracionFila Respuesta, DuracionFila Ejecucion, DuracionFila Revision)> ObtenerTiemposDeProcesoAsync(
+        FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        (await Consultar<DuracionFila>(SqlRespuesta, filtro).SingleAsync(cancelacion),
+         await Consultar<DuracionFila>(SqlEjecucion, filtro).SingleAsync(cancelacion),
+         await Consultar<DuracionFila>(SqlRevision, filtro).SingleAsync(cancelacion));
+
+    public async Task<CambiosDeProcesoFila> ObtenerPausasAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<CambiosDeProcesoFila>(SqlTotalPausas, filtro).SingleAsync(cancelacion);
+
+    public async Task<CambiosDeProcesoFila> ObtenerDevolucionesAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<CambiosDeProcesoFila>(SqlTotalDevoluciones, filtro).SingleAsync(cancelacion);
+
+    public async Task<List<MotivoFila>> ObtenerMotivosDePausaAsync(int limite, FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<MotivoFila>(SqlMotivosDePausa, filtro, new NpgsqlParameter("limite", limite)).ToListAsync(cancelacion);
+
+    public async Task<List<MotivoFila>> ObtenerMotivosDeDevolucionAsync(int limite, FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<MotivoFila>(SqlMotivosDeDevolucion, filtro, new NpgsqlParameter("limite", limite)).ToListAsync(cancelacion);
+
+    public async Task<ReasignacionesFila> ObtenerReasignacionesAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<ReasignacionesFila>(SqlReasignaciones, filtro).SingleAsync(cancelacion);
+
+    public async Task<List<MaquinariaFila>> ObtenerMaquinariaPorTipoAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<MaquinariaFila>(SqlMaquinariaPorTipo, filtro).ToListAsync(cancelacion);
+
+    public async Task<List<MaquinariaFila>> ObtenerMaquinariaPorActivoAsync(int limite, FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<MaquinariaFila>(SqlMaquinariaPorActivo, filtro, new NpgsqlParameter("limite", limite)).ToListAsync(cancelacion);
+
+    private IQueryable<T> Consultar<T>(string sql, FiltroAnalitica filtro, params NpgsqlParameter[] extra)
+    {
+        var (_, parametros) = Condiciones(filtro, "o");
+        parametros.AddRange(extra);
+        return _contexto.Database.SqlQueryRaw<T>(sql, parametros.ToArray<object>());
     }
 
     private static (string Alias, List<NpgsqlParameter> Parametros) Condiciones(FiltroAnalitica filtro, string alias)

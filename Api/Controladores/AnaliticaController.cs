@@ -15,6 +15,8 @@ public class AnaliticaController : ControllerBase
 {
     private const int MaximoDeReincidencias = 20;
     private const int MaximoDeRepuestosUsados = 10;
+    private const int MaximoDeMotivos = 5;
+    private const int MaximoDeActivos = 10;
 
     private readonly AnaliticaDAO _analiticaDao;
     private readonly OpcionesDeAlertasDeMaquinaria _opciones;
@@ -76,6 +78,98 @@ public class AnaliticaController : ControllerBase
             TotalPeriodoAnterior = totalAnterior,
         };
     }
+
+    [HttpGet("desempeno")]
+    [Authorize(Policy = Politicas.ReporteConsultar)]
+    [ProducesResponseType<DesempenoDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<DesempenoDto>> ObtenerDesempeno([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
+    {
+        if (RangoInvalido(filtros) is { } error)
+        {
+            return error;
+        }
+
+        var filtro = ADominio(filtros);
+        return Ok(await _cache.ObtenerAsync($"desempeno|{filtro}", token => CalcularDesempenoAsync(filtro, token), cancelacion));
+    }
+
+    private async Task<DesempenoDto> CalcularDesempenoAsync(FiltroAnalitica filtro, CancellationToken cancelacion)
+    {
+        var resumen = await _analiticaDao.ObtenerResumenDeOrdenesAsync(filtro, cancelacion);
+        var (respuesta, ejecucion, revision) = await _analiticaDao.ObtenerTiemposDeProcesoAsync(filtro, cancelacion);
+        var pausas = await _analiticaDao.ObtenerPausasAsync(filtro, cancelacion);
+        var devoluciones = await _analiticaDao.ObtenerDevolucionesAsync(filtro, cancelacion);
+        var reasignaciones = await _analiticaDao.ObtenerReasignacionesAsync(filtro, cancelacion);
+
+        return new DesempenoDto
+        {
+            Ordenes = new ResumenDeOrdenesDto
+            {
+                Creadas = resumen.Creadas,
+                Cerradas = resumen.Cerradas,
+                Eliminadas = resumen.Eliminadas,
+                Abiertas = resumen.Abiertas,
+                Preventivas = resumen.Preventivas,
+                Correctivas = resumen.Correctivas,
+                PorcentajePreventivas = Porcentaje(resumen.Preventivas, resumen.Creadas),
+            },
+            Tiempos = new TiemposDeProcesoDto
+            {
+                Respuesta = ADuracion(respuesta),
+                Ejecucion = ADuracion(ejecucion),
+                Revision = ADuracion(revision),
+            },
+            Flujo = new FlujoDeProcesoDto
+            {
+                Pausas = new PausasDto
+                {
+                    Cantidad = pausas.Cantidad,
+                    OrdenesConPausa = pausas.Ordenes,
+                    DuracionPromedioHoras = Redondear(pausas.PromedioHoras),
+                    Motivos = AMotivos(await _analiticaDao.ObtenerMotivosDePausaAsync(MaximoDeMotivos, filtro, cancelacion)),
+                },
+                Devoluciones = new DevolucionesDto
+                {
+                    Cantidad = devoluciones.Cantidad,
+                    OrdenesDevueltas = devoluciones.Ordenes,
+                    PorcentajeDeOrdenes = Porcentaje(devoluciones.Ordenes, resumen.Creadas),
+                    Motivos = AMotivos(await _analiticaDao.ObtenerMotivosDeDevolucionAsync(MaximoDeMotivos, filtro, cancelacion)),
+                },
+                Reasignaciones = new ReasignacionesDto { Cantidad = reasignaciones.Cantidad, OrdenesReasignadas = reasignaciones.Ordenes },
+            },
+            Maquinaria = new MaquinariaDto
+            {
+                PorTipo = (await _analiticaDao.ObtenerMaquinariaPorTipoAsync(filtro, cancelacion)).Select(AMaquinaria).ToList(),
+                Activos = (await _analiticaDao.ObtenerMaquinariaPorActivoAsync(MaximoDeActivos, filtro, cancelacion)).Select(AMaquinaria).ToList(),
+            },
+        };
+    }
+
+    private static DuracionDto ADuracion(DuracionFila fila) => new()
+    {
+        Cantidad = fila.Cantidad,
+        PromedioHoras = Redondear(fila.Promedio),
+        MedianaHoras = Redondear(fila.Mediana),
+        Percentil90Horas = Redondear(fila.Percentil90),
+    };
+
+    private static List<MotivoDto> AMotivos(List<MotivoFila> filas) =>
+        filas.Select(fila => new MotivoDto { Texto = fila.Texto == "" ? "Sin motivo indicado" : fila.Texto, Cantidad = fila.Cantidad }).ToList();
+
+    private static MaquinariaItemDto AMaquinaria(MaquinariaFila fila) => new()
+    {
+        Id = fila.Id,
+        Nombre = fila.Nombre,
+        Cliente = fila.Cliente,
+        Ordenes = fila.Ordenes,
+        Correctivas = fila.Correctivas,
+        Preventivas = fila.Preventivas,
+        HorasPromedioEjecucion = Redondear(fila.HorasPromedioEjecucion),
+        HorasParada = Redondear(fila.HorasParada)!.Value,
+    };
+
+    private static double? Porcentaje(int parte, int total) => total == 0 ? null : Redondear(parte * 100.0 / total);
 
     [HttpGet("tiempos")]
     [Authorize(Policy = Politicas.ReporteConsultar)]

@@ -261,6 +261,82 @@ public class AnaliticaPruebas : PruebaBase
         Assert.That(cumplimiento.GetProperty("porcentajeEnPlazo").ValueKind, Is.EqualTo(JsonValueKind.Null));
     }
 
+    private async Task CambiarEstadoAsync(long ordenId, string estado, string? motivo = null) =>
+        (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado", new { estado, motivo })).EnsureSuccessStatusCode();
+
+    [Test]
+    public async Task ElDesempenoMideOrdenesProcesosYMaquinariaSinEvaluarPersonas()
+    {
+        var activo = await DatosDePrueba.CrearActivoAsync(Cliente);
+        var clienteId = activo.GetProperty("clienteId").GetInt64();
+        var primero = (await DatosDePrueba.CrearUsuarioAsync(Cliente, DatosDePrueba.UsuarioNuevo(idsRol: [RolTecnico]))).GetProperty("id").GetInt64();
+        var segundo = (await DatosDePrueba.CrearUsuarioAsync(Cliente, DatosDePrueba.UsuarioNuevo(idsRol: [RolTecnico]))).GetProperty("id").GetInt64();
+        var cerrada = await CrearOrdenAsync(activo, "correctivo", primero);
+        await CambiarEstadoAsync(cerrada, "en_progreso");
+        await CambiarEstadoAsync(cerrada, "pausado", "Falta material");
+        await CambiarEstadoAsync(cerrada, "en_progreso");
+        await CambiarEstadoAsync(cerrada, "en_revision");
+        await CambiarEstadoAsync(cerrada, "pendiente", "Falta revisar el sello");
+        await CambiarEstadoAsync(cerrada, "en_progreso");
+        await CambiarEstadoAsync(cerrada, "en_revision");
+        await CambiarEstadoAsync(cerrada, "cerrado");
+        var abierta = await CrearOrdenAsync(activo, "preventivo", primero);
+        (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{abierta}/tecnico", new { tecnicoId = segundo })).EnsureSuccessStatusCode();
+
+        var desempeno = await LeerAsync($"/api/v1/reportes/desempeno?clienteId={clienteId}");
+
+        var ordenes = desempeno.GetProperty("ordenes");
+        Assert.That(ordenes.GetProperty("creadas").GetInt32(), Is.EqualTo(2));
+        Assert.That(ordenes.GetProperty("cerradas").GetInt32(), Is.EqualTo(1));
+        Assert.That(ordenes.GetProperty("abiertas").GetInt32(), Is.EqualTo(1));
+        Assert.That(ordenes.GetProperty("eliminadas").GetInt32(), Is.Zero);
+        Assert.That(ordenes.GetProperty("preventivas").GetInt32(), Is.EqualTo(1));
+        Assert.That(ordenes.GetProperty("correctivas").GetInt32(), Is.EqualTo(1));
+        Assert.That(ordenes.GetProperty("porcentajePreventivas").GetDouble(), Is.EqualTo(50));
+        var tiempos = desempeno.GetProperty("tiempos");
+        Assert.That(tiempos.GetProperty("respuesta").GetProperty("cantidad").GetInt32(), Is.EqualTo(1));
+        Assert.That(tiempos.GetProperty("ejecucion").GetProperty("cantidad").GetInt32(), Is.EqualTo(1));
+        Assert.That(tiempos.GetProperty("revision").GetProperty("cantidad").GetInt32(), Is.EqualTo(1));
+        var flujo = desempeno.GetProperty("flujo");
+        Assert.That(flujo.GetProperty("pausas").GetProperty("cantidad").GetInt32(), Is.EqualTo(1));
+        Assert.That(flujo.GetProperty("pausas").GetProperty("ordenesConPausa").GetInt32(), Is.EqualTo(1));
+        Assert.That(flujo.GetProperty("pausas").GetProperty("motivos")[0].GetProperty("texto").GetString(), Is.EqualTo("Falta material"));
+        Assert.That(flujo.GetProperty("devoluciones").GetProperty("cantidad").GetInt32(), Is.EqualTo(1));
+        Assert.That(flujo.GetProperty("devoluciones").GetProperty("porcentajeDeOrdenes").GetDouble(), Is.EqualTo(50));
+        Assert.That(flujo.GetProperty("devoluciones").GetProperty("motivos")[0].GetProperty("texto").GetString(), Is.EqualTo("Falta revisar el sello"));
+        Assert.That(flujo.GetProperty("reasignaciones").GetProperty("cantidad").GetInt32(), Is.EqualTo(1));
+        var maquinaria = desempeno.GetProperty("maquinaria");
+        Assert.That(maquinaria.GetProperty("porTipo").GetArrayLength(), Is.EqualTo(1));
+        Assert.That(maquinaria.GetProperty("porTipo")[0].GetProperty("ordenes").GetInt32(), Is.EqualTo(2));
+        var activoItem = maquinaria.GetProperty("activos")[0];
+        Assert.That(activoItem.GetProperty("id").GetInt64(), Is.EqualTo(activo.GetProperty("id").GetInt64()));
+        Assert.That(activoItem.GetProperty("correctivas").GetInt32(), Is.EqualTo(1));
+        Assert.That(activoItem.GetProperty("horasParada").GetDouble(), Is.GreaterThanOrEqualTo(0));
+        Assert.That(desempeno.GetRawText(), Does.Not.Contain("tecnico").And.Not.Contain("Tecnico"), "el reporte no desglosa por persona");
+    }
+
+    [Test]
+    public async Task ElDesempenoSinOrdenesVieneEnCeroYSinPorcentajes()
+    {
+        var activo = await DatosDePrueba.CrearActivoAsync(Cliente);
+
+        var desempeno = await LeerAsync($"/api/v1/reportes/desempeno?clienteId={activo.GetProperty("clienteId").GetInt64()}");
+
+        Assert.That(desempeno.GetProperty("ordenes").GetProperty("creadas").GetInt32(), Is.Zero);
+        Assert.That(desempeno.GetProperty("ordenes").GetProperty("porcentajePreventivas").ValueKind, Is.EqualTo(JsonValueKind.Null));
+        Assert.That(desempeno.GetProperty("tiempos").GetProperty("respuesta").GetProperty("promedioHoras").ValueKind, Is.EqualTo(JsonValueKind.Null));
+        Assert.That(desempeno.GetProperty("flujo").GetProperty("pausas").GetProperty("motivos").GetArrayLength(), Is.Zero);
+        Assert.That(desempeno.GetProperty("maquinaria").GetProperty("activos").GetArrayLength(), Is.Zero);
+    }
+
+    [Test]
+    public async Task ElDesempenoRechazaUnRangoDeFechasInvalido()
+    {
+        var respuesta = await Cliente.GetAsync("/api/v1/reportes/desempeno?fechaDesde=2026-10-10&fechaHasta=2026-10-01");
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
     [Test]
     public async Task LosRepuestosMasUsadosSeOrdenanPorCantidadDeOrdenes()
     {
