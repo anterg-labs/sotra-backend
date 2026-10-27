@@ -233,7 +233,7 @@ public class OrdenesTrabajoController : ControllerBase
         try
         {
             var sugerencia = await _servicioSugerencias.BuscarAsync(
-                solicitud.Descripcion, solicitud.Numero, cancellationToken);
+                solicitud.Descripcion, solicitud.Numero, solicitud.ActivoId, cancellationToken);
             if (sugerencia is null)
             {
                 resultadoDeLaSugerencia = "sin_contexto";
@@ -241,18 +241,19 @@ public class OrdenesTrabajoController : ControllerBase
             }
 
             await _ordenTrabajoDao.RegistrarSugerenciaGeneradaAsync(solicitud.Sesion, solicitud.Descripcion.Trim(),
-                solicitud.Numero, sugerencia, cancellationToken);
-            resultadoDeLaSugerencia = "ok";
-            return Ok(new { sugerencia });
+                solicitud.Numero, sugerencia.Texto, sugerencia.Modo, cancellationToken);
+            resultadoDeLaSugerencia = sugerencia.Modo == ModosDeSugerencia.Ia ? "ok" : sugerencia.Modo;
+            return Ok(new { sugerencia = sugerencia.Texto, modo = sugerencia.Modo });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             return StatusCode(StatusCodeClienteCerroLaSolicitud);
         }
-        catch (Exception excepcion) when (excepcion is HttpRequestException or TaskCanceledException)
+        catch (ModeloLocalNoDisponibleException excepcion)
         {
+            // Sin los modelos locales no se puede buscar en la documentación: es un problema de instalación.
             resultadoDeLaSugerencia = "no_disponible";
-            _logger.LogWarning(excepcion, "El servicio de IA (Ollama) no respondió al pedir una sugerencia");
+            _logger.LogError(excepcion, "Faltan los modelos de IA locales al pedir una sugerencia");
             return this.RespuestaDeError(502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
         }
         catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)

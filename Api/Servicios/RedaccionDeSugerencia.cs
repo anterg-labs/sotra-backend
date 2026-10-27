@@ -4,13 +4,23 @@ namespace Api.Servicios;
 
 public static class RedaccionDeSugerencia
 {
-    private const int LargoMaximoDeTextoParaQwen = 3000;
+    private const int LargoMaximoDeTextoParaElModelo = 3000;
     private const int LargoMinimoDeResumen = 20;
     private const int LargoMaximoDeResumen = 1200;
 
+    private const int LargoMaximoDeTitulo = 100;
+    private const int PalabrasMaximasDeTitulo = 12;
+    private const string PrefijoDelTitulo = "Título:";
+
     private static readonly Regex PatronNumero = new("\\d+(?:[.,]\\d+)?");
 
-    public const string InstruccionesParaQwen =
+    // El modelo a veces resalta el rótulo con asteriscos o lo escribe sin tilde.
+    private static readonly Regex PatronLineaDeTitulo = new("^\\W*t[ií]tulo\\W*:\\W*(.*?)\\W*$", RegexOptions.IgnoreCase);
+
+    // Algunas veces el modelo también rotula el resumen ("Resumen: Se debe...").
+    private static readonly Regex PatronRotuloDeResumen = new("^[*_\\s]*resumen[*_\\s]*:[*_\\s]*", RegexOptions.IgnoreCase);
+
+    public const string Instrucciones =
         "Resumís secciones de manuales técnicos para técnicos de mantenimiento. " +
         "Reglas obligatorias: " +
         "1) Usá únicamente la información del texto del manual que se te entrega. " +
@@ -18,22 +28,40 @@ public static class RedaccionDeSugerencia
         "3) Copiá exactamente los números, unidades, intervalos, cantidades, medidas y nombres de componentes. " +
         "Mantené cada condición y su acción tal como las expresa el manual: " +
         "no cambies el verbo de la acción ni conviertas una acción en otra distinta. " +
-        "4) Escribí en español neutro, de 2 a 4 oraciones, en prosa, sin títulos ni listas. " +
+        "Conservá las obligaciones y prohibiciones como tales: si el manual dice \"use\", \"debe\" o \"nunca\", " +
+        "no lo conviertas en recomendación ni en algo opcional. " +
+        "4) En la primera línea escribí \"" + PrefijoDelTitulo + "\" y un título breve en español neutro para la " +
+        "tarea, de 3 a 10 palabras y sin punto final, traducido si el manual está en otro idioma. " +
+        "En las líneas siguientes escribí el resumen en español neutro, de 2 a 4 oraciones, en prosa, sin listas. " +
         "Usá forma impersonal o de usted (por ejemplo: \"se debe\", \"retire\", \"coloque\"), nunca de tú. " +
         "5) Si el texto o el contexto previo indican un intervalo, un momento o una condición para realizar " +
         "la tarea, empezá por eso, con la misma acción que indica el manual. Si no hay intervalo ni condición, " +
-        "empezá directamente por la acción principal. No empieces repitiendo el título de la sección. " +
+        "empezá directamente por la acción principal. No empieces el resumen repitiendo el título. " +
         "6) Si el texto indica capacidades, cantidades o valores de ajuste, incluilos. " +
         "7) No repitas advertencias de seguridad; se muestran aparte. " +
         "8) Si el texto describe pasos, resumí los principales en orden. " +
-        "9) No menciones páginas, secciones ni el nombre del manual.";
+        "9) No menciones páginas, secciones ni el nombre del manual. " +
+        "10) Si el manual está en otro idioma, traducí con el vocabulario técnico de mantenimiento en español: " +
+        "por ejemplo, \"oil it\" es \"aceitarlo\", \"unscrew\" es \"desenroscar\", \"drain pan\" es " +
+        "\"bandeja de drenaje\" y \"bolt\" es \"perno\". Usá solo palabras que existan en español; si no estás " +
+        "seguro de cómo se traduce un término técnico, escribilo en español y agregá el original entre paréntesis. " +
+        "11) Si el texto del manual no tiene ninguna información sobre la tarea consultada (por ejemplo, es un " +
+        "índice o trata otro tema), respondé únicamente " + RespuestaSinInformacion + ", sin título ni resumen.";
 
-    public static string CrearMensajeParaQwen(string consulta, SeccionDocumento seccion, string textoParaResumir)
+    /// <summary>Lo que responde el modelo cuando la sección elegida no trata la tarea consultada.</summary>
+    public const string RespuestaSinInformacion = "SIN_INFORMACION";
+
+    public static bool EsRespuestaSinInformacion(string respuesta)
+    {
+        return respuesta.Contains(RespuestaSinInformacion, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string CrearMensajeParaElModelo(string consulta, SeccionDocumento seccion, string textoParaResumir)
     {
         var textoDelManual = TextoDelManual.QuitarMarcasInternas(textoParaResumir);
-        if (textoDelManual.Length > LargoMaximoDeTextoParaQwen)
+        if (textoDelManual.Length > LargoMaximoDeTextoParaElModelo)
         {
-            textoDelManual = textoDelManual.Substring(0, LargoMaximoDeTextoParaQwen);
+            textoDelManual = textoDelManual.Substring(0, LargoMaximoDeTextoParaElModelo);
         }
 
         var mensaje = "Consulta del técnico: " + consulta + "\n\n";
@@ -47,7 +75,37 @@ public static class RedaccionDeSugerencia
         return mensaje;
     }
 
-    public static bool EsResumenConfiable(string resumen, string consulta, SeccionDocumento seccion)
+    /// <summary>
+    /// Separa el título de la primera línea ("Título: ...") del resumen. Si no hay título o no es un título breve,
+    /// devuelve el título vacío y todo el texto como resumen.
+    /// </summary>
+    public static RespuestaDelModelo SepararTitulo(string respuesta)
+    {
+        var texto = respuesta.Trim();
+        var finDePrimeraLinea = texto.IndexOf('\n');
+        var primeraLinea = finDePrimeraLinea == -1 ? texto : texto.Substring(0, finDePrimeraLinea);
+        var coincidencia = PatronLineaDeTitulo.Match(primeraLinea.Trim());
+        if (!coincidencia.Success || finDePrimeraLinea == -1)
+        {
+            return new RespuestaDelModelo("", texto);
+        }
+
+        var titulo = coincidencia.Groups[1].Value.Trim();
+        var resumen = PatronRotuloDeResumen.Replace(texto.Substring(finDePrimeraLinea + 1).Trim(), "");
+        var palabras = titulo.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (titulo.Length == 0 || titulo.Length > LargoMaximoDeTitulo || palabras > PalabrasMaximasDeTitulo)
+        {
+            return new RespuestaDelModelo("", resumen);
+        }
+
+        return new RespuestaDelModelo(titulo, resumen);
+    }
+
+    /// <summary>
+    /// El resumen debe tener un largo razonable y, junto con el título, no puede traer números que no estén en el
+    /// manual ni en la consulta: un número inventado en un procedimiento técnico es peor que no resumir.
+    /// </summary>
+    public static bool EsResumenConfiable(string resumen, string consulta, SeccionDocumento seccion, string titulo = "")
     {
         if (resumen.Length < LargoMinimoDeResumen || resumen.Length > LargoMaximoDeResumen)
         {
@@ -61,7 +119,7 @@ public static class RedaccionDeSugerencia
             numerosDelManual.Add(numero.Value.Replace(',', '.'));
         }
 
-        foreach (Match numero in PatronNumero.Matches(resumen))
+        foreach (Match numero in PatronNumero.Matches(titulo + " " + resumen))
         {
             var numeroDelResumen = numero.Value.Replace(',', '.');
             if (!numerosDelManual.Contains(numeroDelResumen))
@@ -73,11 +131,20 @@ public static class RedaccionDeSugerencia
         return true;
     }
 
+    /// <summary>
+    /// Arma el texto que ve el técnico. Con título de la IA, la primera línea es ese título en español; sin título
+    /// (texto del manual sin resumir) se muestra el contexto previo tal como está en el manual. El título original
+    /// de la sección queda en la fuente, para encontrarla en el PDF.
+    /// </summary>
     public static string ArmarRespuesta(string resumen, List<string> advertencias,
-        SeccionDocumento elegida, List<SeccionDocumento> opciones)
+        SeccionDocumento elegida, List<SeccionDocumento> opciones, string titulo = "")
     {
         var respuesta = "";
-        if (elegida.Contexto.Length > 0)
+        if (titulo.Length > 0)
+        {
+            respuesta += titulo + "\n";
+        }
+        else if (elegida.Contexto.Length > 0)
         {
             respuesta += elegida.Contexto + "\n";
         }
@@ -122,3 +189,5 @@ public static class RedaccionDeSugerencia
         return respuesta;
     }
 }
+
+public record RespuestaDelModelo(string Titulo, string Resumen);

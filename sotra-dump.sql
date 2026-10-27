@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict t3QTNlbS6vARwR03laPnlHnpvzn2gbSGbOtLZmD7xocIadd9f8vcUA5en57siqo
+\restrict pD3qMCIBY3nqnXK3paa8SAc7GMXaGzHsiX3r2qXC7FvGXHbz10nrrfjQ9ZWIB9J
 
--- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
--- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
+-- Dumped from database version 18.6 (Debian 18.6-1.pgdg12+2)
+-- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg12+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -231,6 +231,8 @@ CREATE TABLE operativo.historial_recomendaciones_ia (
     numero_intento integer,
     fecha_generacion timestamp with time zone DEFAULT now() NOT NULL,
     resultado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    modo character varying(20) DEFAULT 'ia'::character varying NOT NULL,
+    CONSTRAINT "CK_HISTORIAL_RECOMENDACIONES_IA_MODO" CHECK (((modo)::text = ANY (ARRAY[('ia'::character varying)::text, ('sin_ia'::character varying)::text, ('descartada'::character varying)::text]))),
     CONSTRAINT "CK_HISTORIAL_RECOMENDACIONES_IA_RESULTADO" CHECK (((resultado)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('aceptada'::character varying)::text, ('descartada'::character varying)::text])))
 );
 
@@ -372,7 +374,6 @@ CREATE TABLE operativo.orden_trabajo (
     id_usuario_responsable bigint NOT NULL,
     id_usuario_tecnico bigint,
     prioridad smallint DEFAULT 3 NOT NULL,
-    id_recomendacion_ia bigint,
     CONSTRAINT "CK_ORDEN_DESCRIPCION_OBLIGATORIA" CHECK ((descripcion ~ '[^[:space:]]'::text)),
     CONSTRAINT "CK_ORDEN_TRABAJO_PRIORIDAD" CHECK (((prioridad >= 1) AND (prioridad <= 5)))
 );
@@ -805,11 +806,11 @@ ALTER TABLE ONLY operativo.usuario ALTER COLUMN id_usuario SET DEFAULT nextval('
 --
 
 COPY operativo.aceptacion_terminos (id_aceptacion, id_usuario, id_terminos, aceptado_en) FROM stdin;
-1	1	1	2026-10-26 02:05:56.722322+00
-2	3	1	2026-10-26 02:05:56.722322+00
-3	4	1	2026-10-26 02:05:56.722322+00
-4	5	1	2026-10-26 02:05:56.722322+00
-5	6	1	2026-10-26 02:05:56.722322+00
+1	1	1	2026-10-27 02:29:26.392757+00
+2	3	1	2026-10-27 02:29:26.392757+00
+3	4	1	2026-10-27 02:29:26.392757+00
+4	5	1	2026-10-27 02:29:26.392757+00
+5	6	1	2026-10-27 02:29:26.392757+00
 \.
 
 
@@ -832,6 +833,12 @@ COPY operativo.activo (id_activo, id_cliente, num_serie, descripcion, id_modelo_
 12	1	SW305K-20-0377	Pala fuera de servicio.	6	2020	Pala cargadora SW305K	Depósito central	f
 13	6	SY5418-24-0410	Hormigonero en guarda.	9	2024	Hormigonero SY5418 #3	Garaje en Montevideo	t
 14	3	SY215C-23-0502	Excavadora de cantera.	1	2023	Excavadora SY215C #2	Cantera de Pando	t
+15	7	SY215C-24-0620	Excavadora para obra vial.	1	2024	Excavadora SY215C #3	Obra Ruta 1 km 45	t
+16	7	SY135C-25-0301	Excavadora compacta para zanjeo urbano.	2	2025	Excavadora SY135C #3	Obra Av. Italia, Montevideo	t
+17	7	SY365H-23-0057	Excavadora de gran porte para cantera.	3	2023	Excavadora SY365H #2	Cantera de Minas	t
+18	7	SY335-22-0041	Excavadora de gran porte para cantera.	11	2022	Excavadora SY335	Cantera de Minas	t
+19	7	SY235-23-0074	Excavadora para excavación de cimientos.	12	2023	Excavadora SY235	Obra Ruta 1 km 45	t
+20	7	SY155H-24-0118	Excavadora para movimiento de suelos.	13	2024	Excavadora SY155H	Obra Av. Italia, Montevideo	t
 \.
 
 
@@ -846,6 +853,7 @@ COPY operativo.cliente (id_cliente, razon_social, nombre, correo, telefono, dire
 4	Cantera Sierra Chica	Ricardo Olivera	ricardo.olivera@sierrachica.example.com	45623390	Ruta 55 km 18, Colonia		t	2026-09-13
 5	Agro Servicios Rocha	Natalia Cabrera	natalia.cabrera@agrorocha.example.com	44728815	Ruta 9 km 215, Rocha	Maquinaria en establecimientos rurales.	t	2026-09-14
 6	Transportes Oriental Ltda.	Federico Barrios	federico.barrios@transportesoriental.example.com	24876620	Bulevar Artigas 2210, Montevideo	Cuenta suspendida a pedido del cliente.	f	2026-09-14
+7	SUPER CONSTRUCTURA SLA	SUPER CONSTRUCTURA SLA	\N	\N	\N	Cliente con activos SANY que tienen manual técnico cargado.	t	2026-10-25
 \.
 
 
@@ -930,11 +938,11 @@ COPY operativo.historial_estado_ot (id_h_estado_ot, id_orden, id_motivo_es, id_e
 -- Data for Name: historial_recomendaciones_ia; Type: TABLE DATA; Schema: operativo; Owner: -
 --
 
-COPY operativo.historial_recomendaciones_ia (id_recomendacion_ia, recomendacion, id_orden, estado, sesion, consulta, numero_intento, fecha_generacion, resultado) FROM stdin;
-1	Revisar el estado de los terminales y la carga de la batería antes de reemplazarla.	7	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0001	batería sin carga no arranca	1	2026-10-06 13:20:00+00	pendiente
-2	Aislar el circuito hidráulico y verificar mangueras y racores en busca de fugas.	5	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0002	falla sistema hidráulico pala	1	2026-10-03 09:55:00+00	aceptada
-3	Verificar la válvula de protección del circuito y la presión del compresor.	10	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0003	pérdida de presión de aire frenos	1	2026-10-10 09:05:00+00	aceptada
-4	Cambiar el aceite del motor sin revisar el estado de los filtros.	11	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0004	cambio de aceite y filtros	1	2026-10-12 10:30:00+00	descartada
+COPY operativo.historial_recomendaciones_ia (id_recomendacion_ia, recomendacion, id_orden, estado, sesion, consulta, numero_intento, fecha_generacion, resultado, modo) FROM stdin;
+1	Revisar el estado de los terminales y la carga de la batería antes de reemplazarla.	7	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0001	batería sin carga no arranca	1	2026-10-06 13:20:00+00	pendiente	ia
+2	Aislar el circuito hidráulico y verificar mangueras y racores en busca de fugas.	5	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0002	falla sistema hidráulico pala	1	2026-10-03 09:55:00+00	aceptada	ia
+3	Verificar la válvula de protección del circuito y la presión del compresor.	10	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0003	pérdida de presión de aire frenos	1	2026-10-10 09:05:00+00	aceptada	ia
+4	Cambiar el aceite del motor sin revisar el estado de los filtros.	11	t	a1c0f4de-3b1f-4c1b-9d7a-1b0f6a8e0004	cambio de aceite y filtros	1	2026-10-12 10:30:00+00	descartada	ia
 \.
 
 
@@ -953,6 +961,9 @@ COPY operativo.modelo_maquina (id_modelo_maquina, nombre, id_tipo_maquina, descr
 8	SANY SSR120C	5	Rodillo vibrocompactador de 12 toneladas.	t
 9	SANY SY5418GJB	6	Camión hormigonero de 8 m³.	t
 10	SANY SKT20	7	Camión volcador de obra.	t
+11	SANY SY335	1	Excavadora hidráulica de 33 toneladas.	t
+12	SANY SY235	1	Excavadora hidráulica de 23 toneladas.	t
+13	SANY SY155H	1	Excavadora hidráulica de 15 toneladas.	t
 \.
 
 
@@ -1002,21 +1013,21 @@ COPY operativo.movimiento_stock (id_movimiento, fecha, cantidad, id_repuesto, id
 -- Data for Name: orden_trabajo; Type: TABLE DATA; Schema: operativo; Owner: -
 --
 
-COPY operativo.orden_trabajo (id_orden, id_activo, id_cliente, tipo, descripcion, fecha_creada, fecha_inicio, fecha_cierre, resultado, id_usuario_responsable, id_usuario_tecnico, prioridad, id_recomendacion_ia) FROM stdin;
-1	1	1	t	Mantenimiento preventivo de 500 horas: cambio de aceite y filtros.	2026-09-14 09:10:00+00	2026-09-16 08:30:00+00	2026-09-16 19:40:00+00	Se cambiaron aceite y filtros. Sin novedades.	5	6	3	\N
-2	3	2	f	Pérdida de aceite en el cilindro del brazo.	2026-09-20 10:00:00+00	2026-09-22 09:00:00+00	\N	Se reemplazaron los sellos del cilindro y se repuso aceite.	5	7	5	\N
-3	4	2	f	Cuchilla de la motoniveladora desgastada.	2026-09-25 08:20:00+00	2026-09-27 08:00:00+00	2026-09-29 17:00:00+00	Se cambió la cuchilla y se ajustó la fijación.	4	8	3	\N
-4	6	3	t	Revisión y engrase del tambor mezclador.	2026-10-01 11:00:00+00	2026-10-02 08:00:00+00	2026-10-02 14:30:00+00	Engrase completo y revisión de rodillos de apoyo.	5	10	1	\N
-6	9	4	t	Cambio de filtros de aire y combustible del volcador.	2026-10-05 10:30:00+00	\N	\N		5	7	3	\N
-7	10	5	f	La batería no tiene carga y la máquina no arranca.	2026-10-06 13:00:00+00	2026-10-07 09:00:00+00	\N		4	8	5	\N
-8	2	1	t	Inspección general de 250 horas.	2026-10-08 09:00:00+00	\N	\N		5	\N	3	\N
-9	5	2	f	Vibración excesiva del rodillo en funcionamiento.	2026-10-09 15:20:00+00	\N	\N		4	10	5	\N
-11	11	5	t	Cambio de aceite de motor y filtros.	2026-10-12 10:10:00+00	2026-10-14 08:00:00+00	\N	Servicio realizado según el plan. Pendiente de validación.	4	6	3	\N
-12	14	3	f	Desgaste de los dientes del balde.	2026-10-13 09:30:00+00	\N	\N		5	\N	3	\N
-13	13	6	t	Revisión previa a la temporada de trabajo.	2026-10-14 16:00:00+00	\N	\N		5	8	1	\N
-14	1	1	f	Ruido anormal en el mando final.	2026-10-15 08:10:00+00	\N	\N		4	\N	5	\N
-5	8	4	f	Falla en el sistema hidráulico de la pala.	2026-10-03 09:40:00+00	2026-10-05 08:15:00+00	\N		4	6	5	2
-10	7	3	f	Pérdida de presión de aire en el circuito de frenos.	2026-10-10 08:45:00+00	2026-10-12 08:30:00+00	\N		5	7	5	3
+COPY operativo.orden_trabajo (id_orden, id_activo, id_cliente, tipo, descripcion, fecha_creada, fecha_inicio, fecha_cierre, resultado, id_usuario_responsable, id_usuario_tecnico, prioridad) FROM stdin;
+1	1	1	t	Mantenimiento preventivo de 500 horas: cambio de aceite y filtros.	2026-09-14 09:10:00+00	2026-09-16 08:30:00+00	2026-09-16 19:40:00+00	Se cambiaron aceite y filtros. Sin novedades.	5	6	3
+2	3	2	f	Pérdida de aceite en el cilindro del brazo.	2026-09-20 10:00:00+00	2026-09-22 09:00:00+00	\N	Se reemplazaron los sellos del cilindro y se repuso aceite.	5	7	5
+3	4	2	f	Cuchilla de la motoniveladora desgastada.	2026-09-25 08:20:00+00	2026-09-27 08:00:00+00	2026-09-29 17:00:00+00	Se cambió la cuchilla y se ajustó la fijación.	4	8	3
+4	6	3	t	Revisión y engrase del tambor mezclador.	2026-10-01 11:00:00+00	2026-10-02 08:00:00+00	2026-10-02 14:30:00+00	Engrase completo y revisión de rodillos de apoyo.	5	10	1
+6	9	4	t	Cambio de filtros de aire y combustible del volcador.	2026-10-05 10:30:00+00	\N	\N		5	7	3
+7	10	5	f	La batería no tiene carga y la máquina no arranca.	2026-10-06 13:00:00+00	2026-10-07 09:00:00+00	\N		4	8	5
+8	2	1	t	Inspección general de 250 horas.	2026-10-08 09:00:00+00	\N	\N		5	\N	3
+9	5	2	f	Vibración excesiva del rodillo en funcionamiento.	2026-10-09 15:20:00+00	\N	\N		4	10	5
+11	11	5	t	Cambio de aceite de motor y filtros.	2026-10-12 10:10:00+00	2026-10-14 08:00:00+00	\N	Servicio realizado según el plan. Pendiente de validación.	4	6	3
+12	14	3	f	Desgaste de los dientes del balde.	2026-10-13 09:30:00+00	\N	\N		5	\N	3
+13	13	6	t	Revisión previa a la temporada de trabajo.	2026-10-14 16:00:00+00	\N	\N		5	8	1
+14	1	1	f	Ruido anormal en el mando final.	2026-10-15 08:10:00+00	\N	\N		4	\N	5
+5	8	4	f	Falla en el sistema hidráulico de la pala.	2026-10-03 09:40:00+00	2026-10-05 08:15:00+00	\N		4	6	5
+10	7	3	f	Pérdida de presión de aire en el circuito de frenos.	2026-10-10 08:45:00+00	2026-10-12 08:30:00+00	\N		5	7	5
 \.
 
 
@@ -1143,7 +1154,7 @@ COPY operativo.rol_permiso (id_rol, id_permiso) FROM stdin;
 --
 
 COPY operativo.terminos_condiciones (id_terminos, version, titulo, texto, datos_almacenados, vigente, creado_en, id_usuario_autor) FROM stdin;
-1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-26 02:05:56.63712+00	\N
+1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-27 02:29:26.162868+00	\N
 \.
 
 
@@ -1228,14 +1239,14 @@ COPY operativo.usuario_rol (id_usuario, id_rol) FROM stdin;
 -- Name: SEC_ACTIVO_ID; Type: SEQUENCE SET; Schema: operativo; Owner: -
 --
 
-SELECT pg_catalog.setval('operativo."SEC_ACTIVO_ID"', 14, true);
+SELECT pg_catalog.setval('operativo."SEC_ACTIVO_ID"', 20, true);
 
 
 --
 -- Name: SEC_CLIENTE_ID; Type: SEQUENCE SET; Schema: operativo; Owner: -
 --
 
-SELECT pg_catalog.setval('operativo."SEC_CLIENTE_ID"', 6, true);
+SELECT pg_catalog.setval('operativo."SEC_CLIENTE_ID"', 7, true);
 
 
 --
@@ -1270,7 +1281,7 @@ SELECT pg_catalog.setval('operativo."SEC_HISTORIAL_RECOMENDACIONES_IA_ID"', 4, t
 -- Name: SEC_MODELO_MAQUINA_ID; Type: SEQUENCE SET; Schema: operativo; Owner: -
 --
 
-SELECT pg_catalog.setval('operativo."SEC_MODELO_MAQUINA_ID"', 10, true);
+SELECT pg_catalog.setval('operativo."SEC_MODELO_MAQUINA_ID"', 13, true);
 
 
 --
@@ -1938,14 +1949,6 @@ ALTER TABLE ONLY operativo.rol_permiso
 
 
 --
--- Name: orden_trabajo FK_RECOMENDACION_IA_ORDEN_TRABAJO; Type: FK CONSTRAINT; Schema: operativo; Owner: -
---
-
-ALTER TABLE ONLY operativo.orden_trabajo
-    ADD CONSTRAINT "FK_RECOMENDACION_IA_ORDEN_TRABAJO" FOREIGN KEY (id_recomendacion_ia) REFERENCES operativo.historial_recomendaciones_ia(id_recomendacion_ia);
-
-
---
 -- Name: movimiento_stock FK_REPUESTO_MOVIMIENTO_STOCK; Type: FK CONSTRAINT; Schema: operativo; Owner: -
 --
 
@@ -2069,5 +2072,5 @@ ALTER TABLE ONLY operativo.terminos_condiciones
 -- PostgreSQL database dump complete
 --
 
-\unrestrict t3QTNlbS6vARwR03laPnlHnpvzn2gbSGbOtLZmD7xocIadd9f8vcUA5en57siqo
+\unrestrict pD3qMCIBY3nqnXK3paa8SAc7GMXaGzHsiX3r2qXC7FvGXHbz10nrrfjQ9ZWIB9J
 

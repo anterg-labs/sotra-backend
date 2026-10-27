@@ -52,9 +52,15 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       RERANKER_MODELO_RUTA: /modelos/model_quantized.onnx
       RERANKER_TOKENIZADOR_RUTA: /modelos/tokenizer.json
+      EMBEDDINGS_MODELO_RUTA: /modelos/embeddings/model_quantized.onnx
+      EMBEDDINGS_TOKENIZADOR_RUTA: /modelos/embeddings/tokenizer.json
+      IA_API_URL: ${IA_API_URL:-}
+      IA_API_MODELO: ${IA_API_MODELO:-}
+      IA_API_CLAVE: ${IA_API_CLAVE:-}
+      IA_API_ESFUERZO: ${IA_API_ESFUERZO-low}
+      IA_API_LLAMADAS_POR_MINUTO: ${IA_API_LLAMADAS_POR_MINUTO:-10}
       KEYCLOAK_EMISOR: http://localhost:${KC_PORT}/realms/sotra
       KEYCLOAK_METADATA: http://keycloak:8080/realms/sotra/.well-known/openid-configuration
       KEYCLOAK_AUDIENCIA: sotra-api
@@ -67,13 +73,39 @@ services:
     ports:
       - "${API_PORT}:8080"
     volumes:
-      - ${RERANKER_CARPETA}:/modelos:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - modelos_ia:/modelos:ro
     restart: unless-stopped
     depends_on:
       db-datos:
         condition: service_completed_successfully
+      modelos-ia:
+        condition: service_completed_successfully
+
+  # Descarga a un volumen los modelos de IA que corren dentro de la API (reranker y embeddings bge-m3, ONNX
+  # cuantizados). Solo baja lo que falta: la primera vez son unos 1,1 GB; después termina al instante.
+  # El resumen de las sugerencias no necesita modelos locales: lo redacta el proveedor de IA_API_*.
+  modelos-ia:
+    image: curlimages/curl:8.21.0
+    container_name: sotra-modelos-ia
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    # Revisiones fijas: los vectores guardados dependen del modelo exacto de embeddings.
+    command:
+      - |
+        set -e
+        reranker=https://huggingface.co/woxpas-ai/bge-reranker-v2-m3-onnx/resolve/c44ebc43de724ae8816668bb44d2e728e17faa18
+        tokenizador_reranker=https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e
+        embeddings=https://huggingface.co/Xenova/bge-m3/resolve/4de13258303883538bd53b696b452bf8099f0858
+        bajar() { [ -s "$$2" ] || { curl -fsSL --retry 3 -o "$$2.parcial" "$$1" && mv "$$2.parcial" "$$2"; }; }
+        mkdir -p /modelos/embeddings
+        bajar "$$reranker/onnx/model_quantized.onnx" /modelos/model_quantized.onnx
+        bajar "$$tokenizador_reranker/tokenizer.json" /modelos/tokenizer.json
+        bajar "$$embeddings/onnx/model_quantized.onnx" /modelos/embeddings/model_quantized.onnx
+        bajar "$$embeddings/tokenizer.json" /modelos/embeddings/tokenizer.json
+        echo "Modelos de IA listos"
+    volumes:
+      - modelos_ia:/modelos
+    restart: "no"
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4
@@ -116,3 +148,6 @@ services:
 
 volumes:
   postgres_data:
+  # Conserva el nombre del volumen que usaba compose.ia.yml para no volver a descargar el reranker.
+  modelos_ia:
+    name: sotra_modelos_reranker

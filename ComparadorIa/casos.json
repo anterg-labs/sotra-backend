@@ -1,0 +1,36 @@
+// Casos armados con el contenido real del corpus de sotra-test-automation/herramientas-previas/ia/corpus.
+// "seccion" es parte del título esperado (opcional); "valoresEsperados" son datos que el resumen debe copiar tal cual.
+[
+  {
+    "consulta": "Cambiar el filtro de aceite hidráulico de la retroexcavadora",
+    "valoresEsperados": [ "ISO VG 46", "25 Nm" ]
+  },
+  {
+    "consulta": "Cambio de aceite del motor de la retroexcavadora RX-200",
+    "valoresEsperados": [ "15W-40", "250 horas" ]
+  },
+  {
+    "consulta": "Qué capacidad de aceite lleva el cárter del motor",
+    "valoresEsperados": [ "14 litros" ]
+  },
+  {
+    "consulta": "Con qué par se ajusta el tapón de drenaje del motor",
+    "valoresEsperados": [ "40 Nm" ]
+  },
+  {
+    "consulta": "Engrasar el brazo y la pluma",
+    "valoresEsperados": [ "50 horas", "NLGI 2" ]
+  },
+  {
+    "consulta": "Revisar la batería de la máquina",
+    "valoresEsperados": [ "12 V" ]
+  },
+  {
+    "consulta": "Bloqueo y etiquetado antes de intervenir la máquina",
+    "valoresEsperados": []
+  },
+  {
+    "consulta": "Qué equipo de protección personal hay que usar en el taller",
+    "valoresEsperados": []
+  }
+]

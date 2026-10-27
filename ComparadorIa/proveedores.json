@@ -1,0 +1,37 @@
+// Precios en USD por millón de tokens, tomados de comparadores de precios en octubre de 2026:
+// confirmarlos en la página oficial de cada proveedor antes de decidir.
+[
+  {
+    "nombre": "Claude Haiku 5.5",
+    "tipo": "anthropic",
+    "modelo": "claude-haiku-5-5",
+    "variableClave": "ANTHROPIC_API_KEY",
+    "esfuerzo": "low",
+    "tokensMaximos": 2048,
+    "precioEntradaPorMillon": 0.10,
+    "precioSalidaPorMillon": 0.50
+  },
+  {
+    // gemini-2.5-flash-lite ya no se ofrece a cuentas nuevas. 3.5 Flash-Lite razona en nivel mínimo por defecto
+    // e ignora la temperatura.
+    "nombre": "Gemini 3.5 Flash-Lite",
+    "tipo": "openai",
+    "urlBase": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "modelo": "gemini-3.5-flash-lite",
+    "variableClave": "GEMINI_API_KEY",
+    "tokensMaximos": 1024,
+    "precioEntradaPorMillon": 0.30,
+    "precioSalidaPorMillon": 2.50
+  },
+  {
+    "nombre": "Groq GPT-OSS 20B",
+    "tipo": "openai",
+    "urlBase": "https://api.groq.com/openai/v1",
+    "modelo": "openai/gpt-oss-20b",
+    "variableClave": "GROQ_API_KEY",
+    "tokensMaximos": 1024,
+    "precioEntradaPorMillon": 0.075,
+    "precioSalidaPorMillon": 0.30,
+    "parametrosExtra": { "reasoning_effort": "low" }
+  }
+]

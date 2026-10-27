@@ -101,14 +101,45 @@ public class DocumentosTecnicosController : ControllerBase
         {
             return StatusCode(499);
         }
-        catch (Exception excepcion) when (excepcion is HttpRequestException or TaskCanceledException)
+        catch (ModeloLocalNoDisponibleException excepcion)
         {
-            _logger.LogWarning(excepcion, "El servicio de IA (Ollama) no respondió al procesar un documento técnico");
+            _logger.LogError(excepcion, "Faltan los modelos de IA locales al procesar un documento técnico");
             return this.RespuestaDeError(502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
         }
         catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
         {
             _logger.LogError(excepcion, "Falló el procesamiento de un documento técnico");
+            return this.RespuestaDeError(502, "PROCESAMIENTO_FALLIDO", "No se pudo procesar el documento técnico.");
+        }
+    }
+
+    /// <summary>Vuelve a procesar el PDF guardado con la versión actual, por ejemplo después de mejorar la extracción.</summary>
+    [HttpPost("{id:long}/reprocesar")]
+    [Authorize(Policy = Politicas.DocumentoGestionar)]
+    [EnableRateLimiting(PoliticasDeLimite.Subidas)]
+    public async Task<ActionResult<DocumentoTecnicoDto>> Reprocesar(long id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var documento = await _servicio.ReprocesarAsync(id, cancellationToken);
+            return documento is null ? NotFound() : Ok(documento);
+        }
+        catch (InvalidDataException excepcion)
+        {
+            return this.RespuestaDeError(422, excepcion.Message, "No se pudo leer el texto del PDF.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return StatusCode(499);
+        }
+        catch (ModeloLocalNoDisponibleException excepcion)
+        {
+            _logger.LogError(excepcion, "Faltan los modelos de IA locales al reprocesar un documento técnico");
+            return this.RespuestaDeError(502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
+        }
+        catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
+        {
+            _logger.LogError(excepcion, "Falló el reprocesamiento del documento técnico {DocumentoId}", id);
             return this.RespuestaDeError(502, "PROCESAMIENTO_FALLIDO", "No se pudo procesar el documento técnico.");
         }
     }

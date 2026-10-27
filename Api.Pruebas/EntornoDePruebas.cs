@@ -47,7 +47,13 @@ public class EntornoDePruebas
             ["DB_USER"] = UsuarioBase,
             ["DB_PASSWORD"] = ContrasenaBase,
             ["FRONTEND_ORIGIN"] = "http://localhost",
-            ["OLLAMA_BASE_URL"] = "http://127.0.0.1:1",
+            // Sin modelos locales ni clave del proveedor: las pruebas nunca cargan modelos ni llaman a la API externa,
+            // aunque la máquina tenga esas variables definidas. Una variable vacía se elimina del entorno.
+            ["EMBEDDINGS_MODELO_RUTA"] = "",
+            ["EMBEDDINGS_TOKENIZADOR_RUTA"] = "",
+            ["RERANKER_MODELO_RUTA"] = "",
+            ["RERANKER_TOKENIZADOR_RUTA"] = "",
+            ["IA_API_CLAVE"] = "",
             // La API exige estas variables para validar tokens; las pruebas no levantan Keycloak.
             ["KEYCLOAK_EMISOR"] = "https://keycloak.pruebas.test/realms/sotra",
             ["KEYCLOAK_METADATA"] = "https://keycloak.pruebas.test/realms/sotra/.well-known/openid-configuration",

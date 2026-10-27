@@ -141,7 +141,7 @@ public class DocumentosTecnicosPruebas : PruebaBase
     }
 
     [Test]
-    public async Task SiElServicioDeIaNoResponderResponde502SinGuardarElDocumento()
+    public async Task SinLosModelosLocalesDeIaResponde502SinGuardarElDocumento()
     {
         var nombre = "con-ia-" + DatosDePrueba.Sufijo() + ".pdf";
 

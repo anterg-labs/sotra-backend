@@ -545,7 +545,7 @@ public class OrdenTrabajoDAO
     }
 
     public async Task RegistrarSugerenciaGeneradaAsync(
-        Guid? sesion, string consulta, int numeroIntento, string texto, CancellationToken cancelacion)
+        Guid? sesion, string consulta, int numeroIntento, string texto, string modo, CancellationToken cancelacion)
     {
         _contexto.HistorialRecomendacionesIa.Add(new HistorialRecomendacionIa
         {
@@ -555,7 +555,8 @@ public class OrdenTrabajoDAO
             Consulta = consulta,
             NumeroIntento = numeroIntento,
             FechaGeneracion = DateTime.UtcNow,
-            Resultado = "pendiente"
+            Resultado = "pendiente",
+            Modo = modo
         });
         await _contexto.SaveChangesAsync(cancelacion);
     }

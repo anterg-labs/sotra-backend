@@ -32,12 +32,12 @@ public class ServicioReranker : IDisposable
 
         if (string.IsNullOrWhiteSpace(rutaModelo) || !File.Exists(rutaModelo))
         {
-            throw new FileNotFoundException("No se encontró el modelo del reranker.");
+            throw new ModeloLocalNoDisponibleException("No se encontró el modelo del reranker.");
         }
 
         if (string.IsNullOrWhiteSpace(rutaTokenizador) || !File.Exists(rutaTokenizador))
         {
-            throw new FileNotFoundException("No se encontró el tokenizador del reranker.");
+            throw new ModeloLocalNoDisponibleException("No se encontró el tokenizador del reranker.");
         }
 
         _tokenizador = new Tokenizer(rutaTokenizador);
