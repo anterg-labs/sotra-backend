@@ -29,6 +29,15 @@ public partial class OrdenTrabajo
 
     public short Prioridad { get; set; }
 
+    public DateOnly FechaPrevistaEjecucion { get; set; }
+
+    public decimal? TiempoEstimadoHoras { get; set; }
+
+    public long? IdCausaFalla { get; set; }
+
+    /// <summary>Lectura del horómetro o del odómetro del activo, según su unidad de uso.</summary>
+    public decimal? LecturaUso { get; set; }
+
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
 
     public virtual ICollection<HistorialRepuestoOt> HistorialRepuestoOts { get; set; } = new List<HistorialRepuestoOt>();
@@ -38,6 +47,10 @@ public partial class OrdenTrabajo
     public virtual ICollection<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; } = new List<HistorialRecomendacionIa>();
 
     public virtual Activo IdActivoNavigation { get; set; } = null!;
+
+    public virtual CausaFalla? IdCausaFallaNavigation { get; set; }
+
+    public virtual ICollection<HistorialLecturaUsoOt> HistorialLecturaUsoOts { get; set; } = new List<HistorialLecturaUsoOt>();
 
     public virtual Cliente IdClienteNavigation { get; set; } = null!;
 

@@ -11,5 +11,7 @@ public partial class TipoMaquina
 
     public bool Estado { get; set; }
 
+    public decimal? CostoHoraParada { get; set; }
+
     public virtual ICollection<ModeloMaquina> ModeloMaquinas { get; set; } = new List<ModeloMaquina>();
 }

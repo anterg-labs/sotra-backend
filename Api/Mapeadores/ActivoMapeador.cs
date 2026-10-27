@@ -16,6 +16,7 @@ public static class ActivoMapeador
             AnioFabricacion = activo.AnioFabricacion,
             Nombre = TextoOpcional.Normalizar(activo.Nombre),
             Ubicacion = TextoOpcional.Normalizar(activo.Ubicacion),
+            UnidadUso = activo.UnidadUso ?? "horas",
             Estado = true
         };
     }
@@ -34,6 +35,10 @@ public static class ActivoMapeador
         destino.AnioFabricacion = cambios.AnioFabricacion;
         destino.Nombre = TextoOpcional.Normalizar(cambios.Nombre);
         destino.Ubicacion = TextoOpcional.Normalizar(cambios.Ubicacion);
+        if (cambios.UnidadUso is not null)
+        {
+            destino.UnidadUso = cambios.UnidadUso;
+        }
 
         if (cambios.Estado == "activo")
         {
@@ -63,6 +68,7 @@ public static class ActivoMapeador
             AnioFabricacion = activo.AnioFabricacion,
             Nombre = activo.Nombre,
             Ubicacion = activo.Ubicacion,
+            UnidadUso = activo.UnidadUso,
             Estado = activo.Estado ? "activo" : "inactivo"
         };
     }

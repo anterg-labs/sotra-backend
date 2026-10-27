@@ -19,7 +19,7 @@ public class ActivosPruebas : PruebaBase
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
             "id", "clienteId", "nombreCliente", "numSerie", "descripcion", "modeloMaquinaId", "nombreModeloMaquina",
-            "anioFabricacion", "nombre", "ubicacion", "estado",
+            "anioFabricacion", "nombre", "ubicacion", "unidadUso", "estado",
         }));
         Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreCliente").GetString(), Is.Not.Empty);
         Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreModeloMaquina").GetString(), Is.Not.Empty);

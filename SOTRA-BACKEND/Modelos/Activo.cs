@@ -23,6 +23,9 @@ public partial class Activo
 
     public bool Estado { get; set; }
 
+    /// <summary>Cómo se mide el uso de la máquina: <c>horas</c> (horómetro) o <c>kilometros</c> (odómetro).</summary>
+    public string UnidadUso { get; set; } = "horas";
+
     public virtual Cliente IdClienteNavigation { get; set; } = null!;
 
     public virtual ModeloMaquina IdModeloMaquinaNavigation { get; set; } = null!;

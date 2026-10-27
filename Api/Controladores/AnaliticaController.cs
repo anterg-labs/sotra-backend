@@ -19,12 +19,14 @@ public class AnaliticaController : ControllerBase
     private const int MaximoDeActivos = 10;
 
     private readonly AnaliticaDAO _analiticaDao;
+    private readonly AnaliticaAvanzadaDAO _avanzadaDao;
     private readonly OpcionesDeAlertasDeMaquinaria _opciones;
     private readonly CacheDeAnalitica _cache;
 
-    public AnaliticaController(AnaliticaDAO analiticaDao, IOptions<OpcionesDeAlertasDeMaquinaria> opciones, CacheDeAnalitica cache)
+    public AnaliticaController(AnaliticaDAO analiticaDao, AnaliticaAvanzadaDAO avanzadaDao, IOptions<OpcionesDeAlertasDeMaquinaria> opciones, CacheDeAnalitica cache)
     {
         _analiticaDao = analiticaDao;
+        _avanzadaDao = avanzadaDao;
         _cache = cache;
         _opciones = opciones.Value;
     }
@@ -54,14 +56,30 @@ public class AnaliticaController : ControllerBase
 
     private async Task<TendenciasDto> CalcularTendenciasAsync(string agrupacion, FiltroAnalitica filtro, CancellationToken cancelacion)
     {
-        var filas = await _analiticaDao.ObtenerTendenciasAsync(agrupacion == "mes" ? "month" : "week", filtro, cancelacion);
-        var puntos = filas.Select(fila => new PuntoTendenciaDto
+        var unidad = agrupacion == "mes" ? "month" : "week";
+        var filas = await _analiticaDao.ObtenerTendenciasAsync(unidad, filtro, cancelacion);
+        var cierres = (await _avanzadaDao.ObtenerCierresPorPeriodoAsync(unidad, filtro, cancelacion))
+            .ToDictionary(cierre => DateOnly.FromDateTime(cierre.Periodo), cierre => cierre.Cerradas);
+        var puntos = new SortedDictionary<DateOnly, PuntoTendenciaDto>();
+        foreach (var fila in filas)
         {
-            Periodo = DateOnly.FromDateTime(fila.Periodo).ToString("yyyy-MM-dd"),
-            Preventivas = fila.Preventivas,
-            Correctivas = fila.Correctivas,
-            Total = fila.Preventivas + fila.Correctivas,
-        }).ToList();
+            var periodo = DateOnly.FromDateTime(fila.Periodo);
+            puntos[periodo] = new PuntoTendenciaDto
+            {
+                Periodo = periodo.ToString("yyyy-MM-dd"),
+                Preventivas = fila.Preventivas,
+                Correctivas = fila.Correctivas,
+                Total = fila.Preventivas + fila.Correctivas,
+                Cerradas = cierres.GetValueOrDefault(periodo),
+            };
+        }
+
+        foreach (var (periodo, cerradas) in cierres.Where(cierre => !puntos.ContainsKey(cierre.Key)))
+        {
+            puntos[periodo] = new PuntoTendenciaDto { Periodo = periodo.ToString("yyyy-MM-dd"), Cerradas = cerradas };
+        }
+
+        var lista = puntos.Values.ToList();
 
         int? totalAnterior = null;
         if (filtro.Desde is { } desde && filtro.Hasta is { } hasta)
@@ -74,8 +92,8 @@ public class AnaliticaController : ControllerBase
         return new TendenciasDto
         {
             Agrupacion = agrupacion,
-            Puntos = puntos,
-            TotalPeriodo = puntos.Sum(punto => punto.Total),
+            Puntos = lista,
+            TotalPeriodo = lista.Sum(punto => punto.Total),
             TotalPeriodoAnterior = totalAnterior,
         };
     }
@@ -103,6 +121,12 @@ public class AnaliticaController : ControllerBase
         var pausas = await _analiticaDao.ObtenerPausasAsync(filtro, cancelacion);
         var devoluciones = await _analiticaDao.ObtenerDevolucionesAsync(filtro, cancelacion);
         var reasignaciones = await _analiticaDao.ObtenerReasignacionesAsync(filtro, cancelacion);
+        var pausasPorMotivo = await _avanzadaDao.ObtenerPausasPorMotivoAsync(filtro, cancelacion);
+        var totalParada = await _analiticaDao.ObtenerTotalHorasParadaAsync(filtro, cancelacion);
+        var porTipo = await _analiticaDao.ObtenerMaquinariaPorTipoAsync(filtro, cancelacion);
+        var porActivo = await _analiticaDao.ObtenerMaquinariaPorActivoAsync(MaximoDeActivos, filtro, cancelacion);
+        var porModelo = await _analiticaDao.ObtenerMaquinariaPorModeloAsync(filtro, cancelacion);
+        var estimacion = await _avanzadaDao.ObtenerEstimacionAsync(filtro, cancelacion);
 
         return new DesempenoDto
         {
@@ -130,6 +154,14 @@ public class AnaliticaController : ControllerBase
                     OrdenesConPausa = pausas.Ordenes,
                     DuracionPromedioHoras = Redondear(pausas.PromedioHoras),
                     Motivos = AMotivos(await _analiticaDao.ObtenerMotivosDePausaAsync(MaximoDeMotivos, filtro, cancelacion)),
+                    PorMotivo = pausasPorMotivo.Select(fila => new PausaPorMotivoDto
+                    {
+                        Codigo = fila.Codigo,
+                        Motivo = fila.Motivo,
+                        Cantidad = fila.Cantidad,
+                        Horas = Redondear(fila.Horas)!.Value,
+                        HorasPromedio = fila.Cantidad == 0 ? null : Redondear(fila.Horas / fila.Cantidad),
+                    }).ToList(),
                 },
                 Devoluciones = new DevolucionesDto
                 {
@@ -142,8 +174,16 @@ public class AnaliticaController : ControllerBase
             },
             Maquinaria = new MaquinariaDto
             {
-                PorTipo = (await _analiticaDao.ObtenerMaquinariaPorTipoAsync(filtro, cancelacion)).Select(AMaquinaria).ToList(),
-                Activos = (await _analiticaDao.ObtenerMaquinariaPorActivoAsync(MaximoDeActivos, filtro, cancelacion)).Select(AMaquinaria).ToList(),
+                PorTipo = AMaquinariaConPareto(porTipo, totalParada),
+                Activos = AMaquinariaConPareto(porActivo, totalParada),
+                PorModelo = AMaquinariaConPareto(porModelo, totalParada),
+            },
+            Estimacion = new EstimacionDto
+            {
+                Ordenes = estimacion.Ordenes,
+                HorasEstimadas = Redondear(estimacion.HorasEstimadas),
+                HorasReales = Redondear(estimacion.HorasReales),
+                DesviacionPromedioPorcentaje = Redondear(estimacion.DesviacionPromedioPorcentaje),
             },
         };
     }
@@ -159,8 +199,28 @@ public class AnaliticaController : ControllerBase
     private static List<MotivoDto> AMotivos(List<MotivoFila> filas) =>
         filas.Select(fila => new MotivoDto { Texto = fila.Texto == "" ? "Sin motivo indicado" : fila.Texto, Cantidad = fila.Cantidad }).ToList();
 
-    private static MaquinariaItemDto AMaquinaria(MaquinariaFila fila) => new()
+    /// <summary>Convierte las filas (ya ordenadas de mayor a menor parada) y agrega el porcentaje de cada una y el acumulado.</summary>
+    private static List<MaquinariaItemDto> AMaquinariaConPareto(List<MaquinariaFila> filas, double totalParada)
     {
+        var acumulado = 0.0;
+        var elementos = new List<MaquinariaItemDto>(filas.Count);
+        foreach (var fila in filas)
+        {
+            acumulado += fila.HorasParada;
+            elementos.Add(AMaquinaria(fila, totalParada, acumulado));
+        }
+
+        return elementos;
+    }
+
+    private static MaquinariaItemDto AMaquinaria(MaquinariaFila fila, double totalParada, double acumulado) => new()
+    {
+        PorcentajeDeLaParada = totalParada > 0 ? Redondear(fila.HorasParada * 100.0 / totalParada) : null,
+        PorcentajeAcumulado = totalParada > 0 ? Redondear(Math.Min(100.0, acumulado * 100.0 / totalParada)) : null,
+        CorrectivasCerradas = fila.CorrectivasCerradas,
+        TiempoMedioReparacionHoras = fila.CorrectivasCerradas == 0 ? null : Redondear(fila.HorasParada / fila.CorrectivasCerradas),
+        ActivosEnServicio = fila.ActivosTotales > 0 ? fila.ActivosTotales : null,
+        CostoParada = fila.CostoHoraParada is { } costo ? Math.Round((decimal)(fila.HorasParada * costo), 2) : null,
         Id = fila.Id,
         Nombre = fila.Nombre,
         Cliente = fila.Cliente,
@@ -172,6 +232,15 @@ public class AnaliticaController : ControllerBase
     };
 
     private static double? Porcentaje(int parte, int total) => total == 0 ? null : Redondear(parte * 100.0 / total);
+
+    private static CumplimientoGrupoDto ACumplimiento(long? id, string nombre, int evaluadas, int enPlazo) => new()
+    {
+        Id = id,
+        Nombre = nombre,
+        Evaluadas = evaluadas,
+        EnPlazo = enPlazo,
+        PorcentajeEnPlazo = Porcentaje(enPlazo, evaluadas),
+    };
 
     /// <summary>Tiempos de respuesta, ejecución y cierre de las órdenes.</summary>
     [HttpGet("tiempos")]
@@ -194,9 +263,19 @@ public class AnaliticaController : ControllerBase
         var duracion = await _analiticaDao.ObtenerDuracionDeOrdenesCerradasAsync(filtro, cancelacion);
         var etapas = await _analiticaDao.ObtenerTiempoPorEtapaAsync(filtro, cancelacion);
         var cumplimiento = await _analiticaDao.ObtenerCumplimientoDeFechasAsync(filtro, cancelacion);
+        var porTipo = await _avanzadaDao.ObtenerCumplimientoPorTipoAsync(filtro, cancelacion);
 
         return new TiemposDto
         {
+            CumplimientoPorTipoDeOrden = porTipo
+                .GroupBy(fila => fila.EsPreventiva)
+                .OrderByDescending(grupo => grupo.Key)
+                .Select(grupo => ACumplimiento(null, grupo.Key ? "preventivo" : "correctivo", grupo.Sum(fila => fila.Evaluadas), grupo.Sum(fila => fila.EnPlazo)))
+                .ToList(),
+            CumplimientoPreventivoPorTipoDeMaquina = porTipo
+                .Where(fila => fila.EsPreventiva)
+                .Select(fila => ACumplimiento(fila.TipoMaquinaId, fila.TipoMaquina, fila.Evaluadas, fila.EnPlazo))
+                .ToList(),
             Duracion = new DuracionDto
             {
                 Cantidad = duracion.Cantidad,

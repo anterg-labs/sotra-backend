@@ -30,4 +30,8 @@ public class ActivoCrearDto
     /// <summary>Ubicación o depósito.</summary>
     [MaxLength(150, ErrorMessage = "El campo Ubicación no puede superar los 150 caracteres.")]
     public string? Ubicacion { get; init; }
+
+    /// <summary>Cómo se mide el uso del activo: `horas` (horómetro) o `kilometros` (odómetro). Por defecto, `horas`.</summary>
+    [RegularExpression("^(horas|kilometros)$", ErrorMessage = "La unidad de uso debe ser 'horas' o 'kilometros'.")]
+    public string? UnidadUso { get; init; }
 }

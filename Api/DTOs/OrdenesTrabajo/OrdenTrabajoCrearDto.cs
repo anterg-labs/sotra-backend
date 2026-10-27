@@ -37,6 +37,18 @@ public class OrdenTrabajoCrearDto
     /// <summary>Fecha prevista de ejecución (`aaaa-mm-dd`).</summary>
     public DateOnly FechaPrevistaEjecucion { get; init; }
 
+    /// <summary>Tiempo estimado en horas, opcional. Si no se envía, no cambia lo guardado.</summary>
+    [Range(0.01, 10000.0, ErrorMessage = "El tiempo estimado debe estar entre 0,01 y 10000 horas.")]
+    public decimal? TiempoEstimadoHoras { get; init; }
+
+    /// <summary>Causa de falla del catálogo, opcional y solo para correctivas. Si no se envía, no cambia lo guardado.</summary>
+    [Range(1, long.MaxValue)]
+    public long? CausaFallaId { get; init; }
+
+    /// <summary>Lectura del horómetro o del odómetro del activo, opcional. Si no se envía, no cambia lo guardado.</summary>
+    [Range(0.0, 99999999999.0, ErrorMessage = "La lectura de uso no puede ser negativa.")]
+    public decimal? LecturaUso { get; init; }
+
     /// <summary>Sugerencias de IA aceptadas para la orden.</summary>
     [Required]
     public List<string> Sugerencias { get; init; } = new();

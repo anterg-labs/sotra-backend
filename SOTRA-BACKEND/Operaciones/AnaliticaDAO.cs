@@ -107,13 +107,16 @@ public sealed class MaquinariaFila
     public int Preventivas { get; set; }
     public double? HorasPromedioEjecucion { get; set; }
     public double HorasParada { get; set; }
+    public int CorrectivasCerradas { get; set; }
+    public double? CostoHoraParada { get; set; }
+    public int ActivosTotales { get; set; }
 }
 
 /// <summary>Consultas agregadas del dashboard: se resuelven en la base con GROUP BY y funciones de ventana.</summary>
 public class AnaliticaDAO
 {
     /// <summary>Filtros opcionales de las órdenes (alias <c>o</c>): cada uno se ignora si su parámetro es nulo.</summary>
-    private const string FiltrosDeOrden = """
+    internal const string FiltrosDeOrden = """
         AND (@desde IS NULL OR o.fecha_creada >= @desde)
         AND (@hasta IS NULL OR o.fecha_creada < @hasta)
         AND (@clienteId IS NULL OR o.id_cliente = @clienteId)
@@ -224,23 +227,14 @@ public class AnaliticaDAO
         WHERE e.fase IN ('{FasesDeEstado.Pendiente}', '{FasesDeEstado.EnCurso}') {FiltrosDeOrden}
         """;
 
-    /// <summary>
-    /// La fecha prevista de ejecución se guarda como texto «aaaa-mm-dd» en la observación del primer estado de la orden;
-    /// solo se evalúan las órdenes cerradas con una fecha válida.
-    /// </summary>
+    /// <summary>Solo se evalúan las órdenes cerradas; la fecha prevista es una columna de la orden.</summary>
     private const string SqlCumplimiento = $"""
         SELECT count(*)::int AS "Evaluadas",
                (count(*) FILTER (WHERE (o.fecha_cierre AT TIME ZONE 'UTC')::date <= prevista.fecha))::int AS "EnPlazo",
                (avg((o.fecha_cierre AT TIME ZONE 'UTC')::date - prevista.fecha)
                     FILTER (WHERE (o.fecha_cierre AT TIME ZONE 'UTC')::date > prevista.fecha))::float8 AS "AtrasoPromedioDias"
         FROM operativo.orden_trabajo AS o
-        JOIN LATERAL (
-            SELECT to_date(h.observacion, 'YYYY-MM-DD') AS fecha
-            FROM operativo.historial_estado_ot AS h
-            WHERE h.id_orden = o.id_orden AND h.observacion ~ '^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$'
-            ORDER BY h.fecha_hora, h.id_h_estado_ot
-            LIMIT 1
-        ) AS prevista ON TRUE
+        CROSS JOIN LATERAL (SELECT o.fecha_prevista_ejecucion AS fecha) AS prevista
         WHERE o.fecha_cierre IS NOT NULL {FiltrosDeOrden}
         """;
 
@@ -353,7 +347,7 @@ public class AnaliticaDAO
     /// Por máquina (tipo o activo): órdenes, correctivas y preventivas, horas promedio de ejecución de las correctivas
     /// (de inicio a revisión) y horas de parada acumuladas (de la creación al cierre de las correctivas cerradas).
     /// </summary>
-    private static string SqlMaquinaria(string idNombre, string agrupar, string orden, string limite) => $"""
+    private static string SqlMaquinaria(string idNombre, string agrupar, string orden, string limite, string activosTotales = "0::int") => $"""
         SELECT {idNombre},
                count(*)::int AS "Ordenes",
                (count(*) FILTER (WHERE NOT o.tipo))::int AS "Correctivas",
@@ -361,7 +355,10 @@ public class AnaliticaDAO
                (avg(EXTRACT(EPOCH FROM (rev.fecha - o.fecha_inicio)) / 3600.0)
                    FILTER (WHERE NOT o.tipo AND o.fecha_inicio IS NOT NULL AND rev.fecha IS NOT NULL AND rev.fecha >= o.fecha_inicio))::float8 AS "HorasPromedioEjecucion",
                COALESCE((sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0)
-                   FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::float8, 0) AS "HorasParada"
+                   FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::float8, 0) AS "HorasParada",
+               (count(*) FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::int AS "CorrectivasCerradas",
+               max(tm.costo_hora_parada)::float8 AS "CostoHoraParada",
+               {activosTotales} AS "ActivosTotales"
         FROM operativo.orden_trabajo AS o
         JOIN operativo.activo AS a ON a.id_activo = o.id_activo
         JOIN operativo.cliente AS cl ON cl.id_cliente = a.id_cliente
@@ -380,10 +377,21 @@ public class AnaliticaDAO
         """;
 
     private static readonly string SqlMaquinariaPorTipo = SqlMaquinaria(
-        """tm.id_tipo_maquina AS "Id", tm.nombre AS "Nombre", NULL::text AS "Cliente" """, "tm.id_tipo_maquina, tm.nombre", "2 DESC, tm.nombre", "");
+        """tm.id_tipo_maquina AS "Id", tm.nombre AS "Nombre", NULL::text AS "Cliente" """, "tm.id_tipo_maquina, tm.nombre", "8 DESC, tm.nombre", "");
     private static readonly string SqlMaquinariaPorActivo = SqlMaquinaria(
         """a.id_activo AS "Id", COALESCE(a.nombre, a.num_serie) AS "Nombre", cl.razon_social AS "Cliente" """,
-        "a.id_activo, a.nombre, a.num_serie, cl.razon_social", "7 DESC, 2 DESC, a.id_activo", "LIMIT @limite");
+        "a.id_activo, a.nombre, a.num_serie, cl.razon_social", "8 DESC, 4 DESC, a.id_activo", "LIMIT @limite");
+
+    private static readonly string SqlMaquinariaPorModelo = SqlMaquinaria(
+        """mm.id_modelo_maquina AS "Id", mm.nombre || ' (' || tm.nombre || ')' AS "Nombre", NULL::text AS "Cliente" """,
+        "mm.id_modelo_maquina, mm.nombre, tm.nombre", "8 DESC, mm.nombre", "",
+        "(SELECT count(*) FROM operativo.activo AS a2 WHERE a2.id_modelo_maquina = mm.id_modelo_maquina AND a2.estado)::int");
+
+    private const string SqlTotalHorasParada = $"""
+        SELECT COALESCE(sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0), 0)::float8 AS "Value"
+        FROM operativo.orden_trabajo AS o
+        WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL {FiltrosDeOrden}
+        """;
 
     private readonly SotraContext _contexto;
 
@@ -493,6 +501,15 @@ public class AnaliticaDAO
 
     public async Task<List<MaquinariaFila>> ObtenerMaquinariaPorActivoAsync(int limite, FiltroAnalitica filtro, CancellationToken cancelacion) =>
         await Consultar<MaquinariaFila>(SqlMaquinariaPorActivo, filtro, new NpgsqlParameter("limite", limite)).ToListAsync(cancelacion);
+
+    public async Task<List<MaquinariaFila>> ObtenerMaquinariaPorModeloAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<MaquinariaFila>(SqlMaquinariaPorModelo, filtro).ToListAsync(cancelacion);
+
+    /// <summary>Horas de parada de todas las correctivas cerradas del filtro (base del porcentaje acumulado del Pareto).</summary>
+    public async Task<double> ObtenerTotalHorasParadaAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<double>(SqlTotalHorasParada, filtro).SingleAsync(cancelacion);
+
+    internal static List<NpgsqlParameter> ParametrosDelFiltro(FiltroAnalitica filtro) => Condiciones(filtro, "o").Parametros;
 
     private IQueryable<T> Consultar<T>(string sql, FiltroAnalitica filtro, params NpgsqlParameter[] extra)
     {

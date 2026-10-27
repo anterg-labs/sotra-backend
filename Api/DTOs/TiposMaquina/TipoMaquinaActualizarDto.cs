@@ -13,4 +13,8 @@ public class TipoMaquinaActualizarDto
     [JsonRequired]
     [Required]
     public string? Estado { get; init; }
+
+    /// <summary>Costo por hora de parada de este tipo de máquina, opcional. Si no se envía, no cambia lo guardado.</summary>
+    [Range(0.0, 999999999.0, ErrorMessage = "El costo por hora de parada no puede ser negativo.")]
+    public decimal? CostoHoraParada { get; init; }
 }

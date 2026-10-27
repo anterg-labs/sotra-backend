@@ -5,14 +5,19 @@ using SOTRA_BACKEND.Modelos;
 
 namespace SOTRA_BACKEND.Operaciones;
 
+/// <remarks>Los datos para los reportes son opcionales: <c>null</c> deja el valor guardado como está.</remarks>
 public sealed record CambiosDeOrden(
-    long ClienteId, long ActivoId, long? TecnicoId, bool Tipo, short Prioridad, string Descripcion, string? Resultado);
+    long ClienteId, long ActivoId, long? TecnicoId, bool Tipo, short Prioridad, string Descripcion, string? Resultado,
+    decimal? TiempoEstimadoHoras = null, long? CausaFallaId = null, decimal? LecturaUso = null, string? MotivoCodigo = null);
 
 public sealed record OrdenResumen(
     long Id, DateTime CreadoEn, DateTime? FechaInicio, DateTime? FechaCierre, long ClienteId, string Cliente,
     long ActivoId, string Activo, long? TecnicoId, string? Tecnico, bool EsPreventivo, short Prioridad, string Estado);
 
 public sealed record RepuestoUsadoEnOrdenes(string Codigo, string Nombre, int Cantidad);
+
+public sealed record OrdenDeCalendario(
+    long Id, DateOnly Fecha, string NombreActivo, string NombreCliente, bool EsPreventivo, short Prioridad, string Estado, string Fase);
 
 public class OrdenTrabajoDAO
 {
@@ -32,10 +37,7 @@ public class OrdenTrabajoDAO
                 .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
                 .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? ""),
             new("creadoEn", o => o.FechaCreada),
-            // La fecha prevista se guarda como texto ISO (aaaa-mm-dd) en la observaciÃ³n del primer estado.
-            new("fechaPrevistaEjecucion", o => o.HistorialEstadoOts
-                .OrderBy(h => h.FechaHora).ThenBy(h => h.IdHEstadoOt)
-                .Select(h => h.Observacion).FirstOrDefault()),
+            new("fechaPrevistaEjecucion", o => o.FechaPrevistaEjecucion),
         ]);
 
     private static readonly string[] FasesFinales = [FasesDeEstado.Cerrada, FasesDeEstado.Eliminada];
@@ -220,12 +222,17 @@ public class OrdenTrabajoDAO
         var reglas = await ObtenerReglasAsync(cancelacion);
         orden.IdUsuarioResponsable = idResponsable ?? await ObtenerResponsableAsync(cancelacion);
         orden.FechaCreada = DateTime.UtcNow;
+        orden.FechaPrevistaEjecucion = fechaPrevista;
+        var lecturaInicial = orden.LecturaUso;
+        orden.LecturaUso = null;
+        await ValidarCausaDeFallaAsync(orden, cancelacion);
 
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         _contexto.OrdenTrabajos.Add(orden);
         await _contexto.SaveChangesAsync(cancelacion);
 
-        await AgregarEstadoAsync(orden, reglas.Inicial.Nombre, null, fechaPrevista.ToString(FormatoDeFecha), idResponsable, reglas, cancelacion);
+        await AgregarEstadoAsync(orden, reglas.Inicial.Nombre, null, null, idResponsable, reglas, cancelacion);
+        await AplicarLecturaDeUsoAsync(orden, lecturaInicial, idResponsable, cancelacion);
         RegistrarCambioDeTecnico(orden, null, orden.IdUsuarioTecnico, idResponsable);
         await _reservas.SincronizarAsync(orden, repuestos, false, idResponsable, cancelacion);
         await ReemplazarSugerenciasAsync(orden, sugerencias, sesion, cancelacion);
@@ -277,20 +284,30 @@ public class OrdenTrabajoDAO
         orden.Prioridad = cambios.Prioridad;
         orden.Descripcion = cambios.Descripcion;
         orden.Resultado = cambios.Resultado;
+        orden.FechaPrevistaEjecucion = fechaPrevista;
+        if (cambios.TiempoEstimadoHoras is not null)
+        {
+            orden.TiempoEstimadoHoras = cambios.TiempoEstimadoHoras;
+        }
+
+        if (cambios.CausaFallaId is not null)
+        {
+            orden.IdCausaFalla = cambios.CausaFallaId;
+        }
+
+        await ValidarCausaDeFallaAsync(orden, cancelacion);
+        if (cambios.LecturaUso is not null)
+        {
+            await AplicarLecturaDeUsoAsync(orden, cambios.LecturaUso, usuarioId, cancelacion);
+        }
 
         ValidarEstado(reglas, estado);
         reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
         await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, cancelacion);
 
-        var primerEstado = orden.HistorialEstadoOts.OrderBy(item => item.FechaHora).FirstOrDefault();
-        if (primerEstado is not null)
-        {
-            primerEstado.Observacion = fechaPrevista.ToString(FormatoDeFecha);
-        }
-
         if (estado != estadoActual)
         {
-            await AgregarEstadoAsync(orden, estado, estadoActual, motivo, usuarioId, reglas, cancelacion);
+            await AgregarEstadoAsync(orden, estado, estadoActual, motivo, usuarioId, reglas, cancelacion, cambios.MotivoCodigo);
             AplicarFechasDeEstado(orden, estado, reglas);
         }
 
@@ -305,7 +322,8 @@ public class OrdenTrabajoDAO
     }
 
     public async Task<OrdenTrabajo> CambiarEstadoAsync(
-        OrdenTrabajo ordenLeida, string estado, string? motivo, bool comoTecnico, long? usuarioId, CancellationToken cancelacion)
+        OrdenTrabajo ordenLeida, string estado, string? motivo, bool comoTecnico, long? usuarioId, CancellationToken cancelacion,
+        decimal? lecturaUso = null, string? motivoCodigo = null)
     {
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         var orden = await BloquearYRecargarAsync(ordenLeida.IdOrden, cancelacion);
@@ -324,7 +342,12 @@ public class OrdenTrabajoDAO
         }
 
         reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo, comoTecnico);
-        await AgregarEstadoAsync(orden, estado, estadoActual, motivo, usuarioId, reglas, cancelacion);
+        await AgregarEstadoAsync(orden, estado, estadoActual, motivo, usuarioId, reglas, cancelacion, motivoCodigo);
+        if (lecturaUso is not null)
+        {
+            await AplicarLecturaDeUsoAsync(orden, lecturaUso, usuarioId, cancelacion);
+        }
+
         AplicarFechasDeEstado(orden, estado, reglas);
         await AplicarEfectosEnRepuestosAsync(orden, estado, estadoActual, reglas, usuarioId, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
@@ -494,6 +517,43 @@ public class OrdenTrabajoDAO
         }
     }
 
+    /// <summary>
+    /// Órdenes del rango ubicadas por su fecha prevista de ejecución. Las eliminadas se excluyen salvo que se pidan o que
+    /// el filtro de estado las nombre. Devuelve como máximo <paramref name="maximo"/> + 1 filas para detectar el recorte.
+    /// </summary>
+    public async Task<List<OrdenDeCalendario>> ListarCalendarioAsync(
+        FiltroOrdenesTrabajo filtro, DateOnly desde, DateOnly hasta, bool incluirEliminadas, int maximo, CancellationToken cancelacion)
+    {
+        var consulta = Filtrar(filtro with { FechaDesde = null, FechaHasta = null })
+            .Where(o => o.FechaPrevistaEjecucion >= desde && o.FechaPrevistaEjecucion <= hasta);
+        if (!incluirEliminadas && string.IsNullOrEmpty(filtro.Estado))
+        {
+            consulta = consulta.Where(o => (o.HistorialEstadoOts
+                .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() ?? "") != FasesDeEstado.Eliminada);
+        }
+
+        return await consulta
+            .OrderBy(o => o.FechaPrevistaEjecucion).ThenBy(o => o.IdOrden)
+            .Take(maximo + 1)
+            .Select(o => new OrdenDeCalendario(
+                o.IdOrden, o.FechaPrevistaEjecucion,
+                string.IsNullOrWhiteSpace(o.IdActivoNavigation.Nombre) ? o.IdActivoNavigation.NumSerie : o.IdActivoNavigation.Nombre,
+                o.IdClienteNavigation.RazonSocial, o.Tipo, o.Prioridad,
+                o.HistorialEstadoOts.OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                    .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "",
+                o.HistorialEstadoOts.OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                    .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() ?? ""))
+            .ToListAsync(cancelacion);
+    }
+
+    /// <summary>Motivos codificados de pausa y devolución, en el orden del catálogo.</summary>
+    public async Task<List<MotivoEstadoOt>> ListarMotivosAsync(CancellationToken cancelacion) =>
+        await _contexto.MotivoEstadoOts.AsNoTracking()
+            .Where(motivo => motivo.Codigo != null)
+            .OrderBy(motivo => motivo.IdMotivoEs)
+            .ToListAsync(cancelacion);
+
     private IQueryable<OrdenTrabajo> ConsultaCompleta()
     {
         return _contexto.OrdenTrabajos
@@ -512,6 +572,9 @@ public class OrdenTrabajoDAO
             .Include(orden => orden.HistorialTecnicoOts)
                 .ThenInclude(historial => historial.IdTecnicoNuevoNavigation)
             .Include(orden => orden.HistorialTecnicoOts)
+                .ThenInclude(historial => historial.IdUsuarioNavigation)
+            .Include(orden => orden.IdCausaFallaNavigation)
+            .Include(orden => orden.HistorialLecturaUsoOts)
                 .ThenInclude(historial => historial.IdUsuarioNavigation)
             .Include(orden => orden.HistorialRecomendacionesIa)
             .Include(orden => orden.OtRepuestos)
@@ -580,15 +643,83 @@ public class OrdenTrabajoDAO
         return jefe.IdUsuario;
     }
 
+    /// <summary>La causa de falla, si se indica, debe existir, estar activa y corresponder a una correctiva.</summary>
+    private async Task ValidarCausaDeFallaAsync(OrdenTrabajo orden, CancellationToken cancelacion)
+    {
+        if (orden.IdCausaFalla is null)
+        {
+            return;
+        }
+
+        if (orden.Tipo)
+        {
+            throw new ValidacionDeNegocioException("La causa de falla solo se indica en órdenes correctivas.", "CAUSA_FALLA_SOLO_CORRECTIVA");
+        }
+
+        var causa = orden.IdCausaFalla.Value;
+        if (!await _contexto.CausasFalla.AsNoTracking().AnyAsync(item => item.IdCausaFalla == causa && item.Estado, cancelacion))
+        {
+            throw new ValidacionDeNegocioException("La causa de falla indicada no existe o está inactiva.", "CAUSA_FALLA_INVALIDA");
+        }
+    }
+
+    /// <summary>
+    /// Guarda la lectura de uso (horas o kilómetros del activo) y, si cambió, registra el valor anterior, el nuevo,
+    /// quién lo hizo y cuándo. La lectura no puede ser menor que la de una orden anterior del mismo activo ni mayor
+    /// que la de una posterior.
+    /// </summary>
+    private async Task AplicarLecturaDeUsoAsync(OrdenTrabajo orden, decimal? nueva, long? usuarioId, CancellationToken cancelacion)
+    {
+        if (nueva is null || nueva == orden.LecturaUso)
+        {
+            return;
+        }
+
+        var otras = _contexto.OrdenTrabajos.AsNoTracking()
+            .Where(item => item.IdActivo == orden.IdActivo && item.IdOrden != orden.IdOrden && item.LecturaUso != null);
+        var maximaAnterior = await otras.Where(item => item.FechaCreada < orden.FechaCreada)
+            .MaxAsync(item => item.LecturaUso, cancelacion);
+        var minimaPosterior = await otras.Where(item => item.FechaCreada > orden.FechaCreada)
+            .MinAsync(item => item.LecturaUso, cancelacion);
+        if (nueva < maximaAnterior || nueva > minimaPosterior)
+        {
+            throw new ValidacionDeNegocioException(
+                "La lectura de uso no puede ser menor que la de una orden anterior del activo ni mayor que la de una posterior.",
+                "LECTURA_USO_INVALIDA");
+        }
+
+        orden.HistorialLecturaUsoOts.Add(new HistorialLecturaUsoOt
+        {
+            LecturaAnterior = orden.LecturaUso,
+            LecturaNueva = nueva,
+            IdUsuario = usuarioId,
+            FechaHora = DateTime.UtcNow
+        });
+        orden.LecturaUso = nueva;
+    }
+
     /// <summary>Guarda un cambio de estado en el historial: de qué estado a cuál, cuándo, quién lo hizo y el motivo.</summary>
     private async Task AgregarEstadoAsync(OrdenTrabajo orden, string nombreEstado, string? estadoAnterior,
-        string? observacion, long? usuarioId, ReglasDeEstadoOrden reglas, CancellationToken cancelacion)
+        string? observacion, long? usuarioId, ReglasDeEstadoOrden reglas, CancellationToken cancelacion,
+        string? motivoCodigo = null)
     {
         var estado = await _contexto.EstadoOts.FirstOrDefaultAsync(item => item.Nombre == nombreEstado && item.Estado, cancelacion)
             ?? throw new ValidacionDeNegocioException("El estado indicado no es válido.");
 
+        long? idMotivo = null;
+        if (!string.IsNullOrWhiteSpace(motivoCodigo))
+        {
+            var codigo = motivoCodigo.Trim();
+            idMotivo = await _contexto.MotivoEstadoOts.AsNoTracking()
+                .Where(motivo => motivo.Codigo == codigo)
+                .Select(motivo => (long?)motivo.IdMotivoEs)
+                .FirstOrDefaultAsync(cancelacion)
+                ?? throw new ValidacionDeNegocioException("El motivo indicado no existe.", "MOTIVO_INVALIDO");
+        }
+
         orden.HistorialEstadoOts.Add(new HistorialEstadoOt
         {
+            IdMotivoEs = idMotivo,
             IdEstadoOtNavigation = estado,
             IdEstadoAnterior = estadoAnterior is null ? null : reglas.Buscar(estadoAnterior)?.Id,
             IdUsuario = usuarioId,

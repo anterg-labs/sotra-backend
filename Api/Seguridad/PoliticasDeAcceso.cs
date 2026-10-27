@@ -40,6 +40,7 @@ public static class Politicas
     public const string StockRegistrarMovimiento = "stock.registrar_movimiento";
 
     public const string ReporteConsultar = "reporte.consultar";
+    public const string AvisoConfigurar = "aviso.configurar";
 
     public const string TerminosAdministrar = "terminos.administrar";
 }
@@ -116,6 +117,7 @@ public static class PoliticasDeAcceso
         [Politicas.StockRegistrarMovimiento] = [Roles.Administrador, Roles.Panolero],
 
         [Politicas.ReporteConsultar] = [Roles.Administrador, Roles.JefeMantenimiento],
+        [Politicas.AvisoConfigurar] = [Roles.Administrador],
 
         [Politicas.TerminosAdministrar] = [Roles.Administrador]
     };

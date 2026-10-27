@@ -23,6 +23,8 @@ public partial class Repuesto
 
     public int? CantMin { get; set; }
 
+    public decimal? CostoUnitario { get; set; }
+
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 
     public virtual ICollection<OtRepuesto> OtRepuestos { get; set; } = new List<OtRepuesto>();

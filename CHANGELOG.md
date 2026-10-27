@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Version 1.0.94 (2026-10-27)
+
+- Reportes: nuevos análisis de maquinaria y proceso: comparación del período con el anterior y con el año pasado, órdenes abiertas por antigüedad con el backlog en semanas, cumplimiento preventivo por tipo de orden y de máquina, horas en pausa por motivo, detalle por modelo, tiempo medio de reparación, Pareto de la parada, costo de la parada y estimado frente a real, órdenes atípicas y patrones de desgaste. Las tendencias suman las órdenes cerradas. No analizan personas.
+- Avisos: nuevos avisos de ineficiencia por reglas (máquina que reincide, trabajo correctivo alto, preventivos incumplidos, órdenes envejecidas o sin movimiento, revisión estancada, reparaciones más lentas, parada concentrada y orden crítica sin asignar) con umbrales que el administrador puede cambiar sin límites fijos.
+- Órdenes: tiempo estimado, causa de falla (catálogo nuevo), lectura de uso en horas o kilómetros con registro de cada cambio y motivo codificado de las pausas; la fecha prevista pasa a ser una columna propia; nuevo calendario de órdenes por fecha prevista y catálogo de motivos.
+- Catálogos: los activos indican su unidad de uso, los tipos de máquina su costo por hora de parada y los repuestos su costo unitario.
+- Base de datos: cambio incremental `2026-10-27-datos-para-reportes.sql` (también en `01-init.sql`) y `sotra-dump.sql` actualizado.
+
 ## Version 1.0.93 (2026-10-27)
 
 - Documentos técnicos: la subida de un documento para las sugerencias de IA guarda el PDF y responde enseguida; los fragmentos y embeddings se generan en segundo plano, de a un documento por vez. Antes, un manual grande tardaba minutos dentro del pedido y Cloudflare lo cortaba a los 100 segundos (`524`), sin guardar nada.

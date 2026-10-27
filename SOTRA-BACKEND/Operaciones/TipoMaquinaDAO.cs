@@ -73,6 +73,7 @@ public class TipoMaquinaDAO
 
         tipoExistente.Nombre = tipoMaquina.Nombre;
         tipoExistente.Estado = tipoMaquina.Estado;
+        tipoExistente.CostoHoraParada = tipoMaquina.CostoHoraParada;
         await _contexto.SaveChangesAsync(cancelacion);
         return true;
     }

@@ -17,7 +17,7 @@ public static class OrdenTrabajoMapeador
     public static OrdenTrabajoDto ADto(OrdenTrabajo orden, ReglasDeEstadoOrden reglas, bool soloTecnico = false)
     {
         var estado = reglas.Inicial.Nombre;
-        var fechaPrevista = DateOnly.FromDateTime(orden.FechaCreada).ToString(FormatoDeFecha);
+        var fechaPrevista = orden.FechaPrevistaEjecucion.ToString(FormatoDeFecha);
 
         var ultimoEstado = orden.HistorialEstadoOts
             .OrderByDescending(historial => historial.FechaHora)
@@ -33,11 +33,6 @@ public static class OrdenTrabajoMapeador
             .OrderBy(historial => historial.FechaHora)
             .ThenBy(historial => historial.IdHEstadoOt)
             .FirstOrDefault();
-
-        if (primerEstado is not null && DateOnly.TryParse(primerEstado.Observacion, out var fechaGuardada))
-        {
-            fechaPrevista = fechaGuardada.ToString(FormatoDeFecha);
-        }
 
         var nombreActivo = orden.IdActivoNavigation.Nombre;
         if (string.IsNullOrWhiteSpace(nombreActivo))
@@ -79,18 +74,12 @@ public static class OrdenTrabajoMapeador
             .ThenBy(historial => historial.IdHEstadoOt);
         foreach (var historial in historialOrdenado)
         {
-            var observacion = historial.Observacion;
-            if (historial == primerEstado)
-            {
-                observacion = null;
-            }
-
             historialEstados.Add(new HistorialEstadoDto
             {
                 Estado = historial.IdEstadoOtNavigation.Nombre,
                 EstadoAnterior = historial.IdEstadoAnteriorNavigation?.Nombre,
                 FechaHora = historial.FechaHora,
-                Observacion = observacion,
+                Observacion = historial.Observacion,
                 UsuarioId = historial.IdUsuario,
                 NombreUsuario = NombreCompleto(historial.IdUsuarioNavigation)
             });
@@ -160,6 +149,22 @@ public static class OrdenTrabajoMapeador
             Descripcion = orden.Descripcion,
             Observaciones = observaciones,
             FechaPrevistaEjecucion = fechaPrevista,
+            TiempoEstimadoHoras = orden.TiempoEstimadoHoras,
+            CausaFallaId = orden.IdCausaFalla,
+            CausaFalla = orden.IdCausaFallaNavigation?.Nombre,
+            LecturaUso = orden.LecturaUso,
+            UnidadUso = orden.IdActivoNavigation.UnidadUso,
+            HistorialLecturaUso = orden.HistorialLecturaUsoOts
+                .OrderBy(item => item.FechaHora).ThenBy(item => item.IdHLecturaUsoOt)
+                .Select(item => new HistorialLecturaUsoDto
+                {
+                    LecturaAnterior = item.LecturaAnterior,
+                    LecturaNueva = item.LecturaNueva,
+                    FechaHora = item.FechaHora,
+                    UsuarioId = item.IdUsuario,
+                    NombreUsuario = NombreCompleto(item.IdUsuarioNavigation)
+                })
+                .ToList(),
             Estado = estado,
             CreadoEn = orden.FechaCreada,
             FechaInicio = orden.FechaInicio,
