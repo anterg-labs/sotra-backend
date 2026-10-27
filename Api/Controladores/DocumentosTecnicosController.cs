@@ -24,6 +24,7 @@ public class DocumentosTecnicosController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>Lista los documentos técnicos con filtros por texto, activo, modelo, tipo y vigencia.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<ActionResult<PaginaDto<DocumentoTecnicoDto>>> ObtenerTodos(
@@ -50,6 +51,7 @@ public class DocumentosTecnicosController : ControllerBase
         return Ok(PaginaDto<DocumentoTecnicoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve los datos de un documento técnico.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<ActionResult<DocumentoTecnicoDto>> ObtenerPorId(long id, CancellationToken cancellationToken)
@@ -58,8 +60,16 @@ public class DocumentosTecnicosController : ControllerBase
         return documento is null ? NotFound() : Ok(documento);
     }
 
+    /// <summary>
+    /// Carga un documento técnico (PDF). Si se usa para la consulta asistida, responde con
+    /// <c>estadoProcesamiento = pendiente</c> y se procesa en segundo plano.
+    /// </summary>
     [HttpPost]
     [Authorize(Policy = Politicas.DocumentoGestionar)]
+    [ProducesResponseType<DocumentoTecnicoDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     [RequestSizeLimit(CincuentaMegabytesEnBytes)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Crear(IFormFile archivo,
@@ -119,6 +129,10 @@ public class DocumentosTecnicosController : ControllerBase
     /// </summary>
     [HttpPost("{id:long}/reprocesar")]
     [Authorize(Policy = Politicas.DocumentoGestionar)]
+    [ProducesResponseType<DocumentoTecnicoDto>(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
     public async Task<ActionResult<DocumentoTecnicoDto>> Reprocesar(long id, CancellationToken cancellationToken)
     {
@@ -147,6 +161,7 @@ public class DocumentosTecnicosController : ControllerBase
         }
     }
 
+    /// <summary>Modifica los datos de un documento técnico.</summary>
     [HttpPut("{id:long}")]
     public async Task<ActionResult<DocumentoTecnicoDto>> Actualizar(long id,
         DocumentoTecnicoActualizarDto solicitud, CancellationToken cancellationToken)
@@ -157,6 +172,7 @@ public class DocumentosTecnicosController : ControllerBase
         return documento is null ? NotFound() : Ok(documento);
     }
 
+    /// <summary>Marca un documento como vigente o no vigente.</summary>
     [HttpPatch("{id:long}/vigencia")]
     public async Task<ActionResult<DocumentoTecnicoDto>> CambiarVigencia(long id,
         DocumentoTecnicoVigenciaDto solicitud, CancellationToken cancellationToken)
@@ -165,6 +181,7 @@ public class DocumentosTecnicosController : ControllerBase
         return documento is null ? NotFound() : Ok(documento);
     }
 
+    /// <summary>Descarga el archivo PDF de un documento técnico.</summary>
     [HttpGet("{id:long}/archivo")]
     [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<IActionResult> Descargar(long id, CancellationToken cancellationToken)
@@ -178,6 +195,7 @@ public class DocumentosTecnicosController : ControllerBase
         return File(documento.Contenido, "application/pdf", documento.NombreArchivo);
     }
 
+    /// <summary>Elimina un documento técnico.</summary>
     [HttpDelete("{id:long}")]
     [Authorize(Policy = Politicas.DocumentoGestionar)]
     public async Task<IActionResult> Eliminar(long id, CancellationToken cancellationToken)

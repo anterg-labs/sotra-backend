@@ -21,6 +21,7 @@ public class ClientesController : ControllerBase
         _clienteDao = clienteDao;
     }
 
+    /// <summary>Lista los clientes con filtros por texto, estado y activos asociados, con orden y paginación.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.ClienteConsultar)]
     [ProducesResponseType<PaginaDto<ClienteListadoDto>>(StatusCodes.Status200OK)]
@@ -41,13 +42,14 @@ public class ClientesController : ControllerBase
             return Ok(PaginaDto<ClienteListadoDto>.Crear([], 0, filtros.Pagina, filtros.TamanoPagina));
         }
 
-        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor);
+        var filtro = new FiltroClientes(filtros.Buscar, estado, filtros.DireccionOrden == "desc", filtros.OrdenarPor, filtros.ConActivos);
         var (entidades, total) = await _clienteDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var cantidades = await _clienteDao.ContarOrdenesAsociadasAsync(entidades.Select(c => c.IdCliente), cancelacion);
         var elementos = entidades.Select(c => ClienteMapeador.AListadoDto(c, cantidades.GetValueOrDefault(c.IdCliente))).ToList();
         return Ok(PaginaDto<ClienteListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve un cliente por su id.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.ClienteConsultar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
@@ -58,6 +60,7 @@ public class ClientesController : ControllerBase
         return cliente is null ? NotFound() : Ok(await CrearRespuestaAsync(cliente, cancelacion));
     }
 
+    /// <summary>Registra un cliente.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.ClienteGestionar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status201Created)]
@@ -70,6 +73,7 @@ public class ClientesController : ControllerBase
         return CreatedAtAction(nameof(ObtenerPorId), new { id = clienteCreado.IdCliente }, respuesta);
     }
 
+    /// <summary>Modifica los datos de un cliente.</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.ClienteGestionar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]
@@ -86,6 +90,7 @@ public class ClientesController : ControllerBase
         return Ok(await CrearRespuestaAsync(cliente, cancelacion));
     }
 
+    /// <summary>Da de baja o reactiva un cliente.</summary>
     [HttpPatch("{id:long}")]
     [Authorize(Policy = Politicas.ClienteGestionar)]
     [ProducesResponseType<ClienteListadoDto>(StatusCodes.Status200OK)]

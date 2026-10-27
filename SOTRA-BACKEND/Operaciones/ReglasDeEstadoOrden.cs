@@ -7,10 +7,10 @@ public static class FasesDeEstado
     public const string EnCurso = "en_curso";
     public const string PorValidar = "por_validar";
     public const string Cerrada = "cerrada";
-    public const string Cancelada = "cancelada";
+    public const string Eliminada = "eliminada";
 
     public static readonly string[] Abiertas = [Pendiente, EnCurso];
-    public static readonly string[] Terminadas = [PorValidar, Cerrada, Cancelada];
+    public static readonly string[] Terminadas = [PorValidar, Cerrada, Eliminada];
 }
 
 public sealed record EstadoDeOrden(

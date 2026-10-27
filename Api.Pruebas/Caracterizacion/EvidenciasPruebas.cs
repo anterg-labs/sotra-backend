@@ -150,11 +150,11 @@ public class EvidenciasPruebas : PruebaBase
     }
 
     [Test]
-    public async Task UnaOrdenCanceladaNoAdmiteEvidenciasNiLasDeOtraOrdenSeMezclan()
+    public async Task UnaOrdenEliminadaNoAdmiteEvidenciasNiLasDeOtraOrdenSeMezclan()
     {
         var cancelada = await CrearOrdenAsync();
         (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{cancelada}/estado",
-            new { estado = "cancelada", motivo = "Duplicada" })).EnsureSuccessStatusCode();
+            new { estado = "eliminado", motivo = "Duplicada" })).EnsureSuccessStatusCode();
         var otra = await CrearOrdenAsync();
         var propia = await (await RegistrarAsync(otra, "foto", Png)).LeerJsonAsync();
 

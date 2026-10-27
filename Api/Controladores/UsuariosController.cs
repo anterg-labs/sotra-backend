@@ -54,6 +54,7 @@ public class UsuariosController : ControllerBase
         return usuario.IdRols.Any(rol => string.Equals(rol.Nombre, NombreRolAdministrador, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Lista los usuarios con filtros por texto, rol y estado.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.UsuarioListar)]
     [ProducesResponseType<PaginaDto<UsuarioListadoDto>>(StatusCodes.Status200OK)]
@@ -81,6 +82,7 @@ public class UsuariosController : ControllerBase
         return Ok(PaginaDto<UsuarioListadoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve un usuario por su id.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.UsuarioConsultar)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
@@ -94,6 +96,7 @@ public class UsuariosController : ControllerBase
     // Crea el usuario en la base y en Keycloak. En Keycloak queda sin contraseña: le llega
     // un correo para elegirla. Si ya existía en Keycloak un usuario con ese correo, se
     // vincula ese y no se envía el correo. Si Keycloak falla, la base no guarda nada.
+    /// <summary>Crea un usuario (también en Keycloak) y envía el correo para elegir contraseña.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.UsuarioCrear)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status201Created)]
@@ -149,6 +152,7 @@ public class UsuariosController : ControllerBase
 
     // Actualiza la base y copia a Keycloak nombre, correo, roles y estado. Un usuario
     // desactivado no puede iniciar sesión y se cierran sus sesiones abiertas.
+    /// <summary>Modifica los datos, roles y estado de un usuario.</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.UsuarioEditar)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
@@ -183,6 +187,7 @@ public class UsuariosController : ControllerBase
         }
     }
 
+    /// <summary>Da de baja o reactiva un usuario.</summary>
     [HttpPatch("{id:long}")]
     [Authorize(Policy = Politicas.UsuarioEditar)]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
@@ -226,6 +231,7 @@ public class UsuariosController : ControllerBase
 
     // El administrador (o el jefe, si el usuario no es administrador) le envía al usuario un correo
     // para elegir una contraseña nueva.
+    /// <summary>Envía al usuario el correo para elegir una contraseña nueva.</summary>
     [HttpPost("{id:long}/restablecer-contrasena")]
     [Authorize(Policy = Politicas.UsuarioEditar)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

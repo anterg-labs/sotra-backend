@@ -20,6 +20,7 @@ public class MovimientosStockController : ControllerBase
         _movimientoStockDao = movimientoStockDao;
     }
 
+    /// <summary>Lista los movimientos de stock con filtros por repuesto, tipo, fecha, ubicación y usuario.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<PaginaDto<MovimientoStockDto>>> ObtenerTodos([FromQuery] FiltrosMovimientosStockDto filtros, CancellationToken cancelacion)
@@ -47,6 +48,7 @@ public class MovimientosStockController : ControllerBase
         return Ok(PaginaDto<MovimientoStockDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve un movimiento de stock por su id.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<MovimientoStockDto>> ObtenerPorId(long id, CancellationToken cancelacion)

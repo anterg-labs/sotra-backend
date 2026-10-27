@@ -108,7 +108,7 @@ CREATE TABLE operativo.estado_ot (
     tono character varying(12) NOT NULL,
     codigo_alerta character varying(40),
     es_inicial boolean DEFAULT false NOT NULL,
-    CONSTRAINT "CK_ESTADO_OT_FASE" CHECK (fase IN ('pendiente', 'en_curso', 'por_validar', 'cerrada', 'cancelada')),
+    CONSTRAINT "CK_ESTADO_OT_FASE" CHECK (fase IN ('pendiente', 'en_curso', 'por_validar', 'cerrada', 'eliminada')),
     CONSTRAINT "CK_ESTADO_OT_COMPLETA_FECHA" CHECK (completa_fecha IS NULL OR completa_fecha IN ('inicio', 'cierre')),
     CONSTRAINT "CK_ESTADO_OT_TONO" CHECK (tono IN ('neutro', 'info', 'alerta', 'exito', 'peligro', 'destacado'))
 );
@@ -181,7 +181,9 @@ CREATE TABLE operativo.historial_estado_ot (
     id_motivo_es bigint,
     id_estado_ot bigint NOT NULL,
     fecha_hora timestamp with time zone NOT NULL,
-    observacion text
+    observacion text,
+    id_estado_anterior bigint,
+    id_usuario bigint
 );
 
 
@@ -390,7 +392,10 @@ ALTER SEQUENCE operativo."SEC_ORDEN_TRABAJO_ID" OWNED BY operativo.orden_trabajo
 CREATE TABLE operativo.ot_repuesto (
     id_ot_repuesto bigint NOT NULL,
     id_orden bigint NOT NULL,
-    id_repuesto bigint NOT NULL
+    id_repuesto bigint NOT NULL,
+    cantidad integer DEFAULT 1 NOT NULL,
+    estado character varying(12) DEFAULT 'reservado'::character varying NOT NULL,
+    id_movimiento bigint
 );
 
 
@@ -793,13 +798,12 @@ COPY operativo.activo (id_activo, id_cliente, num_serie, descripcion, id_modelo_
 --
 
 COPY operativo.estado_ot (id_estado_ot, nombre, descripcion, estado, orden, fase, exige_tecnico, completa_fecha, tono, codigo_alerta, es_inicial) FROM stdin;
-1	creada	Creada	t	1	pendiente	f	\N	neutro	sin_asignar	t
-2	en_ejecucion	En ejecución	t	3	en_curso	t	inicio	info	\N	f
-3	asignada	Asignada	t	2	pendiente	t	\N	info	demorada_para_iniciar	f
-4	pausada	Pausada	t	4	en_curso	f	\N	alerta	pausada_demasiado	f
-5	finalizada	Finalizada	t	5	por_validar	f	\N	destacado	\N	f
-6	cerrada	Cerrada	t	6	cerrada	f	cierre	exito	\N	f
-7	cancelada	Cancelada	t	7	cancelada	f	\N	neutro	\N	f
+1	pendiente	Pendiente	t	1	pendiente	f	\N	neutro	demorada_para_iniciar	t
+2	en_progreso	En progreso	t	2	en_curso	t	inicio	info	\N	f
+5	en_revision	En revisión	t	3	por_validar	f	\N	destacado	\N	f
+6	cerrado	Cerrado	t	4	cerrada	f	cierre	exito	\N	f
+4	pausado	Pausado	t	5	en_curso	f	\N	alerta	pausada_demasiado	f
+7	eliminado	Eliminado	t	6	eliminada	f	\N	neutro	\N	f
 \.
 
 
@@ -883,49 +887,38 @@ COPY operativo.motivo_estado_ot (id_motivo_es, descripcion) FROM stdin;
 -- Data for Name: historial_estado_ot; Type: TABLE DATA; Schema: operativo; Owner: postgres
 --
 
-COPY operativo.historial_estado_ot (id_h_estado_ot, id_orden, id_motivo_es, id_estado_ot, fecha_hora, observacion) FROM stdin;
-1	1	\N	1	2026-09-14 09:10:00+00	\N
-2	1	\N	3	2026-09-14 12:10:00+00	Técnico asignado: Laura Gómez
-3	1	\N	2	2026-09-16 08:30:00+00	\N
-4	1	\N	5	2026-09-16 17:40:00+00	Trabajo completado.
-5	1	\N	6	2026-09-16 19:40:00+00	Trabajo validado.
-6	2	\N	1	2026-09-20 10:00:00+00	\N
-7	2	\N	3	2026-09-20 13:00:00+00	Técnico asignado: Roberto Pérez
-8	2	\N	2	2026-09-22 09:00:00+00	\N
-9	2	\N	5	2026-09-23 16:30:00+00	Trabajo completado.
-10	3	\N	1	2026-09-25 08:20:00+00	\N
-11	3	\N	3	2026-09-25 11:20:00+00	Técnico asignado: Diego Fernández
-12	3	\N	2	2026-09-27 08:00:00+00	\N
-13	3	\N	5	2026-09-29 15:00:00+00	Trabajo completado.
-14	3	\N	6	2026-09-29 17:00:00+00	Trabajo validado.
-15	4	\N	1	2026-10-01 11:00:00+00	\N
-16	4	\N	3	2026-10-01 14:00:00+00	Técnico asignado: Andrés Rodríguez
-17	4	\N	2	2026-10-02 08:00:00+00	\N
-18	4	\N	5	2026-10-02 12:30:00+00	Trabajo completado.
-19	4	\N	6	2026-10-02 14:30:00+00	Trabajo validado.
-20	5	\N	1	2026-10-03 09:40:00+00	\N
-21	5	\N	3	2026-10-03 12:40:00+00	Técnico asignado: Laura Gómez
-22	5	\N	2	2026-10-05 08:15:00+00	\N
-23	6	\N	1	2026-10-05 10:30:00+00	\N
-24	6	\N	3	2026-10-05 13:30:00+00	Técnico asignado: Roberto Pérez
-25	7	\N	1	2026-10-06 13:00:00+00	\N
-26	7	\N	3	2026-10-06 16:00:00+00	Técnico asignado: Diego Fernández
-27	7	\N	2	2026-10-07 09:00:00+00	\N
-28	7	\N	4	2026-10-07 11:00:00+00	Esperando autorización del cliente para reemplazar la batería.
-29	8	\N	1	2026-10-08 09:00:00+00	\N
-30	9	\N	1	2026-10-09 15:20:00+00	\N
-31	9	\N	3	2026-10-09 18:20:00+00	Técnico asignado: Andrés Rodríguez
-32	10	\N	1	2026-10-10 08:45:00+00	\N
-33	10	\N	3	2026-10-10 11:45:00+00	Técnico asignado: Roberto Pérez
-34	10	\N	2	2026-10-12 08:30:00+00	\N
-35	11	\N	1	2026-10-12 10:10:00+00	\N
-36	11	\N	3	2026-10-12 13:10:00+00	Técnico asignado: Laura Gómez
-37	11	\N	2	2026-10-14 08:00:00+00	\N
-38	11	\N	5	2026-10-14 13:20:00+00	Trabajo completado.
-39	12	\N	1	2026-10-13 09:30:00+00	\N
-40	13	\N	1	2026-10-14 16:00:00+00	\N
-41	13	\N	3	2026-10-14 19:00:00+00	Técnico asignado: Diego Fernández
-42	14	\N	1	2026-10-15 08:10:00+00	\N
+COPY operativo.historial_estado_ot (id_h_estado_ot, id_orden, id_motivo_es, id_estado_ot, fecha_hora, observacion, id_estado_anterior, id_usuario) FROM stdin;
+1	1	\N	1	2026-09-14 09:10:00+00	\N	\N	\N
+6	2	\N	1	2026-09-20 10:00:00+00	\N	\N	\N
+10	3	\N	1	2026-09-25 08:20:00+00	\N	\N	\N
+15	4	\N	1	2026-10-01 11:00:00+00	\N	\N	\N
+20	5	\N	1	2026-10-03 09:40:00+00	\N	\N	\N
+23	6	\N	1	2026-10-05 10:30:00+00	\N	\N	\N
+25	7	\N	1	2026-10-06 13:00:00+00	\N	\N	\N
+29	8	\N	1	2026-10-08 09:00:00+00	\N	\N	\N
+30	9	\N	1	2026-10-09 15:20:00+00	\N	\N	\N
+32	10	\N	1	2026-10-10 08:45:00+00	\N	\N	\N
+35	11	\N	1	2026-10-12 10:10:00+00	\N	\N	\N
+39	12	\N	1	2026-10-13 09:30:00+00	\N	\N	\N
+40	13	\N	1	2026-10-14 16:00:00+00	\N	\N	\N
+42	14	\N	1	2026-10-15 08:10:00+00	\N	\N	\N
+4	1	\N	5	2026-09-16 17:40:00+00	Trabajo completado.	2	\N
+5	1	\N	6	2026-09-16 19:40:00+00	Trabajo validado.	5	\N
+9	2	\N	5	2026-09-23 16:30:00+00	Trabajo completado.	2	\N
+13	3	\N	5	2026-09-29 15:00:00+00	Trabajo completado.	2	\N
+14	3	\N	6	2026-09-29 17:00:00+00	Trabajo validado.	5	\N
+18	4	\N	5	2026-10-02 12:30:00+00	Trabajo completado.	2	\N
+19	4	\N	6	2026-10-02 14:30:00+00	Trabajo validado.	5	\N
+28	7	\N	4	2026-10-07 11:00:00+00	Esperando autorización del cliente para reemplazar la batería.	2	\N
+38	11	\N	5	2026-10-14 13:20:00+00	Trabajo completado.	2	\N
+3	1	\N	2	2026-09-16 08:30:00+00	\N	1	\N
+8	2	\N	2	2026-09-22 09:00:00+00	\N	1	\N
+12	3	\N	2	2026-09-27 08:00:00+00	\N	1	\N
+17	4	\N	2	2026-10-02 08:00:00+00	\N	1	\N
+22	5	\N	2	2026-10-05 08:15:00+00	\N	1	\N
+27	7	\N	2	2026-10-07 09:00:00+00	\N	1	\N
+34	10	\N	2	2026-10-12 08:30:00+00	\N	1	\N
+37	11	\N	2	2026-10-14 08:00:00+00	\N	1	\N
 \.
 
 
@@ -989,20 +982,20 @@ COPY operativo.movimiento_stock (id_movimiento, fecha, cantidad, id_repuesto, id
 -- Data for Name: ot_repuesto; Type: TABLE DATA; Schema: operativo; Owner: postgres
 --
 
-COPY operativo.ot_repuesto (id_ot_repuesto, id_orden, id_repuesto) FROM stdin;
-1	1	1
-2	1	3
-3	1	5
-4	2	11
-5	2	4
-6	2	6
-7	3	12
-8	3	8
-9	4	13
-10	5	6
-11	11	1
-12	11	5
-13	11	2
+COPY operativo.ot_repuesto (id_ot_repuesto, id_orden, id_repuesto, cantidad, estado, id_movimiento) FROM stdin;
+1	1	1	1	descontado	\N
+2	1	3	1	descontado	\N
+3	1	5	1	descontado	\N
+4	2	11	1	entregado	\N
+5	2	4	1	entregado	\N
+6	2	6	1	entregado	\N
+7	3	12	1	descontado	\N
+8	3	8	1	descontado	\N
+9	4	13	1	descontado	\N
+10	5	6	1	entregado	\N
+11	11	1	1	entregado	\N
+12	11	5	1	entregado	\N
+13	11	2	1	entregado	\N
 \.
 
 
@@ -1872,19 +1865,97 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UK_TRANSICION_AL_ASIGNAR_TECNICO" ON operativ
 -- Ciclo de vida de la sección 13.1 de «Flujo de datos SOTRA.md».
 INSERT INTO operativo.transicion_estado_ot
     (id_estado_origen, id_estado_destino, exige_motivo, puede_tecnico, accion, principal, al_asignar_tecnico)
-SELECT origen.id_estado_ot, destino.id_estado_ot, v.exige_motivo, v.puede_tecnico, v.accion, v.principal, v.al_asignar_tecnico
+SELECT origen.id_estado_ot, destino.id_estado_ot, v.exige_motivo, v.puede_tecnico, v.accion, v.principal, false
 FROM (VALUES
-    ('creada', 'asignada', false, false, NULL, false, true),
-    ('creada', 'cancelada', true, false, NULL, false, false),
-    ('asignada', 'en_ejecucion', false, true, 'Iniciar', true, false),
-    ('asignada', 'cancelada', true, false, NULL, false, false),
-    ('en_ejecucion', 'pausada', true, true, 'Pausar', false, false),
-    ('en_ejecucion', 'finalizada', false, true, 'Finalizar', true, false),
-    ('pausada', 'en_ejecucion', false, true, 'Reanudar', true, false),
-    ('pausada', 'cancelada', true, false, NULL, false, false),
-    ('finalizada', 'cerrada', true, false, NULL, false, false),
-    ('finalizada', 'asignada', true, false, NULL, false, false)
-) AS v(origen, destino, exige_motivo, puede_tecnico, accion, principal, al_asignar_tecnico)
+    ('pendiente', 'en_progreso', false, true, 'Iniciar', true),
+    ('pendiente', 'eliminado', true, false, NULL, false),
+    ('en_progreso', 'en_revision', false, true, 'Enviar a revisión', true),
+    ('en_progreso', 'pausado', true, true, 'Pausar', false),
+    ('pausado', 'en_progreso', false, true, 'Reanudar', true),
+    ('pausado', 'eliminado', true, false, NULL, false),
+    ('en_revision', 'cerrado', false, false, NULL, false),
+    ('en_revision', 'pendiente', true, false, NULL, false)
+) AS v(origen, destino, exige_motivo, puede_tecnico, accion, principal)
 JOIN operativo.estado_ot AS origen ON origen.nombre = v.origen
 JOIN operativo.estado_ot AS destino ON destino.nombre = v.destino
 ON CONFLICT (id_estado_origen, id_estado_destino) DO NOTHING;
+
+-- Estados nuevos e historial con quién y desde qué estado; ver database/cambios/2026-10-26-estados-ot-nuevos-e-historial.sql.
+ALTER TABLE operativo.historial_estado_ot
+    ADD CONSTRAINT "FK_HISTORIAL_ESTADO_OT_ANTERIOR" FOREIGN KEY (id_estado_anterior) REFERENCES operativo.estado_ot (id_estado_ot),
+    ADD CONSTRAINT "FK_HISTORIAL_ESTADO_OT_USUARIO" FOREIGN KEY (id_usuario) REFERENCES operativo.usuario (id_usuario);
+
+CREATE INDEX IF NOT EXISTS "IX_HISTORIAL_ESTADO_OT_ANTERIOR" ON operativo.historial_estado_ot (id_estado_anterior);
+CREATE INDEX IF NOT EXISTS "IX_HISTORIAL_ESTADO_OT_USUARIO" ON operativo.historial_estado_ot (id_usuario);
+
+CREATE TABLE IF NOT EXISTS operativo.historial_tecnico_ot (
+    id_h_tecnico_ot bigint GENERATED BY DEFAULT AS IDENTITY,
+    id_orden bigint NOT NULL,
+    id_tecnico_anterior bigint,
+    id_tecnico_nuevo bigint,
+    id_usuario bigint,
+    fecha_hora timestamp with time zone NOT NULL,
+    observacion text,
+    CONSTRAINT "PK_HISTORIAL_TECNICO_OT" PRIMARY KEY (id_h_tecnico_ot),
+    CONSTRAINT "FK_HISTORIAL_TECNICO_OT_ORDEN" FOREIGN KEY (id_orden) REFERENCES operativo.orden_trabajo (id_orden),
+    CONSTRAINT "FK_HISTORIAL_TECNICO_OT_ANTERIOR" FOREIGN KEY (id_tecnico_anterior) REFERENCES operativo.usuario (id_usuario),
+    CONSTRAINT "FK_HISTORIAL_TECNICO_OT_NUEVO" FOREIGN KEY (id_tecnico_nuevo) REFERENCES operativo.usuario (id_usuario),
+    CONSTRAINT "FK_HISTORIAL_TECNICO_OT_USUARIO" FOREIGN KEY (id_usuario) REFERENCES operativo.usuario (id_usuario)
+);
+
+CREATE INDEX IF NOT EXISTS "IX_HISTORIAL_TECNICO_OT_ORDEN_FECHA" ON operativo.historial_tecnico_ot (id_orden, fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS "IX_HISTORIAL_TECNICO_OT_NUEVO" ON operativo.historial_tecnico_ot (id_tecnico_nuevo);
+
+COPY operativo.historial_tecnico_ot (id_h_tecnico_ot, id_orden, id_tecnico_anterior, id_tecnico_nuevo, id_usuario, fecha_hora, observacion) FROM stdin;
+1	1	\N	\N	\N	2026-09-14 12:10:00+00	Técnico asignado: Laura Gómez
+2	2	\N	\N	\N	2026-09-20 13:00:00+00	Técnico asignado: Roberto Pérez
+3	3	\N	\N	\N	2026-09-25 11:20:00+00	Técnico asignado: Diego Fernández
+4	4	\N	\N	\N	2026-10-01 14:00:00+00	Técnico asignado: Andrés Rodríguez
+5	5	\N	\N	\N	2026-10-03 12:40:00+00	Técnico asignado: Laura Gómez
+6	6	\N	\N	\N	2026-10-05 13:30:00+00	Técnico asignado: Roberto Pérez
+7	7	\N	\N	\N	2026-10-06 16:00:00+00	Técnico asignado: Diego Fernández
+8	9	\N	\N	\N	2026-10-09 18:20:00+00	Técnico asignado: Andrés Rodríguez
+9	10	\N	\N	\N	2026-10-10 11:45:00+00	Técnico asignado: Roberto Pérez
+10	11	\N	\N	\N	2026-10-12 13:10:00+00	Técnico asignado: Laura Gómez
+11	13	\N	\N	\N	2026-10-14 19:00:00+00	Técnico asignado: Diego Fernández
+\.
+
+SELECT setval(pg_get_serial_sequence('operativo.historial_tecnico_ot', 'id_h_tecnico_ot'),
+              GREATEST((SELECT max(id_h_tecnico_ot) FROM operativo.historial_tecnico_ot), 1),
+              (SELECT count(*) > 0 FROM operativo.historial_tecnico_ot));
+
+-- Cantidad de cada repuesto en una orden y su ciclo (reservado, entregado, descontado, liberado), con historial de quién
+-- y cuándo; ver database/cambios/2026-10-26-repuestos-en-ordenes-reserva.sql.
+ALTER TABLE operativo.ot_repuesto
+    ADD CONSTRAINT "CK_OT_REPUESTO_ESTADO" CHECK (estado IN ('reservado', 'entregado', 'descontado', 'liberado')),
+    ADD CONSTRAINT "CK_OT_REPUESTO_CANTIDAD" CHECK (cantidad > 0),
+    ADD CONSTRAINT "FK_OT_REPUESTO_MOVIMIENTO" FOREIGN KEY (id_movimiento) REFERENCES operativo.movimiento_stock (id_movimiento);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "UK_OT_REPUESTO_ACTIVO" ON operativo.ot_repuesto (id_orden, id_repuesto) WHERE estado <> 'liberado';
+CREATE INDEX IF NOT EXISTS "IX_OT_REPUESTO_COMPROMETIDO" ON operativo.ot_repuesto (id_repuesto) WHERE estado IN ('reservado', 'entregado');
+
+CREATE TABLE IF NOT EXISTS operativo.historial_repuesto_ot (
+    id_h_repuesto_ot bigint GENERATED BY DEFAULT AS IDENTITY,
+    id_orden bigint NOT NULL,
+    id_repuesto bigint NOT NULL,
+    accion character varying(12) NOT NULL,
+    cantidad_anterior integer,
+    cantidad_nueva integer NOT NULL,
+    estado_anterior character varying(12),
+    estado_nuevo character varying(12) NOT NULL,
+    id_usuario bigint,
+    fecha_hora timestamp with time zone NOT NULL,
+    id_movimiento bigint,
+    observacion text,
+    CONSTRAINT "PK_HISTORIAL_REPUESTO_OT" PRIMARY KEY (id_h_repuesto_ot),
+    CONSTRAINT "FK_HISTORIAL_REPUESTO_OT_ORDEN" FOREIGN KEY (id_orden) REFERENCES operativo.orden_trabajo (id_orden),
+    CONSTRAINT "FK_HISTORIAL_REPUESTO_OT_REPUESTO" FOREIGN KEY (id_repuesto) REFERENCES operativo.repuesto (id_repuesto),
+    CONSTRAINT "FK_HISTORIAL_REPUESTO_OT_USUARIO" FOREIGN KEY (id_usuario) REFERENCES operativo.usuario (id_usuario),
+    CONSTRAINT "FK_HISTORIAL_REPUESTO_OT_MOVIMIENTO" FOREIGN KEY (id_movimiento) REFERENCES operativo.movimiento_stock (id_movimiento),
+    CONSTRAINT "CK_HISTORIAL_REPUESTO_OT_ACCION" CHECK (accion IN ('reservar', 'modificar', 'entregar', 'descontar', 'liberar')),
+    CONSTRAINT "CK_HISTORIAL_REPUESTO_OT_ESTADO" CHECK (estado_nuevo IN ('reservado', 'entregado', 'descontado', 'liberado')),
+    CONSTRAINT "CK_HISTORIAL_REPUESTO_OT_CANTIDAD" CHECK (cantidad_nueva >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS "IX_HISTORIAL_REPUESTO_OT_ORDEN_FECHA" ON operativo.historial_repuesto_ot (id_orden, fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS "IX_HISTORIAL_REPUESTO_OT_REPUESTO" ON operativo.historial_repuesto_ot (id_repuesto, fecha_hora DESC);

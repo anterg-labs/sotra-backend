@@ -38,20 +38,22 @@ public class OrdenTrabajoDAO
                 .Select(h => h.Observacion).FirstOrDefault()),
         ]);
 
-    private static readonly string[] FasesFinales = [FasesDeEstado.Cerrada, FasesDeEstado.Cancelada];
+    private static readonly string[] FasesFinales = [FasesDeEstado.Cerrada, FasesDeEstado.Eliminada];
 
-    /// <summary>Una orden está activa mientras su estado actual no sea de una fase final (cerrada o cancelada).</summary>
+    /// <summary>Una orden está activa mientras su estado actual no sea de una fase final (cerrada o eliminada).</summary>
     public static readonly Expression<Func<OrdenTrabajo, bool>> EsActiva = orden =>
         !FasesFinales.Contains(
             orden.HistorialEstadoOts.OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
                 .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() ?? "");
 
     private readonly SotraContext _contexto;
+    private readonly ReservasDeRepuestos _reservas;
     private ReglasDeEstadoOrden? _reglas;
 
     public OrdenTrabajoDAO(SotraContext contexto)
     {
         _contexto = contexto;
+        _reservas = new ReservasDeRepuestos(contexto);
     }
 
     public async Task<List<OrdenTrabajo>> ListarTodoAsync(CancellationToken cancelacion)
@@ -97,6 +99,8 @@ public class OrdenTrabajoDAO
                 .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
                 .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() == fase);
         }
+
+        if (filtro.SoloActivas == true) consulta = consulta.Where(EsActiva);
 
         consulta = AplicarPrioridad(consulta, filtro.Prioridad);
 
@@ -175,7 +179,7 @@ public class OrdenTrabajoDAO
     public async Task<List<RepuestoUsadoEnOrdenes>> ListarRepuestosUsadosAsync(FiltroOrdenesTrabajo filtro, CancellationToken cancelacion)
     {
         return await Filtrar(filtro)
-            .SelectMany(o => o.OtRepuestos)
+            .SelectMany(o => o.OtRepuestos.Where(r => r.Estado != EstadosRepuestoOrden.Liberado))
             .GroupBy(r => new { r.IdRepuestoNavigation.Codigo, r.IdRepuestoNavigation.Nombre })
             .Select(g => new RepuestoUsadoEnOrdenes(g.Key.Codigo, g.Key.Nombre, g.Count()))
             .OrderByDescending(r => r.Cantidad).ThenBy(r => r.Codigo)
@@ -189,10 +193,6 @@ public class OrdenTrabajoDAO
     public Task<string?> ObtenerNombreDeActivoAsync(long id, CancellationToken cancelacion) =>
         _contexto.Activos.AsNoTracking().Where(a => a.IdActivo == id)
             .Select(a => string.IsNullOrWhiteSpace(a.Nombre) ? a.NumSerie : a.Nombre).FirstOrDefaultAsync(cancelacion);
-
-    public Task<string?> ObtenerNombreDeTecnicoAsync(long id, CancellationToken cancelacion) =>
-        _contexto.Usuarios.AsNoTracking().Where(u => u.IdUsuario == id).Select(u => u.Nombre + " " + u.Apellido)
-            .FirstOrDefaultAsync(cancelacion);
 
     private static IQueryable<OrdenTrabajo> AplicarPrioridad(IQueryable<OrdenTrabajo> consulta, string? prioridad)
     {
@@ -213,10 +213,10 @@ public class OrdenTrabajoDAO
 
     // idResponsable es el usuario que crea la orden. Si es null (pedido sin token, con
     // AUTH_OBLIGATORIA=false), se asigna el primer jefe de mantenimiento activo.
-    public async Task<OrdenTrabajo> CrearAsync(OrdenTrabajo orden, DateOnly fechaPrevista, List<long> repuestosIds,
+    public async Task<OrdenTrabajo> CrearAsync(OrdenTrabajo orden, DateOnly fechaPrevista, List<RepuestoPedido> repuestos,
         List<string> sugerencias, Guid? sesion, long? idResponsable, CancellationToken cancelacion)
     {
-        await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds, cancelacion);
+        await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, cancelacion);
         var reglas = await ObtenerReglasAsync(cancelacion);
         orden.IdUsuarioResponsable = idResponsable ?? await ObtenerResponsableAsync(cancelacion);
         orden.FechaCreada = DateTime.UtcNow;
@@ -225,8 +225,9 @@ public class OrdenTrabajoDAO
         _contexto.OrdenTrabajos.Add(orden);
         await _contexto.SaveChangesAsync(cancelacion);
 
-        await AgregarEstadoAsync(orden, reglas.Inicial.Nombre, fechaPrevista.ToString(FormatoDeFecha), cancelacion);
-        ReemplazarRepuestos(orden, repuestosIds);
+        await AgregarEstadoAsync(orden, reglas.Inicial.Nombre, null, fechaPrevista.ToString(FormatoDeFecha), idResponsable, reglas, cancelacion);
+        RegistrarCambioDeTecnico(orden, null, orden.IdUsuarioTecnico, idResponsable);
+        await _reservas.SincronizarAsync(orden, repuestos, false, idResponsable, cancelacion);
         await ReemplazarSugerenciasAsync(orden, sugerencias, sesion, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
         await transaccion.CommitAsync(cancelacion);
@@ -240,8 +241,8 @@ public class OrdenTrabajoDAO
     /// orden cambió desde que la persona la leyó, falla con <c>ORDEN_MODIFICADA</c>. Devuelve <c>null</c> si la orden no existe.
     /// </summary>
     public async Task<OrdenTrabajo?> ActualizarAsync(long idOrden, CambiosDeOrden cambios, DateOnly fechaPrevista,
-        List<long> repuestosIds, List<string> sugerencias, string estado, string? motivo, Guid? sesion,
-        Func<OrdenTrabajo, bool>? coincideConVersionVigente, CancellationToken cancelacion)
+        List<RepuestoPedido> repuestos, List<string> sugerencias, string estado, string? motivo, Guid? sesion,
+        Func<OrdenTrabajo, bool>? coincideConVersionVigente, long? usuarioId, CancellationToken cancelacion)
     {
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         if (!await _contexto.OrdenTrabajos.AsNoTracking().AnyAsync(o => o.IdOrden == idOrden, cancelacion))
@@ -262,6 +263,13 @@ public class OrdenTrabajoDAO
             throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenCerrada);
         }
 
+        if (reglas.EsFinal(estadoActual))
+        {
+            throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenNoModificable);
+        }
+
+        var tecnicoAnterior = orden.IdUsuarioTecnico;
+        var ordenIniciada = orden.FechaInicio is not null;
         orden.IdCliente = cambios.ClienteId;
         orden.IdActivo = cambios.ActivoId;
         orden.IdUsuarioTecnico = cambios.TecnicoId;
@@ -272,7 +280,7 @@ public class OrdenTrabajoDAO
 
         ValidarEstado(reglas, estado);
         reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo);
-        await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, repuestosIds, cancelacion);
+        await ValidarRelacionesAsync(orden.IdCliente, orden.IdActivo, orden.IdUsuarioTecnico, cancelacion);
 
         var primerEstado = orden.HistorialEstadoOts.OrderBy(item => item.FechaHora).FirstOrDefault();
         if (primerEstado is not null)
@@ -282,11 +290,13 @@ public class OrdenTrabajoDAO
 
         if (estado != estadoActual)
         {
-            await AgregarEstadoAsync(orden, estado, motivo, cancelacion);
+            await AgregarEstadoAsync(orden, estado, estadoActual, motivo, usuarioId, reglas, cancelacion);
             AplicarFechasDeEstado(orden, estado, reglas);
         }
 
-        ReemplazarRepuestos(orden, repuestosIds);
+        RegistrarCambioDeTecnico(orden, tecnicoAnterior, orden.IdUsuarioTecnico, usuarioId);
+        await _reservas.SincronizarAsync(orden, repuestos, ordenIniciada, usuarioId, cancelacion);
+        await AplicarEfectosEnRepuestosAsync(orden, estado, estadoActual, reglas, usuarioId, cancelacion);
         await ReemplazarSugerenciasAsync(orden, sugerencias, sesion, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
         await transaccion.CommitAsync(cancelacion);
@@ -295,7 +305,7 @@ public class OrdenTrabajoDAO
     }
 
     public async Task<OrdenTrabajo> CambiarEstadoAsync(
-        OrdenTrabajo ordenLeida, string estado, string? motivo, bool comoTecnico, CancellationToken cancelacion)
+        OrdenTrabajo ordenLeida, string estado, string? motivo, bool comoTecnico, long? usuarioId, CancellationToken cancelacion)
     {
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         var orden = await BloquearYRecargarAsync(ordenLeida.IdOrden, cancelacion);
@@ -314,15 +324,76 @@ public class OrdenTrabajoDAO
         }
 
         reglas.ValidarTransicion(estadoActual, estado, orden.IdUsuarioTecnico, motivo, comoTecnico);
-        await AgregarEstadoAsync(orden, estado, motivo, cancelacion);
+        await AgregarEstadoAsync(orden, estado, estadoActual, motivo, usuarioId, reglas, cancelacion);
         AplicarFechasDeEstado(orden, estado, reglas);
+        await AplicarEfectosEnRepuestosAsync(orden, estado, estadoActual, reglas, usuarioId, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
         await transaccion.CommitAsync(cancelacion);
 
         return (await SeleccionarAsync(orden.IdOrden, cancelacion))!;
     }
 
-    public async Task<OrdenTrabajo> AsignarTecnicoAsync(OrdenTrabajo ordenLeida, long tecnicoId, CancellationToken cancelacion)
+    /// <summary>
+    /// Cambia los repuestos y cantidades de una orden sin tocar lo demás (lo usa quien gestiona repuestos sin editar la
+    /// orden, como el pañolero). Una orden cerrada o eliminada no se modifica. Devuelve <c>null</c> si no existe.
+    /// </summary>
+    public async Task<OrdenTrabajo?> ActualizarRepuestosAsync(long idOrden, List<RepuestoPedido> repuestos, long? usuarioId, CancellationToken cancelacion)
+    {
+        await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
+        if (!await _contexto.OrdenTrabajos.AsNoTracking().AnyAsync(o => o.IdOrden == idOrden, cancelacion))
+        {
+            return null;
+        }
+
+        var orden = await BloquearYRecargarAsync(idOrden, cancelacion);
+        var reglas = await ObtenerReglasAsync(cancelacion);
+        var estadoActual = ObtenerEstadoActual(orden, reglas);
+        if (reglas.EstaCerrada(estadoActual))
+        {
+            throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenCerrada);
+        }
+
+        if (reglas.EsFinal(estadoActual))
+        {
+            throw new ErrorDeOrdenException(ErrorDeOrdenException.OrdenNoModificable);
+        }
+
+        await _reservas.SincronizarAsync(orden, repuestos, orden.FechaInicio is not null, usuarioId, cancelacion);
+        await _contexto.SaveChangesAsync(cancelacion);
+        await transaccion.CommitAsync(cancelacion);
+
+        return (await SeleccionarAsync(orden.IdOrden, cancelacion))!;
+    }
+
+    /// <summary>
+    /// Qué pasa con los repuestos al entrar en un estado, según lo que dice la base: el estado que completa la fecha de
+    /// inicio entrega lo reservado, el que completa la de cierre descuenta el stock y una fase eliminada libera todo.
+    /// </summary>
+    private async Task AplicarEfectosEnRepuestosAsync(OrdenTrabajo orden, string estado, string estadoAnterior,
+        ReglasDeEstadoOrden reglas, long? usuarioId, CancellationToken cancelacion)
+    {
+        if (estado == estadoAnterior)
+        {
+            return;
+        }
+
+        switch (reglas.CompletaFecha(estado))
+        {
+            case "inicio":
+                _reservas.Entregar(orden, usuarioId);
+                break;
+            case "cierre":
+                await _reservas.DescontarAsync(orden, usuarioId, cancelacion);
+                break;
+        }
+
+        if (reglas.FaseDe(estado) == FasesDeEstado.Eliminada)
+        {
+            _reservas.Liberar(orden, usuarioId);
+        }
+    }
+
+    public async Task<OrdenTrabajo> AsignarTecnicoAsync(OrdenTrabajo ordenLeida, long tecnicoId, long? usuarioId, CancellationToken cancelacion)
     {
         await using var transaccion = await _contexto.Database.BeginTransactionAsync(cancelacion);
         var orden = await BloquearYRecargarAsync(ordenLeida.IdOrden, cancelacion);
@@ -339,12 +410,17 @@ public class OrdenTrabajoDAO
             throw new ErrorDeOrdenException(ErrorDeOrdenException.TecnicoYaAsignado);
         }
 
-        var tecnico = await ValidarTecnicoAsync(tecnicoId, cancelacion);
+        await ValidarTecnicoAsync(tecnicoId, cancelacion);
+        var tecnicoAnterior = orden.IdUsuarioTecnico;
         orden.IdUsuarioTecnico = tecnicoId;
+        RegistrarCambioDeTecnico(orden, tecnicoAnterior, tecnicoId, usuarioId);
 
-        var estadoNuevo = reglas.EstadoAlAsignarTecnico(estadoActual) ?? estadoActual;
+        var estadoNuevo = reglas.EstadoAlAsignarTecnico(estadoActual);
+        if (estadoNuevo is not null && estadoNuevo != estadoActual)
+        {
+            await AgregarEstadoAsync(orden, estadoNuevo, estadoActual, null, usuarioId, reglas, cancelacion);
+        }
 
-        await AgregarEstadoAsync(orden, estadoNuevo, "Técnico asignado: " + tecnico.Nombre + " " + tecnico.Apellido, cancelacion);
         await _contexto.SaveChangesAsync(cancelacion);
         await transaccion.CommitAsync(cancelacion);
 
@@ -424,15 +500,31 @@ public class OrdenTrabajoDAO
             .Include(orden => orden.IdClienteNavigation)
             .Include(orden => orden.IdActivoNavigation)
             .Include(orden => orden.IdUsuarioTecnicoNavigation)
+            .Include(orden => orden.IdUsuarioResponsableNavigation)
             .Include(orden => orden.HistorialEstadoOts)
                 .ThenInclude(historial => historial.IdEstadoOtNavigation)
+            .Include(orden => orden.HistorialEstadoOts)
+                .ThenInclude(historial => historial.IdEstadoAnteriorNavigation)
+            .Include(orden => orden.HistorialEstadoOts)
+                .ThenInclude(historial => historial.IdUsuarioNavigation)
+            .Include(orden => orden.HistorialTecnicoOts)
+                .ThenInclude(historial => historial.IdTecnicoAnteriorNavigation)
+            .Include(orden => orden.HistorialTecnicoOts)
+                .ThenInclude(historial => historial.IdTecnicoNuevoNavigation)
+            .Include(orden => orden.HistorialTecnicoOts)
+                .ThenInclude(historial => historial.IdUsuarioNavigation)
             .Include(orden => orden.HistorialRecomendacionesIa)
             .Include(orden => orden.OtRepuestos)
-                .ThenInclude(relacion => relacion.IdRepuestoNavigation);
+                .ThenInclude(relacion => relacion.IdRepuestoNavigation)
+            .Include(orden => orden.HistorialRepuestoOts)
+                .ThenInclude(historial => historial.IdRepuestoNavigation)
+            .Include(orden => orden.HistorialRepuestoOts)
+                .ThenInclude(historial => historial.IdUsuarioNavigation)
+            .AsSplitQuery();
     }
 
     private async Task ValidarRelacionesAsync(
-        long clienteId, long activoId, long? tecnicoId, List<long> repuestosIds, CancellationToken cancelacion)
+        long clienteId, long activoId, long? tecnicoId, CancellationToken cancelacion)
     {
         var cliente = await _contexto.Clientes.AsNoTracking()
             .FirstOrDefaultAsync(item => item.IdCliente == clienteId, cancelacion);
@@ -451,16 +543,6 @@ public class OrdenTrabajoDAO
         if (tecnicoId.HasValue)
         {
             await ValidarTecnicoAsync(tecnicoId.Value, cancelacion);
-        }
-
-        foreach (var repuestoId in repuestosIds.Distinct())
-        {
-            var repuesto = await _contexto.Repuestos.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.IdRepuesto == repuestoId, cancelacion);
-            if (repuesto is null || !repuesto.Estado)
-            {
-                throw new ValidacionDeNegocioException("Uno de los repuestos no existe o está inactivo.");
-            }
         }
     }
 
@@ -498,8 +580,9 @@ public class OrdenTrabajoDAO
         return jefe.IdUsuario;
     }
 
-    private async Task AgregarEstadoAsync(
-        OrdenTrabajo orden, string nombreEstado, string? observacion, CancellationToken cancelacion)
+    /// <summary>Guarda un cambio de estado en el historial: de qué estado a cuál, cuándo, quién lo hizo y el motivo.</summary>
+    private async Task AgregarEstadoAsync(OrdenTrabajo orden, string nombreEstado, string? estadoAnterior,
+        string? observacion, long? usuarioId, ReglasDeEstadoOrden reglas, CancellationToken cancelacion)
     {
         var estado = await _contexto.EstadoOts.FirstOrDefaultAsync(item => item.Nombre == nombreEstado && item.Estado, cancelacion)
             ?? throw new ValidacionDeNegocioException("El estado indicado no es válido.");
@@ -507,8 +590,27 @@ public class OrdenTrabajoDAO
         orden.HistorialEstadoOts.Add(new HistorialEstadoOt
         {
             IdEstadoOtNavigation = estado,
+            IdEstadoAnterior = estadoAnterior is null ? null : reglas.Buscar(estadoAnterior)?.Id,
+            IdUsuario = usuarioId,
             FechaHora = DateTime.UtcNow,
             Observacion = observacion
+        });
+    }
+
+    /// <summary>Guarda una asignación o un cambio de técnico; no hace nada si el técnico es el mismo.</summary>
+    private static void RegistrarCambioDeTecnico(OrdenTrabajo orden, long? tecnicoAnterior, long? tecnicoNuevo, long? usuarioId)
+    {
+        if (tecnicoNuevo is null || tecnicoNuevo == tecnicoAnterior)
+        {
+            return;
+        }
+
+        orden.HistorialTecnicoOts.Add(new HistorialTecnicoOt
+        {
+            IdTecnicoAnterior = tecnicoAnterior,
+            IdTecnicoNuevo = tecnicoNuevo,
+            IdUsuario = usuarioId,
+            FechaHora = DateTime.UtcNow
         });
     }
 
@@ -532,16 +634,6 @@ public class OrdenTrabajoDAO
         }
 
         return ultimoEstado.IdEstadoOtNavigation.Nombre;
-    }
-
-    private void ReemplazarRepuestos(OrdenTrabajo orden, List<long> repuestosIds)
-    {
-        _contexto.OtRepuestos.RemoveRange(orden.OtRepuestos);
-        orden.OtRepuestos.Clear();
-        foreach (var repuestoId in repuestosIds.Distinct())
-        {
-            orden.OtRepuestos.Add(new OtRepuesto { IdRepuesto = repuestoId });
-        }
     }
 
     public async Task RegistrarSugerenciaGeneradaAsync(

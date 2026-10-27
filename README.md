@@ -50,7 +50,8 @@ Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattribute
 | `POSTGRES_INITDB_ARGS` | `compose.yml` fija ICU `es-UY` para ordenar en español al crear un volumen nuevo. No cambia una base existente. |
 | `DB_HOST`, `DB_PORT` | Conexión desde la máquina (pgAdmin, `dotnet run`). `DB_PORT` es también el puerto que publica `sotra-db`. Dentro de Docker, el backend y Keycloak usan `db:5432`. |
 | `API_PORT` | Puerto donde se publica la API (`8081`). |
-| `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi`. |
+| `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi/v1.json` y `/swagger`. |
+| `OPENAPI_PUBLICAR` | Opcional. Con `true` publica el documento OpenAPI y Swagger también fuera de desarrollo (por ejemplo en staging). **No usar en producción.** |
 | `FRONTEND_ORIGIN` | Origen permitido por CORS. |
 | `RERANKER_*_RUTA`, `EMBEDDINGS_*_RUTA` | Solo para `dotnet run` fuera de Docker: rutas a una copia local de los modelos. En Docker no se configuran (ver "Modelos de IA y base de datos local"). |
 | `IA_API_URL`, `IA_API_MODELO` | Proveedor que redacta los resúmenes, con API compatible con OpenAI. Vacíos: Groq (`https://api.groq.com/openai/v1/`) con `openai/gpt-oss-20b`. |
@@ -267,13 +268,14 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 | `ot.crear` | `POST /ordenes-trabajo`, `POST /ordenes-trabajo/sugerencia` | administrador, jefe_mantenimiento |
 | `ot.editar` | `PUT /ordenes-trabajo/{id}` | administrador, jefe_mantenimiento |
 | `ot.asignar_tecnico` | `PATCH /ordenes-trabajo/{id}/tecnico` | administrador, jefe_mantenimiento |
+| `ot.gestionar_repuestos` | `PUT /ordenes-trabajo/{id}/repuestos` | administrador, jefe_mantenimiento, panolero |
 | `ot.registrar_avance` | `PATCH /ordenes-trabajo/{id}/estado`, `POST` de evidencias | administrador, jefe_mantenimiento, tecnico |
 | `documento.consultar` | `GET /documentos-tecnicos` y su archivo | administrador, jefe_mantenimiento, tecnico |
 | `documento.gestionar` | `POST`, `DELETE /documentos-tecnicos` | administrador, jefe_mantenimiento |
-| `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, panolero |
+| `stock.consultar` | `GET /repuestos`, `GET /repuestos/alertas-stock`, `GET /movimientos-stock` | administrador, jefe_mantenimiento, panolero |
 | `repuesto.gestionar` | `POST`, `PUT`, `PATCH /repuestos`, `PATCH /repuestos/{id}/stock-minimo` | administrador, panolero |
 | `stock.registrar_movimiento` | `POST /repuestos/{id}/ingresos`, `/egresos` y `/ajustes` | administrador, panolero |
-| `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` y `/csv`, y el dashboard analítico (`/reportes/tendencias`, `/tiempos`, `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria`) | administrador, jefe_mantenimiento |
+| `reporte.consultar` | `GET /reportes/indicadores`, `GET /reportes/{tipo}/pdf` y `/csv`, y el dashboard analítico (`/reportes/tendencias`, `/tiempos`, `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria`, `/desempeno`) | administrador, jefe_mantenimiento |
 | `terminos.administrar` | `POST /terminos` | administrador |
 
 `GET /terminos/vigente`, el estado y la aceptación de los términos no tienen política propia: alcanza con una sesión iniciada.
@@ -337,7 +339,7 @@ Si se cambia la configuración del realm desde la consola, hay que volver a expo
 
 ## Contratos de modificación
 
-Desde 1.0.48, asignar mediante `PATCH /api/v1/ordenes-trabajo/{id}/tecnico` al técnico actual responde `409 TECNICO_YA_ASIGNADO` sin agregar historial, también ante solicitudes concurrentes. Se permite X → Y → X. Usuarios incorpora `cantidadOrdenesAsignadas` y Clientes `cantidadOrdenesAsociadas`, de solo lectura, que excluyen órdenes cerradas y canceladas y son ordenables antes de paginar. Se calculan mediante consultas agrupadas por los identificadores de la página, sin cargar las órdenes. No requiere cambios de estructura ni SQL. El historial de verificaciones vive en `../sotra-test-automation/Estado de las pruebas locales.md`; las pruebas pendientes se centralizan en `../PRUEBAS-PENDIENTES.md`, fuera del backend.
+Desde 1.0.48, asignar mediante `PATCH /api/v1/ordenes-trabajo/{id}/tecnico` al técnico actual responde `409 TECNICO_YA_ASIGNADO` sin agregar historial de técnicos, también ante solicitudes concurrentes. Se permite X → Y → X. Usuarios incorpora `cantidadOrdenesAsignadas` y Clientes `cantidadOrdenesAsociadas`, de solo lectura, que excluyen órdenes cerradas y canceladas y son ordenables antes de paginar. Se calculan mediante consultas agrupadas por los identificadores de la página, sin cargar las órdenes. No requiere cambios de estructura ni SQL. El historial de verificaciones vive en `../sotra-test-automation/Estado de las pruebas locales.md`; las pruebas pendientes se centralizan en `../PRUEBAS-PENDIENTES.md`, fuera del backend.
 
 La versión de aplicación 1.0.39 corresponde a la corrección del selector de clientes y activos del frontend en órdenes de trabajo. Conserva los contratos de consulta y la estructura de la base de datos; el comportamiento y sus verificaciones están en `../sotra-documentation/Flujo de datos SOTRA.md` y `sotra-test-automation/Estado de las pruebas locales.md`.
 
@@ -362,6 +364,22 @@ El `PUT` recibe los seis campos editables. Enviar `null` en uno de los cuatro ca
 Los controladores responden los errores esperados (`400`, `409`, `422`) con un objeto que incluye `mensaje`, un texto en español pensado para el usuario. El frontend muestra ese `mensaje` tal como llega, así que no debe contener datos técnicos. Por eso las `ArgumentException` se crean solo con el texto, sin el nombre del parámetro: si se agrega, .NET suma al mensaje un texto como `(Parameter 'idCliente')`. Los errores automáticos de validación ahora traen `codigo` (`VALIDACION_FALLIDA`) y un `mensaje` con el texto del primer campo inválido.
 
 Un manejador global (`Api/Infraestructura/ManejadorGlobalDeErrores.cs`) cubre lo que no captura un controlador: `ArgumentException` a `400`, `ConflictoDeDatosException` a `409`, violación de unicidad a `409` y cualquier otra excepción a `500` con un mensaje genérico, sin trazas ni SQL. Para un conflicto con código propio, el DAO lanza `ConflictoDeDatosException(codigo, mensaje)`.
+
+## Documentación de la API (Swagger / OpenAPI)
+
+La API publica su contrato como OpenAPI 3 con el generador de .NET (`Microsoft.AspNetCore.OpenApi`) y una interfaz de Swagger (`Swashbuckle.AspNetCore.SwaggerUI` 10.3.1, licencia MIT, solo la interfaz). Se mantiene en `Api/Infraestructura/DocumentacionOpenApi.cs`.
+
+- **Dónde:** `GET /openapi/v1.json` (el documento) y `/swagger` (la interfaz). Solo en desarrollo o con `OPENAPI_PUBLICAR=true`; en producción no se mapean.
+- **Cómo usarla:** abrir `http://localhost:8081/swagger`, pulsar «Authorize» y pegar un token Bearer de Keycloak (sin la palabra `Bearer`); la autorización se conserva mientras la pestaña siga abierta.
+- **Qué contiene:** título y versión (leída de `version.json`), esquema de seguridad Bearer, una etiqueta por módulo, un `summary` por operación (comentarios `<summary>` en los controladores y en los filtros), las respuestas comunes `400`, `401`, `403`, `404`, `429` (con `Retry-After`) y `500` con el esquema `ErrorApi` (`ProblemDetails` + `codigo`), y los parámetros de consulta en camelCase como se usan en la URL.
+- **Cómo mantenerla:** al agregar un endpoint, escribir su `<summary>` sobre el atributo `[Http...]`. `OpenApiPruebas` falla si una operación no tiene resumen, etiqueta o las respuestas de error comunes, si hay endpoints que no están en el documento (o al revés), si alguna referencia a un esquema no existe, o si cambia qué operaciones exigen token (solo `GET /api/v1/version` es anónima).
+- **Seguridad:** la política de contenido más permisiva (`'unsafe-inline'`) se aplica únicamente a `/swagger`; el resto de la API conserva `default-src 'none'`.
+- **Descripciones:** las 410 propiedades de los DTO tienen su `<summary>` (y los `record` posicionales, sus `<param>`), de modo que cada esquema del documento explica sus campos.
+- **Concurrencia:** `GET` y `PUT /api/v1/ordenes-trabajo/{id}` documentan el encabezado `ETag`; el `PUT` documenta `If-Match` y la respuesta `412 ORDEN_MODIFICADA`.
+- **Ejemplos:** hay ejemplos de solicitud o respuesta de `GET /sesion`, `GET`/`PUT /perfil`, crear orden, cambiar su estado y registrar un ingreso de stock (diccionario `Ejemplos` de `DocumentacionOpenApi.cs`; agregar uno nuevo es una línea).
+- **Identificadores:** cada operación tiene un `operationId` único (`clientes_obtenerPorId`), útil para generar clientes.
+- **Integración continua:** el flujo «Validar backend» exporta el documento (`OPENAPI_SALIDA=<ruta> dotnet test --filter ElDocumentoSeExportaSiSeIndicaUnaSalida`), lo revisa con Spectral (`.spectral.yaml`: reglas estándar de OpenAPI; solo los errores detienen el flujo) y lo guarda como artefacto `openapi`. Localmente: `npx @stoplight/spectral-cli lint openapi.json --ruleset .spectral.yaml`.
+- **Tipos del frontend:** `npm run api:tipos` (en `sotra-frontend/`, con la API en `localhost:8081`) regenera `src/tipos/generados/api.d.ts` con `openapi-typescript`.
 
 ## Seguridad de la API sin sesión
 
@@ -464,12 +482,26 @@ Los listados y detalles paginados de activos incluyen `nombreCliente` y `nombreM
 - `GET /api/v1/documentos-tecnicos` (`FiltrosDocumentosTecnicosDto`): `buscar` (título, descripción, nombre del archivo o del activo), `activoId`, `modeloMaquinaId`, `tipo` (`normativa`, `procedimiento_interno`, `manual_tecnico`, `politica_seguridad` u `otro`) y `vigente`. Los documentos obsoletos (`vigente = false`) no se usan para las sugerencias de IA. Los campos nuevos (`titulo`, `tipo`, `descripcion`, `vigente` y `modelo_maquina_id`) se agregan a una base existente aplicando a mano `database/cambios/2026-10-20-documentos-datos-generales.sql`; las bases nuevas ya los traen en `database/init/02-vectorial.sql`. Además existe `GET /api/v1/documentos-tecnicos/{id}`, que devuelve un documento sin el archivo (`404` si no existe).
 
 - `GET /api/v1/usuarios` (`FiltrosUsuariosDto`): `buscar` (nombre, apellido o correo), `rolId`, `estado` y `direccionOrden` (`desc` invierte el orden, para ver primero los más nuevos).
-- `GET /api/v1/clientes` (`FiltrosClientesDto`): `buscar` (razón social, contacto o correo), `estado` y `direccionOrden`.
+- `GET /api/v1/clientes` (`FiltrosClientesDto`): `buscar` (razón social, contacto o correo), `estado`, `conActivos` (`true`: solo clientes con activos asociados) y `direccionOrden`.
 - `GET /api/v1/repuestos` (`FiltrosRepuestosDto`): `buscar` (código, nombre, marca o descripción), `estado`, `ubicacion` (contiene) `bajoStock=true` (stock bajo o sin stock), `estadoStock` (`normal`, `bajo` o `sin_stock`) y `orden=criticidad`. Cada repuesto trae `estadoStock`, calculado por `EstadosStock.Calcular` (sin stock con cantidad 0; bajo si el mínimo es mayor que 0 y la cantidad lo alcanza).
 - `POST` y `PUT /api/v1/repuestos`: si el código ya existe, responden `409` con `codigo: "CODIGO_REPUESTO_DUPLICADO"` y un mensaje legible. El frontend sitúa el error junto al campo Código.
 - `GET /api/v1/movimientos-stock` (`FiltrosMovimientosStockDto`): `buscar` (código o nombre del repuesto, o motivo), `repuestoId`, `tipo`, `fechaDesde`, `fechaHasta`, `ubicacion` y `usuarioId`. Ordenados del más nuevo al más viejo.
 
 `PaginaDto` también tiene `ErrorDePaginacion()` (el cuerpo del `400`) y `Contiene(texto, buscado)` (comparación sin distinguir mayúsculas), que usan todos los controladores paginados.
+
+### Repuestos en las órdenes: cantidad, reserva, entrega y descuento (1.0.84)
+
+Cada repuesto de una orden tiene `cantidad` y `estado` en `operativo.ot_repuesto` (`reservado`, `entregado`, `descontado`, `liberado`) y cada cambio queda en `operativo.historial_repuesto_ot` con quién lo hizo y cuándo. La lógica está en `SOTRA-BACKEND/Operaciones/ReservasDeRepuestos.cs`, que `OrdenTrabajoDAO` usa dentro de la misma transacción que el alta, la modificación y el cambio de estado:
+
+- **Reservar:** `POST /ordenes-trabajo` y `PUT /ordenes-trabajo/{id}` reciben `repuestos: [{ "repuestoId", "cantidad" }]` (reemplaza a `repuestosIds`); `PUT /ordenes-trabajo/{id}/repuestos` (permiso `ot.gestionar_repuestos`: administrador, jefe y pañolero; el técnico no) cambia solo los repuestos. Se bloquean las filas de `repuesto` (`FOR UPDATE`, en orden de `id`) y se comprueba el disponible: stock − reservado − entregado de otras órdenes. Si no alcanza: `409` con `STOCK_INSUFICIENTE` (falta stock), `STOCK_RESERVADO` (está reservado por otras órdenes) o `STOCK_ENTREGADO` (entregado a otras órdenes en curso), y no se guarda nada de la solicitud.
+- **Entregar:** al entrar la orden en el estado que completa `fechaInicio` (`estado_ot.completa_fecha = 'inicio'`), lo reservado pasa a entregado. Lo que se agrega a una orden ya iniciada queda entregado al instante.
+- **Descontar:** al entrar en el estado que completa `fechaCierre`, lo entregado se descuenta del stock con un egreso por repuesto («Consumo de la orden de trabajo N° X», con el usuario que cerró), enlazado en `ot_repuesto.id_movimiento`. Si el stock físico no alcanza, la orden no se cierra (`409 STOCK_INSUFICIENTE`).
+- **Liberar:** al quitar un repuesto, bajar su cantidad o llevar la orden a la fase `eliminada`, las unidades (reservadas o entregadas) quedan libres; no se descuenta nada.
+- **Movimientos manuales:** un egreso o ajuste que deje el stock por debajo de lo reservado y entregado responde `409 STOCK_COMPROMETIDO`.
+- **Listado y detalle de repuestos:** `RepuestoDto` agrega `cantidadReservada`, `cantidadEntregada` y `cantidadDisponible` (ordenables). Las alertas de stock bajo y sin stock siguen calculándose sobre `cantidad` (el stock físico).
+- **Orden:** la respuesta trae, por repuesto, `cantidad` y `estado`, y `historialRepuestos`. Los liberados no se listan.
+
+Los datos anteriores se migran con `database/cambios/2026-10-26-repuestos-en-ordenes-reserva.sql` (1 unidad por fila y el estado de su orden). Las pruebas de integración (`ReservasDeRepuestosPruebas`) cubren la reserva, la entrega, el descuento, la liberación, los mensajes de stock y la concurrencia.
 
 ### Movimientos de stock (`/api/v1/movimientos-stock` y `POST /api/v1/repuestos/{id}/ingresos`, `/egresos` y `/ajustes`)
 
@@ -486,7 +518,7 @@ La especificación también pide filtrar repuestos por "categoría", pero el rep
 
 ### Catálogo de estados (`GET /api/v1/ordenes-trabajo/estados`)
 
-Los estados de las órdenes, sus etiquetas y sus reglas salen de la base: `operativo.estado_ot` (`nombre` es el valor, `descripcion` la etiqueta y `orden`, `fase`, `exige_tecnico`, `completa_fecha`, `tono`, `codigo_alerta` y `es_inicial` el comportamiento) y `operativo.transicion_estado_ot` (cada cambio permitido, con `exige_motivo`, `puede_tecnico`, `accion`, `principal` y `al_asignar_tecnico`). El código no nombra ningún estado: `ReglasDeEstadoOrden` solo aplica lo que dice la base. El endpoint los devuelve en el orden del ciclo de vida, `[{ "valor": "en_ejecucion", "etiqueta": "En ejecución", "orden": 3, "fase": "en_curso", "tono": "info" }, …]`, solo los activos; si una fila no tiene etiqueta, se arma una con el nombre (`En ejecucion`). Lo consumen el filtro del listado, los reportes, los formularios y las etiquetas del frontend, que no tienen listas propias. Una prueba de integración comprueba que la base tenga exactamente el ciclo de vida del documento (sección 13.1 de `Flujo de datos SOTRA.md`) y las pruebas unitarias recorren las 196 combinaciones de estado, técnico y motivo. Los siete estados vienen en `01-init.sql` y, para bases existentes, en `database/cambios/2026-10-25-estado-ot-catalogo-completo.sql` (agrega `cancelada` y las etiquetas), que el despliegue aplica solo.
+Los estados de las órdenes, sus etiquetas y sus reglas salen de la base: `operativo.estado_ot` (`nombre` es el valor, `descripcion` la etiqueta y `orden`, `fase`, `exige_tecnico`, `completa_fecha`, `tono`, `codigo_alerta` y `es_inicial` el comportamiento) y `operativo.transicion_estado_ot` (cada cambio permitido, con `exige_motivo`, `puede_tecnico`, `accion`, `principal` y `al_asignar_tecnico`). El código no nombra ningún estado: `ReglasDeEstadoOrden` solo aplica lo que dice la base. El endpoint los devuelve en el orden del ciclo de vida, `[{ "valor": "en_progreso", "etiqueta": "En progreso", "orden": 2, "fase": "en_curso", "tono": "info" }, …]`, solo los activos; si una fila no tiene etiqueta, se arma una con el nombre (`En progreso`). Lo consumen el filtro del listado, los reportes, los formularios y las etiquetas del frontend, que no tienen listas propias. Una prueba de integración comprueba que la base tenga exactamente el ciclo de vida del documento (sección 13.1 de `Flujo de datos SOTRA.md`) y las pruebas unitarias recorren las 144 combinaciones de estado, técnico y motivo. Los seis estados (`pendiente`, `en_progreso`, `en_revision`, `cerrado`, `pausado` y `eliminado`, la baja lógica) vienen en `01-init.sql` y, para bases existentes, `database/cambios/2026-10-26-estados-ot-nuevos-e-historial.sql` convierte los siete anteriores sin perder historial (creada y asignada → pendiente, en_ejecucion → en_progreso, finalizada → en_revision, cerrada → cerrado, pausada → pausado, cancelada → eliminado); el despliegue lo aplica solo, de forma atómica.
 
 ### Ciclo de vida de la orden (`PATCH /api/v1/ordenes-trabajo/{id}/estado` y `/tecnico`)
 
@@ -494,27 +526,26 @@ RF005-06 y RF005-07, según el ciclo de vida del anteproyecto. Las transiciones 
 
 | Estado actual | Puede pasar a |
 |---|---|
-| `creada` | `asignada`, `cancelada` |
-| `asignada` | `en_ejecucion`, `cancelada` |
-| `en_ejecucion` | `pausada`, `finalizada` |
-| `pausada` | `en_ejecucion`, `cancelada` |
-| `finalizada` | `cerrada` (validación del jefe), `asignada` (reasignación) |
-| `cerrada`, `cancelada` | ninguno |
+| `pendiente` | `en_progreso`, `eliminado` |
+| `en_progreso` | `en_revision`, `pausado` |
+| `pausado` | `en_progreso`, `eliminado` |
+| `en_revision` | `cerrado` (validación del jefe), `pendiente` (devolución con motivo, reasignación) |
+| `cerrado`, `eliminado` | ninguno |
 
-- `PATCH /{id}/estado` recibe `{ "estado": "...", "motivo": "..." }`. El motivo es obligatorio al pausar, cancelar, cerrar o reasignar una orden finalizada, y se guarda en `historial_estado_ot.observacion` (no hace falta cambiar la base). `asignada` y `en_ejecucion` exigen técnico asignado. `PUT` acepta el mismo motivo en `motivoEstado`.
-- `PATCH /{id}/tecnico` recibe `{ "tecnicoId": 0 }`. Valida que sea un usuario activo con rol Técnico, pasa la orden de `creada` a `asignada` y registra en el historial "Técnico asignado: Nombre Apellido".
-- Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `403` `TRANSICION_NO_PERMITIDA` (un técnico pide un cambio que no es suyo, como cerrar); `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico a una orden cerrada o cancelada); `404` si la orden no existe.
+- `PATCH /{id}/estado` recibe `{ "estado": "...", "motivo": "..." }`. El motivo es obligatorio al pasar a `pausado`, al eliminar (`eliminado`, baja lógica) y al devolver una orden de `en_revision` a `pendiente`; se guarda en `historial_estado_ot.observacion`. `en_progreso` exige técnico asignado. Cada cambio guarda también el estado anterior y quién lo hizo (`id_estado_anterior`, `id_usuario`). `PUT` acepta el mismo motivo en `motivoEstado`.
+- `PATCH /{id}/tecnico` recibe `{ "tecnicoId": 0 }`. Valida que sea un usuario activo con rol Técnico y lo asigna **sin cambiar el estado**; la asignación (técnico anterior, nuevo, quién y cuándo) queda en `historial_tecnico_ot`. Lo mismo ocurre al cambiar el técnico por `PUT` y en el alta con técnico.
+- Errores con `codigo`: `400` `TRANSICION_INVALIDA`, `TECNICO_OBLIGATORIO` o `MOTIVO_OBLIGATORIO`; `403` `TRANSICION_NO_PERMITIDA` (un técnico pide un cambio que no es suyo, como cerrar); `409` `ORDEN_CERRADA` (cambiar una orden cerrada) u `ORDEN_NO_MODIFICABLE` (asignar técnico o modificar una orden cerrada o eliminada); `404` si la orden no existe.
 - Ediciones simultáneas: `OrdenTrabajoDto.Version` (hash SHA-256 truncado del DTO, calculado en `OrdenTrabajoMapeador`) se devuelve también como `ETag` en `GET /ordenes-trabajo/{id}` y `PUT`. El `PUT` acepta `If-Match` y lo compara dentro del bloqueo de fila de `OrdenTrabajoDAO.Actualizar`; si no coincide responde `412` `ORDEN_MODIFICADA` sin cambiar nada. Sin el encabezado (o con `*`) no se verifica. CORS permite `If-Match` y expone `ETag`.
 - `OrdenTrabajoDto` incluye `transiciones` (los cambios posibles desde el estado actual, con `exigeMotivo`, `puedeTecnico`, `accion` y `principal`) y `historialEstados` (`estado`, `fechaHora` en UTC y `observacion`, del más viejo al más nuevo; la observación del primer registro no se muestra porque guarda la fecha prevista).
 
-El historial todavía no registra el usuario responsable del cambio: `historial_estado_ot` no tiene una columna para eso.
+El historial registra quién hizo cada cambio (`historial_estado_ot.id_usuario` y `historial_tecnico_ot.id_usuario`, el usuario de SOTRA que trae el token). Queda vacío en los cambios anteriores a 1.0.83 y cuando no hay sesión (desarrollo con `AUTH_OBLIGATORIA=false`). La respuesta de la orden trae `historialEstados` (con `estadoAnterior`, `usuarioId`, `nombreUsuario`) e `historialTecnicos`; no hay endpoints nuevos.
 
 ### Evidencias (`/api/v1/ordenes-trabajo/{id}/evidencias`)
 
 RF005-05. **Requiere la tabla `operativo.evidencia_ot`, que todavía no existe:** el SQL sugerido está en `SUGERENCIAS-SQL.md` (raíz del directorio de trabajo) y hay que aplicarlo antes de usar estos endpoints. Modelo `EvidenciaOt`, mapeo en `SotraContext`, `EvidenciaOtDAO` y `EvidenciasController`.
 
 - `GET`: lista las evidencias de la orden, sin el contenido del archivo. Cada una tiene `id`, `ordenTrabajoId`, `tipo`, `observacion`, `fechaRegistro` (`AAAA-MM-DD`), `creadoEn` (UTC), `nombreArchivo`, `tipoContenido` y `tieneArchivo`.
-- `POST` (`multipart/form-data`): campos `tipo` (`foto`, `documento` u `observacion`), `observacion`, `fechaRegistro` y `archivo`. Responde `201`. Reglas: la orden no puede estar cerrada ni cancelada (`409` `ORDEN_NO_MODIFICABLE`); `foto` y `documento` exigen archivo (`ARCHIVO_OBLIGATORIO`) y `observacion` exige texto (`OBSERVACION_OBLIGATORIA`); la fecha no puede ser futura (`FECHA_REGISTRO_INVALIDA`); tipo desconocido: `TIPO_EVIDENCIA_INVALIDO`. El archivo se valida por su contenido real (firma de JPG, PNG o PDF), no por la extensión: las fotos solo JPG o PNG y los documentos PDF, JPG o PNG (`ARCHIVO_NO_PERMITIDO`); hasta 10 MB (`413` `ARCHIVO_DEMASIADO_GRANDE`).
+- `POST` (`multipart/form-data`): campos `tipo` (`foto`, `documento` u `observacion`), `observacion`, `fechaRegistro` y `archivo`. Responde `201`. Reglas: la orden no puede estar cerrada ni eliminada (`409` `ORDEN_NO_MODIFICABLE`); `foto` y `documento` exigen archivo (`ARCHIVO_OBLIGATORIO`) y `observacion` exige texto (`OBSERVACION_OBLIGATORIA`); la fecha no puede ser futura (`FECHA_REGISTRO_INVALIDA`); tipo desconocido: `TIPO_EVIDENCIA_INVALIDO`. El archivo se valida por su contenido real (firma de JPG, PNG o PDF), no por la extensión: las fotos solo JPG o PNG y los documentos PDF, JPG o PNG (`ARCHIVO_NO_PERMITIDO`); hasta 10 MB (`413` `ARCHIVO_DEMASIADO_GRANDE`).
 - `GET /{evidenciaId}/archivo`: descarga el archivo con su tipo de contenido.
 
 El usuario que registra la evidencia (`id_usuario`) es el del token (ver "Usuario actual"); queda vacío si el pedido no trae token o el usuario no está registrado en SOTRA.
@@ -532,9 +563,9 @@ El equipo decidió que la validación se hace en el formulario de la orden: las 
 
 Dashboard de RF007-01, sin permisos. `ReportesController` no tiene DAO propio: usa `OrdenTrabajoDAO.ListarTodo` y `RepuestoDAO.ListarTodo`, pasa cada orden por `OrdenTrabajoMapeador.ADto` (así el estado, la prioridad y el tipo son los mismos textos que devuelve `/ordenes-trabajo`) y cuenta en memoria.
 
-Respuesta: `totalOrdenes`; `ordenesPorEstado`, `ordenesPorPrioridad`, `ordenesPorTipo`, `ordenesPorTecnico` y `activosConMasIntervenciones` como listas de `{ "nombre": "...", "cantidad": 0 }`; y `repuestosBajoStock` como lista de `RepuestoDto`. Solo aparecen los grupos con al menos una orden. Las órdenes sin técnico no se cuentan por técnico. Los activos se ordenan de mayor a menor y se devuelven los 5 primeros. Un repuesto tiene bajo stock si está activo y su `cantidad` es menor o igual a su `cantidadMinima`.
+Respuesta: `totalOrdenes`; `ordenesPorEstado`, `ordenesPorPrioridad`, `ordenesPorTipo` y `activosConMasIntervenciones` como listas de `{ "nombre": "...", "cantidad": 0 }`; y `repuestosBajoStock` como lista de `RepuestoDto`. Solo aparecen los grupos con al menos una orden. Los activos se ordenan de mayor a menor y se devuelven los 5 primeros. Un repuesto tiene bajo stock si está activo y su `cantidad` es menor o igual a su `cantidadMinima`.
 
-También devuelve `promedioHorasHastaInicio` y `promedioHorasHastaCierre` (horas promedio entre la creación y `fechaInicio` o `fechaCierre`, con un decimal; `null` si ninguna orden tiene esa fecha), `ordenesAltaPrioridadPendientes` (prioridad `alta` y estado distinto de `finalizada`, `cerrada` y `cancelada`), `ordenesPendientesDeValidacion` (estado `finalizada`) y `ordenesRecientes` (las 5 órdenes más nuevas, con el mismo formato que `GET /ordenes-trabajo`).
+También devuelve `promedioHorasHastaInicio` y `promedioHorasHastaCierre` (horas promedio entre la creación y `fechaInicio` o `fechaCierre`, con un decimal; `null` si ninguna orden tiene esa fecha), `ordenesAltaPrioridadPendientes` (prioridad `alta` y estado distinto de `en_revision`, `cerrado` y `eliminado`), `ordenesPendientesDeValidacion` (estado `en_revision`) y `ordenesRecientes` (las 5 órdenes más nuevas, con el mismo formato que `GET /ordenes-trabajo`).
 
 Filtros opcionales por query string (`FiltrosIndicadoresDto`), que se pueden combinar:
 
@@ -545,7 +576,7 @@ Filtros opcionales por query string (`FiltrosIndicadoresDto`), que se pueden com
 | `tecnicoId` | número | Técnico asignado |
 | `clienteId` | número | Cliente |
 | `activoId` | número | Activo |
-| `estado` | texto | Estado, con los mismos valores que `/ordenes-trabajo` (`creada`, `asignada`, `en_ejecucion`, `pausada`, `finalizada`, `cerrada`, `cancelada`) |
+| `estado` | texto | Estado, con los mismos valores que `/ordenes-trabajo` (`pendiente`, `en_progreso`, `en_revision`, `cerrado`, `pausado`, `eliminado`) |
 | `tipo` | texto | `preventivo` o `correctivo` |
 | `prioridad` | texto | `baja`, `media` o `alta` |
 
@@ -562,8 +593,7 @@ Tipos de reporte (`tipoReporte`):
 | `ordenes-trabajo` | Una fila por orden: número, fecha de creación, cliente, activo, técnico, tipo, prioridad y estado |
 | `activos-intervenidos` | Activos con su cliente y la cantidad de órdenes |
 | `repuestos-utilizados` | Repuestos asociados a las órdenes y en cuántas órdenes se usó cada uno |
-| `actividad-tecnicos` | Por técnico: órdenes asignadas, finalizadas o cerradas, y pendientes |
-| `indicadores` | Resumen (total y tiempos promedio), órdenes por estado, prioridad y tipo, actividad por técnico y activos intervenidos |
+| `indicadores` | Resumen (total y tiempos promedio), órdenes por estado, prioridad y tipo y activos intervenidos |
 
 Acepta los mismos filtros que `/indicadores` y además `prioridad` (`baja`, `media` o `alta`), que también vale para `/indicadores`. Errores: `400` con `TIPO_REPORTE_INVALIDO` si el tipo no existe y `RANGO_FECHAS_INVALIDO` si las fechas están invertidas.
 
@@ -726,9 +756,11 @@ Rendimiento: `OrdenTrabajoDAO.Filtrar` es la base compartida del listado y de lo
 
 ## Dashboard analítico
 
-`AnaliticaController` expone `GET /api/v1/reportes/tendencias`, `/tiempos` (con duración, tiempo por etapa y cumplimiento de fechas previstas), `/reincidencias`, `/repuestos-usados` y `/alertas-maquinaria` (contratos en `Documentacion/Flujo de datos SOTRA.md`, sección 16). Todo se calcula en la base con `GROUP BY`, `percentile_cont` y funciones de ventana (`LAG` y `LEAD`) en `AnaliticaDAO`, con consultas SQL constantes y parámetros tipados (`@desde`, `@clienteId`, etc.): no se arma SQL con texto de la persona. Los umbrales de las alertas y los días de reincidencia se configuran con la sección `AlertasMaquinaria` (variables `AlertasMaquinaria__SinAsignarHoras`, `__AsignadaSinIniciarHoras`, `__PausadaHoras`, `__MaquinaDetenidaAltaHoras`, `__MaquinaDetenidaMediaHoras`, `__MaquinaDetenidaBajaHoras` y `__ReincidenciaDias`), validada al iniciar (`OpcionesDeAlertasDeMaquinaria`). Los valores por defecto son provisionales hasta acordarlos con el área de postventa.
+`AnaliticaController` expone `GET /api/v1/reportes/tendencias`, `/tiempos` (con duración, tiempo por etapa y cumplimiento de fechas previstas), `/reincidencias`, `/repuestos-usados`, `/alertas-maquinaria` y `/desempeno` (contratos en `Documentacion/Flujo de datos SOTRA.md`, sección 16). Todo se calcula en la base con `GROUP BY`, `percentile_cont` y funciones de ventana (`LAG` y `LEAD`) en `AnaliticaDAO`, con consultas SQL constantes y parámetros tipados (`@desde`, `@clienteId`, etc.): no se arma SQL con texto de la persona. Los umbrales de las alertas y los días de reincidencia se configuran con la sección `AlertasMaquinaria` (variables `AlertasMaquinaria__SinAsignarHoras`, `__AsignadaSinIniciarHoras`, `__PausadaHoras`, `__MaquinaDetenidaAltaHoras`, `__MaquinaDetenidaMediaHoras`, `__MaquinaDetenidaBajaHoras` y `__ReincidenciaDias`), validada al iniciar (`OpcionesDeAlertasDeMaquinaria`). Los valores por defecto son provisionales hasta acordarlos con el área de postventa.
 
-**Caché corta.** Las cinco consultas (`tendencias`, `tiempos`, `repuestos-usados`, `reincidencias` y `alertas-maquinaria`) reutilizan el resultado 30 segundos para los mismos filtros (`CacheAnalitica__Segundos`, de 0 a 600; con 0 queda apagada), así que un dato nuevo puede tardar hasta ese tiempo en verse. Las solicitudes simultáneas con los mismos filtros comparten un único cálculo, un error no se guarda y cancelar una solicitud no interrumpe el cálculo de las demás. Código en `Api/Infraestructura/CacheDeAnalitica.cs`; pruebas en `Api.PruebasUnitarias/CacheDeAnaliticaPruebas.cs`.
+**Desempeño operativo (RD-10, 1.0.86).** `GET /api/v1/reportes/desempeno` resume, en el período y con los mismos filtros, las órdenes (creadas, cerradas, eliminadas, abiertas, preventivas y correctivas), los tiempos de respuesta, ejecución y revisión, las pausas y devoluciones con sus motivos más frecuentes, las reasignaciones como dato del proceso y, por tipo de máquina y por activo, las órdenes, la ejecución promedio y las horas de parada. Se resuelve en la base (`AnaliticaDAO`) identificando pausas y devoluciones por la fase de los estados y por `transicion_estado_ot.exige_motivo`, no por nombres. **No evalúa personas:** no hay desglose por técnico (decisión del 2026-10-27). Contrato y ejemplo en `Flujo de datos SOTRA.md`, sección 16.7; las pruebas están en `AnaliticaPruebas`.
+
+**Caché corta.** Las seis consultas (`tendencias`, `tiempos`, `repuestos-usados`, `reincidencias`, `alertas-maquinaria` y `desempeno`) reutilizan el resultado 30 segundos para los mismos filtros (`CacheAnalitica__Segundos`, de 0 a 600; con 0 queda apagada), así que un dato nuevo puede tardar hasta ese tiempo en verse. Las solicitudes simultáneas con los mismos filtros comparten un único cálculo, un error no se guarda y cancelar una solicitud no interrumpe el cálculo de las demás. Código en `Api/Infraestructura/CacheDeAnalitica.cs`; pruebas en `Api.PruebasUnitarias/CacheDeAnaliticaPruebas.cs`.
 
 ## Auditoría de acciones
 

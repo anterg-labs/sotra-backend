@@ -6,6 +6,7 @@ using Api.Mapeadores;
 using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -25,6 +26,7 @@ public class RepuestosController : ControllerBase
         _usuarioActual = usuarioActual;
     }
 
+    /// <summary>Lista los repuestos con filtros por texto, ubicación, estado y alerta de stock.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<PaginaDto<RepuestoDto>>> ObtenerTodos([FromQuery] FiltrosRepuestosDto filtros, CancellationToken cancelacion)
@@ -53,10 +55,12 @@ public class RepuestosController : ControllerBase
             filtros.EstadoStock, string.Equals(filtros.Orden, "criticidad", StringComparison.OrdinalIgnoreCase),
             filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _repuestoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
-        var elementos = entidades.Select(RepuestoMapeador.ADto).ToList();
+        var comprometido = await _repuestoDao.ObtenerComprometidoAsync(entidades.Select(r => r.IdRepuesto).ToList(), cancelacion);
+        var elementos = entidades.Select(r => RepuestoMapeador.ADto(r, comprometido.GetValueOrDefault(r.IdRepuesto))).ToList();
         return Ok(PaginaDto<RepuestoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Repuestos sin stock o con stock bajo.</summary>
     [HttpGet("alertas-stock")]
     [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<AlertasStockDto>> ObtenerAlertasStock(CancellationToken cancelacion)
@@ -65,6 +69,7 @@ public class RepuestosController : ControllerBase
         return Ok(new AlertasStockDto { Bajo = alertas.Bajo, SinStock = alertas.SinStock, Total = alertas.Total });
     }
 
+    /// <summary>Registra un ingreso de stock.</summary>
     [HttpPost("{id:long}/ingresos")]
     [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     public async Task<ActionResult<MovimientoStockDto>> RegistrarIngreso(
@@ -79,6 +84,7 @@ public class RepuestosController : ControllerBase
             DateTime.UtcNow, null, null, ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
+    /// <summary>Registra un egreso de stock (no se usa para repuestos de órdenes).</summary>
     [HttpPost("{id:long}/egresos")]
     [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     public async Task<ActionResult<MovimientoStockDto>> RegistrarEgreso(
@@ -99,6 +105,7 @@ public class RepuestosController : ControllerBase
             DateTime.UtcNow, motivo, solicitud.Ubicacion?.Trim(), ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
+    /// <summary>Registra un ajuste de stock con su motivo.</summary>
     [HttpPost("{id:long}/ajustes")]
     [Authorize(Policy = Politicas.StockRegistrarMovimiento)]
     public async Task<ActionResult<MovimientoStockDto>> RegistrarAjuste(
@@ -119,6 +126,7 @@ public class RepuestosController : ControllerBase
             DateTime.UtcNow, motivo, null, ObservacionesONulo(solicitud.Observaciones)), cancelacion);
     }
 
+    /// <summary>Cambia el stock mínimo de un repuesto.</summary>
     [HttpPatch("{id:long}/stock-minimo")]
     [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> ActualizarStockMinimo(long id, StockMinimoDto solicitud, CancellationToken cancelacion)
@@ -129,7 +137,13 @@ public class RepuestosController : ControllerBase
             return NotFound();
         }
 
-        return Ok(RepuestoMapeador.ADto(repuesto));
+        return Ok(await ADtoAsync(repuesto, cancelacion));
+    }
+
+    private async Task<RepuestoDto> ADtoAsync(Repuesto repuesto, CancellationToken cancelacion)
+    {
+        var comprometido = await _repuestoDao.ObtenerComprometidoAsync([repuesto.IdRepuesto], cancelacion);
+        return RepuestoMapeador.ADto(repuesto, comprometido.GetValueOrDefault(repuesto.IdRepuesto));
     }
 
     private async Task<ActionResult<MovimientoStockDto>> RegistrarMovimiento(SolicitudMovimientoStock solicitud, CancellationToken cancelacion)
@@ -144,6 +158,8 @@ public class RepuestosController : ControllerBase
             EstadoMovimientoStock.RepuestoNoEncontrado => NotFound(),
             EstadoMovimientoStock.RepuestoInactivo => this.RespuestaDeError(409, "REPUESTO_INACTIVO", "No se puede mover el stock de un repuesto dado de baja."),
             EstadoMovimientoStock.StockInsuficiente => this.RespuestaDeError(409, "STOCK_INSUFICIENTE", "No hay stock suficiente para retirar esa cantidad."),
+            EstadoMovimientoStock.Comprometido => this.RespuestaDeError(409, "STOCK_COMPROMETIDO",
+                $"No se puede dejar el stock por debajo de {resultado.Comprometido!.Total}: hay {resultado.Comprometido.Reservado} unidades reservadas y {resultado.Comprometido.Entregado} entregadas a órdenes abiertas."),
             _ => this.RespuestaDeError(409, "STOCK_EXCEDIDO", "La cantidad resultante supera el máximo permitido."),
         };
     }
@@ -153,6 +169,7 @@ public class RepuestosController : ControllerBase
         return string.IsNullOrWhiteSpace(observaciones) ? null : observaciones.Trim();
     }
 
+    /// <summary>Devuelve un repuesto por su id, con su stock reservado y entregado.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.StockConsultar)]
     public async Task<ActionResult<RepuestoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
@@ -163,18 +180,20 @@ public class RepuestosController : ControllerBase
             return NotFound();
         }
 
-        return Ok(RepuestoMapeador.ADto(repuesto));
+        return Ok(await ADtoAsync(repuesto, cancelacion));
     }
 
+    /// <summary>Registra un repuesto.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> Crear(RepuestoCrearDto solicitud, CancellationToken cancelacion)
     {
         var repuesto = await _repuestoDao.InsertarAsync(RepuestoMapeador.AEntidad(solicitud), cancelacion);
-        var respuesta = RepuestoMapeador.ADto(repuesto);
+        var respuesta = await ADtoAsync(repuesto, cancelacion);
         return CreatedAtAction(nameof(ObtenerPorId), new { id = repuesto.IdRepuesto }, respuesta);
     }
 
+    /// <summary>Modifica los datos de un repuesto.</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> Actualizar(long id, RepuestoActualizarDto solicitud, CancellationToken cancelacion)
@@ -187,9 +206,10 @@ public class RepuestosController : ControllerBase
 
         RepuestoMapeador.AplicarCambios(repuesto, solicitud);
         await _repuestoDao.ActualizarAsync(repuesto, cancelacion);
-        return Ok(RepuestoMapeador.ADto(repuesto));
+        return Ok(await ADtoAsync(repuesto, cancelacion));
     }
 
+    /// <summary>Da de baja o reactiva un repuesto.</summary>
     [HttpPatch("{id:long}")]
     [Authorize(Policy = Politicas.RepuestoGestionar)]
     public async Task<ActionResult<RepuestoDto>> CambiarEstado(long id, RepuestoEstadoDto solicitud, CancellationToken cancelacion)
@@ -213,6 +233,6 @@ public class RepuestosController : ControllerBase
             return NotFound();
         }
 
-        return Ok(RepuestoMapeador.ADto((await _repuestoDao.SeleccionarAsync(id, cancelacion))!));
+        return Ok(await ADtoAsync((await _repuestoDao.SeleccionarAsync(id, cancelacion))!, cancelacion));
     }
 }

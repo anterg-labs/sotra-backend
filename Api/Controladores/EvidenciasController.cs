@@ -29,6 +29,7 @@ public class EvidenciasController : ControllerBase
         _usuarioActual = usuarioActual;
     }
 
+    /// <summary>Lista las evidencias de una orden de trabajo.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<List<EvidenciaDto>>> ObtenerTodas(long ordenTrabajoId, CancellationToken cancelacion)
@@ -53,6 +54,7 @@ public class EvidenciasController : ControllerBase
         return Ok(respuesta);
     }
 
+    /// <summary>Sube una evidencia (foto, video o archivo) a una orden de trabajo.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.OtRegistrarAvance)]
     [EnableRateLimiting(PoliticasDeLimite.Subidas)]
@@ -75,7 +77,7 @@ public class EvidenciasController : ControllerBase
         var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancellationToken);
         if (reglas.EsFinal(OrdenTrabajoMapeador.ADto(orden, reglas).Estado))
         {
-            return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o cancelada no admite nuevas evidencias.");
+            return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o eliminada no admite nuevas evidencias.");
         }
 
         if (tipo != "foto" && tipo != "documento" && tipo != "observacion")
@@ -142,6 +144,7 @@ public class EvidenciasController : ControllerBase
         return CreatedAtAction(nameof(ObtenerTodas), new { ordenTrabajoId = ordenTrabajoId }, ADto(evidenciaCreada));
     }
 
+    /// <summary>Descarga el archivo de una evidencia.</summary>
     [HttpGet("{evidenciaId:long}/archivo")]
     [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<IActionResult> Descargar(long ordenTrabajoId, long evidenciaId, CancellationToken cancelacion)

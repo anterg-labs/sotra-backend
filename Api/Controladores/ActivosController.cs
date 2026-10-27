@@ -20,6 +20,7 @@ public class ActivosController : ControllerBase
         _activoDao = activoDao;
     }
 
+    /// <summary>Lista los activos con filtros por texto, cliente, modelo y estado, con orden y paginación.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.ActivoConsultar)]
     [ProducesResponseType<PaginaDto<ActivoDto>>(StatusCodes.Status200OK)]
@@ -46,6 +47,7 @@ public class ActivosController : ControllerBase
         return Ok(PaginaDto<ActivoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve un activo por su id.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.ActivoConsultar)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
@@ -56,6 +58,7 @@ public class ActivosController : ControllerBase
         return activo is null ? NotFound() : Ok(ActivoMapeador.ADto(activo));
     }
 
+    /// <summary>Registra un activo de un cliente.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.ActivoCrear)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status201Created)]
@@ -68,6 +71,7 @@ public class ActivosController : ControllerBase
         return CreatedAtAction(nameof(ObtenerPorId), new { id = activoCreado.IdActivo }, respuesta);
     }
 
+    /// <summary>Modifica los datos de un activo.</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.ActivoEditar)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]
@@ -84,6 +88,7 @@ public class ActivosController : ControllerBase
         return Ok(ActivoMapeador.ADto(activo));
     }
 
+    /// <summary>Cambia el estado de un activo (baja o reactivación lógica).</summary>
     [HttpPatch("{id:long}")]
     [Authorize(Policy = Politicas.ActivoEditar)]
     [ProducesResponseType<ActivoDto>(StatusCodes.Status200OK)]

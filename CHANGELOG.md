@@ -1,11 +1,58 @@
 # CHANGELOG
 
-## Version 1.0.83 (2026-10-27)
+## Version 1.0.93 (2026-10-27)
 
 - Documentos técnicos: la subida de un documento para las sugerencias de IA guarda el PDF y responde enseguida; los fragmentos y embeddings se generan en segundo plano, de a un documento por vez. Antes, un manual grande tardaba minutos dentro del pedido y Cloudflare lo cortaba a los 100 segundos (`524`), sin guardar nada.
 - Documentos técnicos: cada documento informa `estadoProcesamiento` (`pendiente`, `procesando`, `listo` o `error`) y, si falló, `codigoErrorProcesamiento` y `mensajeErrorProcesamiento`. Al arrancar, la API retoma los que quedaron pendientes o a medio procesar.
 - Documentos técnicos: `POST /documentos-tecnicos/{id}/reprocesar` responde `202` y pone el documento en la cola; mientras tanto, las sugerencias siguen usando los fragmentos anteriores.
 - Base de datos: columnas `estado_procesamiento` y `error_procesamiento` en `vectorial.documento_tecnico`, en `02-vectorial.sql` y en `database/cambios/2026-10-27-documento-tecnico-estado-procesamiento.sql` para bases existentes.
+
+## Version 1.0.92 (2026-10-27)
+
+- Documentación de la API: el documento OpenAPI describe todas las propiedades de los DTO, documenta `ETag`, `If-Match` y el `412` de las órdenes, incluye ejemplos de los flujos principales y un identificador único por operación. La integración continua lo exporta, lo revisa con Spectral y lo guarda como artefacto.
+
+## Version 1.0.91 (2026-10-27)
+
+- Documentación de la API: el documento OpenAPI ahora tiene título, versión, esquema de seguridad Bearer, etiquetas por módulo, un resumen por cada una de las 75 operaciones y las respuestas de error comunes; se agrega la interfaz Swagger en `/swagger`. Solo se publica en desarrollo o con `OPENAPI_PUBLICAR=true`, y pruebas de contrato impiden dejar endpoints sin documentar.
+
+## Version 1.0.90 (2026-10-27)
+
+- Usuarios: «Mi perfil»: `GET /api/v1/perfil` y `PUT /api/v1/perfil` permiten a cualquier persona con sesión ver y cambiar su nombre, apellido y teléfono (el cambio se copia a Keycloak); el correo, los roles y el estado siguen gestionándose por administración.
+
+## Version 1.0.89 (2026-10-27)
+
+- Órdenes de trabajo: el listado acepta `soloActivas=true` y devuelve solo las órdenes activas (pendientes, en curso o por validar), las mismas que cuentan los conteos de clientes y usuarios.
+
+## Version 1.0.88 (2026-10-27)
+
+- Reportes: se elimina todo análisis por persona. Ya no existe el reporte de actividad por técnico (`actividad-tecnicos` responde `400 TIPO_REPORTE_INVALIDO`), los indicadores no traen `ordenesPorTecnico` y los reportes y la analítica no filtran por técnico (un `tecnicoId` se ignora).
+
+## Version 1.0.87 (2026-10-27)
+
+- Reportes: nuevo `GET /api/v1/reportes/desempeno` con el desempeño operativo de órdenes, procesos y maquinaria (órdenes por estado, tiempos de respuesta, ejecución y revisión, pausas y devoluciones con sus motivos, reasignaciones y horas de parada por tipo de máquina y por activo). No evalúa el desempeño de las personas.
+
+## Version 1.0.86 (2026-10-26)
+
+- Órdenes de trabajo: la orden informa quién la creó (`responsableId` y `nombreResponsable`).
+
+## Version 1.0.85 (2026-10-26)
+
+- Repuestos en órdenes: cada repuesto de una orden tiene cantidad. Al asignarlo queda reservado (ninguna otra orden puede usar esas unidades, pero siguen en la empresa), pasa a entregado cuando la orden entra en progreso y el stock baja recién al cerrar la orden, con un egreso a nombre de quien la cerró. Si la orden se elimina o se quita el repuesto, vuelve a estar libre.
+- Stock: asignar más de lo disponible se rechaza con un mensaje según el caso (sin stock, reservado por otras órdenes o entregado). Un egreso o ajuste manual no puede dejar el stock por debajo de lo reservado y entregado. Las alertas de stock bajo siguen sobre el stock en la empresa.
+- API: `repuestos` (repuesto y cantidad) reemplaza a `repuestosIds` en el alta y la modificación de órdenes; nuevo `PUT /api/v1/ordenes-trabajo/{id}/repuestos`; los repuestos informan `cantidadReservada`, `cantidadEntregada` y `cantidadDisponible`; la orden trae `historialRepuestos` con quién hizo cada cambio.
+- Seguridad: el jefe de mantenimiento consulta Repuestos y, junto con el administrador y el pañolero, asigna repuestos y cambia cantidades en las órdenes; el técnico no.
+- Base de datos: `ot_repuesto` guarda cantidad, estado y el movimiento que descuenta el stock; nueva tabla `historial_repuesto_ot`; los datos existentes se migran solos con 1 unidad y el estado de su orden. El dump exportado se regeneró.
+
+## Version 1.0.84 (2026-10-26)
+
+- Órdenes de trabajo: los estados pasan a ser `pendiente`, `en_progreso`, `en_revision`, `cerrado`, `pausado` y `eliminado` (baja lógica); asignar un técnico ya no es un estado. Los estados anteriores se convierten solos en el despliegue sin perder historial.
+- Historial: cada cambio de estado guarda el estado anterior, la fecha y hora, quién lo hizo y el motivo, obligatorio al pausar, eliminar o devolver una orden de en revisión a pendiente. Cada asignación o cambio de técnico se guarda aparte para medir reasignaciones.
+- Órdenes eliminadas: no admiten cambios (`409 ORDEN_NO_MODIFICABLE`), tampoco por `PUT`.
+- Base de datos: nuevas columnas `id_estado_anterior` e `id_usuario` en `historial_estado_ot` y tabla `historial_tecnico_ot`; el dump exportado se regeneró.
+
+## Version 1.0.83 (2026-10-26)
+
+- Clientes: `GET /api/v1/clientes` acepta `conActivos=true` para devolver solo los clientes con al menos un activo asociado.
 
 ## Version 1.0.82 (2026-10-26)
 

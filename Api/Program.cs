@@ -81,7 +81,7 @@ builder.Services.AgregarPoliticasDeAcceso(autenticacionObligatoria);
 builder.Services.AddHealthChecks()
     .AddCheck<SaludDeLaBaseDeDatos>("base-de-datos", tags: [SaludDeLaBaseDeDatos.EtiquetaDisponibilidad]);
 
-builder.Services.AddOpenApi();
+builder.Services.AgregarDocumentacionOpenApi();
 
 var frontendOrigin = Environment.GetEnvironmentVariable("FRONTEND_ORIGIN");
 if (string.IsNullOrWhiteSpace(frontendOrigin))
@@ -108,7 +108,9 @@ if (!autenticacionObligatoria)
     app.Logger.LogWarning("AUTH_OBLIGATORIA=false: la API no exige token en los endpoints protegidos.");
 }
 
-if (app.Environment.IsDevelopment())
+// El contrato y la interfaz de Swagger solo se publican en desarrollo o con OPENAPI_PUBLICAR=true (por ejemplo en staging);
+// en producción no se mapean.
+if (DocumentacionOpenApi.DebePublicarse(app.Environment))
 {
     app.MapOpenApi().AllowAnonymous();
 }
@@ -122,6 +124,18 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<CabecerasDeSeguridadMiddleware>();
+
+if (DocumentacionOpenApi.DebePublicarse(app.Environment))
+{
+    app.UseSwaggerUI(opciones =>
+    {
+        opciones.RoutePrefix = DocumentacionOpenApi.RutaDeLaInterfaz;
+        opciones.DocumentTitle = "SOTRA API";
+        opciones.SwaggerEndpoint("/openapi/v1.json", "SOTRA API v1");
+        opciones.EnablePersistAuthorization();
+        opciones.DisplayRequestDuration();
+    });
+}
 
 app.UseMiddleware<CorrelacionMiddleware>();
 app.UseSerilogRequestLogging(opciones =>

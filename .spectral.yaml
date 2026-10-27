@@ -1,0 +1,7 @@
+# Reglas para revisar el documento OpenAPI de la API (CI: workflow «Validar backend»).
+# Se parte de las reglas estándar de OpenAPI; el resumen de cada operación va en `summary`, así que no se exige `description`,
+# y la URL del servidor la arma Swagger según la solicitud.
+extends: ["spectral:oas"]
+rules:
+  operation-description: off
+  oas3-server-trailing-slash: off

@@ -5,10 +5,15 @@ public class PaginaDto<T>
     public const int TamanoPaginaPorDefecto = 20;
     public const int TamanoPaginaMaximo = 100;
 
+    /// <summary>Elementos de la página.</summary>
     public List<T> Elementos { get; init; } = new();
+    /// <summary>Número de página, desde 1.</summary>
     public int Pagina { get; init; }
+    /// <summary>Elementos por página.</summary>
     public int TamanoPagina { get; init; }
+    /// <summary>Total de elementos que cumplen el filtro.</summary>
     public int TotalElementos { get; init; }
+    /// <summary>Total de páginas.</summary>
     public int TotalPaginas { get; init; }
 
     public static bool EsValida(int pagina, int tamanoPagina)

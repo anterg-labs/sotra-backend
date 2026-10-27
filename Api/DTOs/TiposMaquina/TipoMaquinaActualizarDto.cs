@@ -5,9 +5,11 @@ namespace Api.DTOs.TiposMaquina;
 
 public class TipoMaquinaActualizarDto
 {
+    /// <summary>Nombre.</summary>
     [Required(ErrorMessage = "El campo Nombre es obligatorio."), MaxLength(60, ErrorMessage = "El campo Nombre no puede superar los 60 caracteres.")]
     public required string Nombre { get; init; }
 
+    /// <summary>Estado del registro (`activo` o `inactivo`) o, en órdenes, valor del estado vigente del catálogo.</summary>
     [JsonRequired]
     [Required]
     public string? Estado { get; init; }
