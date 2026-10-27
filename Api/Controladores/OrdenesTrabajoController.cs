@@ -130,7 +130,7 @@ public class OrdenesTrabajoController : ControllerBase
         };
 
         var ordenCreada = await _ordenTrabajoDao.CrearAsync(orden, solicitud.FechaPrevistaEjecucion,
-            solicitud.RepuestosIds, solicitud.Sugerencias, solicitud.Sesion,
+            APedidos(solicitud.Repuestos), solicitud.Sugerencias, solicitud.Sesion,
             await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         var respuesta = OrdenTrabajoMapeador.ADto(ordenCreada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion));
         return CreatedAtAction(nameof(ObtenerPorId), new { id = ordenCreada.IdOrden }, respuesta);
@@ -155,9 +155,9 @@ public class OrdenesTrabajoController : ControllerBase
                 || versionEsperada == OrdenTrabajoMapeador.ADto(orden, reglas).Version;
 
         var ordenActualizada = await _ordenTrabajoDao.ActualizarAsync(id, cambios,
-            solicitud.FechaPrevistaEjecucion, solicitud.RepuestosIds,
+            solicitud.FechaPrevistaEjecucion, APedidos(solicitud.Repuestos),
             solicitud.Sugerencias, solicitud.Estado, solicitud.MotivoEstado, solicitud.Sesion,
-            coincideConVersion, cancelacion);
+            coincideConVersion, await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         if (ordenActualizada is null)
         {
             return NotFound();
@@ -165,6 +165,24 @@ public class OrdenesTrabajoController : ControllerBase
 
         return OkConVersion(OrdenTrabajoMapeador.ADto(ordenActualizada, reglas));
     }
+
+    [HttpPut("{id:long}/repuestos")]
+    [Authorize(Policy = Politicas.OtGestionarRepuestos)]
+    [ProducesResponseType<OrdenTrabajoDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<OrdenTrabajoDto>> ActualizarRepuestos(long id, OrdenRepuestosActualizarDto solicitud, CancellationToken cancelacion)
+    {
+        var orden = await _ordenTrabajoDao.ActualizarRepuestosAsync(id, APedidos(solicitud.Repuestos),
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
+        if (orden is null)
+        {
+            return NotFound();
+        }
+
+        return OkConVersion(OrdenTrabajoMapeador.ADto(orden, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
+    }
+
+    private static List<RepuestoPedido> APedidos(IEnumerable<RepuestoPedidoDto> repuestos) =>
+        repuestos.Select(repuesto => new RepuestoPedido(repuesto.RepuestoId, repuesto.Cantidad)).ToList();
 
     [HttpPatch("{id:long}/estado")]
     [Authorize(Policy = Politicas.OtRegistrarAvance)]
@@ -187,7 +205,8 @@ public class OrdenesTrabajoController : ControllerBase
             motivo = motivo.Trim();
         }
 
-        var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, User.EsSoloTecnico(), cancelacion);
+        var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, User.EsSoloTecnico(),
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 
@@ -201,7 +220,8 @@ public class OrdenesTrabajoController : ControllerBase
             return NotFound();
         }
 
-        var ordenActualizada = await _ordenTrabajoDao.AsignarTecnicoAsync(orden, solicitud.TecnicoId, cancelacion);
+        var ordenActualizada = await _ordenTrabajoDao.AsignarTecnicoAsync(orden, solicitud.TecnicoId,
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
         return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion)));
     }
 

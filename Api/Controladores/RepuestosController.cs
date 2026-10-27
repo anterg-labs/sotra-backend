@@ -6,6 +6,7 @@ using Api.Mapeadores;
 using Api.Seguridad;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SOTRA_BACKEND.Modelos;
 using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
@@ -53,7 +54,8 @@ public class RepuestosController : ControllerBase
             filtros.EstadoStock, string.Equals(filtros.Orden, "criticidad", StringComparison.OrdinalIgnoreCase),
             filtros.OrdenarPor, filtros.DireccionOrden == "desc");
         var (entidades, total) = await _repuestoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
-        var elementos = entidades.Select(RepuestoMapeador.ADto).ToList();
+        var comprometido = await _repuestoDao.ObtenerComprometidoAsync(entidades.Select(r => r.IdRepuesto).ToList(), cancelacion);
+        var elementos = entidades.Select(r => RepuestoMapeador.ADto(r, comprometido.GetValueOrDefault(r.IdRepuesto))).ToList();
         return Ok(PaginaDto<RepuestoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
@@ -129,7 +131,13 @@ public class RepuestosController : ControllerBase
             return NotFound();
         }
 
-        return Ok(RepuestoMapeador.ADto(repuesto));
+        return Ok(await ADtoAsync(repuesto, cancelacion));
+    }
+
+    private async Task<RepuestoDto> ADtoAsync(Repuesto repuesto, CancellationToken cancelacion)
+    {
+        var comprometido = await _repuestoDao.ObtenerComprometidoAsync([repuesto.IdRepuesto], cancelacion);
+        return RepuestoMapeador.ADto(repuesto, comprometido.GetValueOrDefault(repuesto.IdRepuesto));
     }
 
     private async Task<ActionResult<MovimientoStockDto>> RegistrarMovimiento(SolicitudMovimientoStock solicitud, CancellationToken cancelacion)
@@ -144,6 +152,8 @@ public class RepuestosController : ControllerBase
             EstadoMovimientoStock.RepuestoNoEncontrado => NotFound(),
             EstadoMovimientoStock.RepuestoInactivo => this.RespuestaDeError(409, "REPUESTO_INACTIVO", "No se puede mover el stock de un repuesto dado de baja."),
             EstadoMovimientoStock.StockInsuficiente => this.RespuestaDeError(409, "STOCK_INSUFICIENTE", "No hay stock suficiente para retirar esa cantidad."),
+            EstadoMovimientoStock.Comprometido => this.RespuestaDeError(409, "STOCK_COMPROMETIDO",
+                $"No se puede dejar el stock por debajo de {resultado.Comprometido!.Total}: hay {resultado.Comprometido.Reservado} unidades reservadas y {resultado.Comprometido.Entregado} entregadas a órdenes abiertas."),
             _ => this.RespuestaDeError(409, "STOCK_EXCEDIDO", "La cantidad resultante supera el máximo permitido."),
         };
     }
@@ -163,7 +173,7 @@ public class RepuestosController : ControllerBase
             return NotFound();
         }
 
-        return Ok(RepuestoMapeador.ADto(repuesto));
+        return Ok(await ADtoAsync(repuesto, cancelacion));
     }
 
     [HttpPost]
@@ -171,7 +181,7 @@ public class RepuestosController : ControllerBase
     public async Task<ActionResult<RepuestoDto>> Crear(RepuestoCrearDto solicitud, CancellationToken cancelacion)
     {
         var repuesto = await _repuestoDao.InsertarAsync(RepuestoMapeador.AEntidad(solicitud), cancelacion);
-        var respuesta = RepuestoMapeador.ADto(repuesto);
+        var respuesta = await ADtoAsync(repuesto, cancelacion);
         return CreatedAtAction(nameof(ObtenerPorId), new { id = repuesto.IdRepuesto }, respuesta);
     }
 
@@ -187,7 +197,7 @@ public class RepuestosController : ControllerBase
 
         RepuestoMapeador.AplicarCambios(repuesto, solicitud);
         await _repuestoDao.ActualizarAsync(repuesto, cancelacion);
-        return Ok(RepuestoMapeador.ADto(repuesto));
+        return Ok(await ADtoAsync(repuesto, cancelacion));
     }
 
     [HttpPatch("{id:long}")]
@@ -213,6 +223,6 @@ public class RepuestosController : ControllerBase
             return NotFound();
         }
 
-        return Ok(RepuestoMapeador.ADto((await _repuestoDao.SeleccionarAsync(id, cancelacion))!));
+        return Ok(await ADtoAsync((await _repuestoDao.SeleccionarAsync(id, cancelacion))!, cancelacion));
     }
 }

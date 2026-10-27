@@ -158,9 +158,12 @@ public class AnaliticaDAO
                COALESCE(a.nombre, a.num_serie) AS "NombreActivo",
                cl.razon_social AS "Cliente",
                e.nombre AS "Estado",
-               e.codigo_alerta AS "CodigoAlerta",
+               CASE WHEN e.codigo_alerta = 'demorada_para_iniciar' AND o.id_usuario_tecnico IS NULL
+                    THEN 'sin_asignar' ELSE e.codigo_alerta END AS "CodigoAlerta",
                o.prioridad AS "Prioridad",
-               GREATEST(0, EXTRACT(EPOCH FROM (now() - actual.fecha_hora)) / 3600.0)::float8 AS "HorasEnEstado",
+               GREATEST(0, EXTRACT(EPOCH FROM (now() - CASE WHEN e.codigo_alerta = 'demorada_para_iniciar'
+                    THEN GREATEST(actual.fecha_hora, COALESCE(asignacion.fecha_hora, actual.fecha_hora))
+                    ELSE actual.fecha_hora END)) / 3600.0)::float8 AS "HorasEnEstado",
                GREATEST(0, EXTRACT(EPOCH FROM (now() - o.fecha_creada)) / 3600.0)::float8 AS "HorasDesdeCreacion"
         FROM operativo.orden_trabajo AS o
         JOIN LATERAL (
@@ -170,6 +173,11 @@ public class AnaliticaDAO
             ORDER BY h.fecha_hora DESC, h.id_h_estado_ot DESC
             LIMIT 1
         ) AS actual ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT max(t.fecha_hora) AS fecha_hora
+            FROM operativo.historial_tecnico_ot AS t
+            WHERE t.id_orden = o.id_orden
+        ) AS asignacion ON TRUE
         JOIN operativo.estado_ot AS e ON e.id_estado_ot = actual.id_estado_ot
         JOIN operativo.activo AS a ON a.id_activo = o.id_activo
         JOIN operativo.cliente AS cl ON cl.id_cliente = o.id_cliente

@@ -1,6 +1,7 @@
 ﻿using Api.DTOs.OrdenesTrabajo;
 using Api.Infraestructura;
 using Api.DTOs.Reportes;
+using Api.DTOs.Repuestos;
 using Api.Mapeadores;
 using Api.Seguridad;
 using Api.Servicios;
@@ -61,7 +62,7 @@ public class ReportesController : ControllerBase
             OrdenesPorTecnico = Agrupar(ordenes.Where(o => o.Tecnico is not null), o => o.Tecnico!),
             ActivosConMasIntervenciones = Agrupar(ordenes, o => o.Activo)
                 .OrderByDescending(grupo => grupo.Cantidad).Take(CantidadDeActivosEnRanking).ToList(),
-            RepuestosBajoStock = (await _repuestoDao.ListarConStockInsuficienteAsync(cancelacion)).Select(RepuestoMapeador.ADto).ToList(),
+            RepuestosBajoStock = await ListarRepuestosBajoStockAsync(cancelacion),
             PromedioHorasHastaInicio = CalcularPromedio(horasHastaInicio),
             PromedioHorasHastaCierre = CalcularPromedio(horasHastaCierre),
             OrdenesAltaPrioridadPendientes = ordenes.Count(o => o.Prioridad >= 5 && !EstaTerminada(reglas, o.Estado)),
@@ -103,6 +104,13 @@ public class ReportesController : ControllerBase
         MetricasDeNegocio.ReportesGenerados.Add(1, new KeyValuePair<string, object?>("tipo", tipoReporte),
             new KeyValuePair<string, object?>("formato", "csv"));
         return File(archivo, "text/csv; charset=utf-8", "reporte-" + tipoReporte + ".csv");
+    }
+
+    private async Task<List<RepuestoDto>> ListarRepuestosBajoStockAsync(CancellationToken cancelacion)
+    {
+        var repuestos = await _repuestoDao.ListarConStockInsuficienteAsync(cancelacion);
+        var comprometido = await _repuestoDao.ObtenerComprometidoAsync(repuestos.Select(r => r.IdRepuesto).ToList(), cancelacion);
+        return repuestos.Select(r => RepuestoMapeador.ADto(r, comprometido.GetValueOrDefault(r.IdRepuesto))).ToList();
     }
 
     private async Task<(ReporteArmado? Reporte, IActionResult? Error)> ArmarReporte(string tipoReporte, FiltrosIndicadoresDto filtros, CancellationToken cancelacion)

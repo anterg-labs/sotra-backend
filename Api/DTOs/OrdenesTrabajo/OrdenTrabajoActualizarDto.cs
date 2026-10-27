@@ -33,7 +33,7 @@ public class OrdenTrabajoActualizarDto
     public List<string> Sugerencias { get; init; } = [];
 
     [JsonRequired, Required]
-    public List<long> RepuestosIds { get; init; } = [];
+    public List<RepuestoPedidoDto> Repuestos { get; init; } = [];
 
     [Required]
     public required string Estado { get; init; }

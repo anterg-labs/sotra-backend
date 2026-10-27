@@ -398,6 +398,26 @@ public class MapeadoresPruebas
         });
     }
 
+    [TestCase(10, 3, 4, 3)]
+    [TestCase(5, 5, 0, 0)]
+    [TestCase(2, 3, 1, 0)]
+    [TestCase(0, 0, 0, 0)]
+    public void Repuesto_ADto_ElDisponibleEsElStockMenosLoReservadoYLoEntregadoSinBajarDeCero(
+        int cantidad, int reservado, int entregado, int disponibleEsperado)
+    {
+        var dto = RepuestoMapeador.ADto(
+            new Repuesto { IdRepuesto = 4, Codigo = "c", Nombre = "n", Cantidad = cantidad, Estado = true },
+            new SOTRA_BACKEND.Operaciones.StockComprometido(reservado, entregado));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(dto.Cantidad, Is.EqualTo(cantidad), "el stock físico no cambia");
+            Assert.That(dto.CantidadReservada, Is.EqualTo(reservado));
+            Assert.That(dto.CantidadEntregada, Is.EqualTo(entregado));
+            Assert.That(dto.CantidadDisponible, Is.EqualTo(disponibleEsperado));
+        });
+    }
+
     [TestCase(0, null, true, "sin_stock", "activo")]
     [TestCase(2, 5, true, "bajo", "activo")]
     [TestCase(9, 5, false, "normal", "inactivo")]

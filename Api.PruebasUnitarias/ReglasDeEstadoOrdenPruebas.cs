@@ -9,7 +9,7 @@ public class ReglasDeEstadoOrdenPruebas
     [Test]
     public void ElEstadoInicialEsElMarcadoEnElCatalogo()
     {
-        Assert.That(Reglas.Inicial.Nombre, Is.EqualTo("creada"));
+        Assert.That(Reglas.Inicial.Nombre, Is.EqualTo("pendiente"));
     }
 
     [Test]
@@ -27,39 +27,39 @@ public class ReglasDeEstadoOrdenPruebas
 
         var reglas = new ReglasDeEstadoOrden(desordenados, ReglasDePrueba.TransicionesDocumentadas);
 
-        Assert.That(reglas.Estados.Select(estado => estado.Orden), Is.EqualTo(new[] { 1, 2, 3, 4, 5, 6, 7 }).AsCollection);
+        Assert.That(reglas.Estados.Select(estado => estado.Orden), Is.EqualTo(new[] { 1, 2, 3, 4, 5, 6 }).AsCollection);
     }
 
-    [TestCase("cerrada", true)]
-    [TestCase("cancelada", true)]
-    [TestCase("finalizada", false)]
-    [TestCase("creada", false)]
+    [TestCase("cerrado", true)]
+    [TestCase("eliminado", true)]
+    [TestCase("en_revision", false)]
+    [TestCase("pendiente", false)]
     [TestCase("desconocido", false)]
     public void UnEstadoFinalEsElQueNoTieneTransicionesDeSalida(string estado, bool esperado)
     {
         Assert.That(Reglas.EsFinal(estado), Is.EqualTo(esperado));
     }
 
-    [TestCase("cerrada", true)]
-    [TestCase("cancelada", false)]
-    [TestCase("finalizada", false)]
+    [TestCase("cerrado", true)]
+    [TestCase("eliminado", false)]
+    [TestCase("en_revision", false)]
     public void SoloLaFaseCerradaDevuelveOrdenCerrada(string estado, bool esperado)
     {
         Assert.That(Reglas.EstaCerrada(estado), Is.EqualTo(esperado));
     }
 
-    [TestCase("creada", "asignada")]
-    [TestCase("asignada", null)]
-    [TestCase("finalizada", null)]
-    [TestCase("desconocido", null)]
-    public void AsignarUnTecnicoLlevaALaTransicionMarcadaYSiNoHayDejaElEstado(string actual, string? esperado)
+    [TestCase("pendiente")]
+    [TestCase("en_progreso")]
+    [TestCase("en_revision")]
+    [TestCase("desconocido")]
+    public void AsignarUnTecnicoNoCambiaElEstadoSiNingunaTransicionLoPide(string actual)
     {
-        Assert.That(Reglas.EstadoAlAsignarTecnico(actual), Is.EqualTo(esperado));
+        Assert.That(Reglas.EstadoAlAsignarTecnico(actual), Is.Null);
     }
 
-    [TestCase("en_ejecucion", "inicio")]
-    [TestCase("cerrada", "cierre")]
-    [TestCase("pausada", null)]
+    [TestCase("en_progreso", "inicio")]
+    [TestCase("cerrado", "cierre")]
+    [TestCase("pausado", null)]
     [TestCase("desconocido", null)]
     public void CadaEstadoDefineQueFechaCompleta(string estado, string? esperada)
     {
@@ -69,30 +69,28 @@ public class ReglasDeEstadoOrdenPruebas
     [Test]
     public void LasAccionesDelTecnicoSalenDeLasTransiciones()
     {
-        var acciones = Reglas.TransicionesDesde("en_ejecucion").Where(t => t.PuedeTecnico).Select(t => (t.Destino, t.Accion, t.Principal));
+        var acciones = Reglas.TransicionesDesde("en_progreso").Where(t => t.PuedeTecnico).Select(t => (t.Destino, t.Accion, t.Principal));
 
-        Assert.That(acciones, Is.EqualTo(new[] { ("pausada", "Pausar", false), ("finalizada", "Finalizar", true) }));
-        Assert.That(Reglas.TransicionesDesde("pausada").Single(t => t.PuedeTecnico).Accion, Is.EqualTo("Reanudar"));
-        Assert.That(Reglas.TransicionesDesde("asignada").Single(t => t.PuedeTecnico).Accion, Is.EqualTo("Iniciar"));
-        Assert.That(Reglas.TransicionesDesde("finalizada").Any(t => t.PuedeTecnico), Is.False);
+        Assert.That(acciones, Is.EqualTo(new[] { ("en_revision", "Enviar a revisión", true), ("pausado", "Pausar", false) }));
+        Assert.That(Reglas.TransicionesDesde("pausado").Single(t => t.PuedeTecnico).Accion, Is.EqualTo("Reanudar"));
+        Assert.That(Reglas.TransicionesDesde("pendiente").Single(t => t.PuedeTecnico).Accion, Is.EqualTo("Iniciar"));
+        Assert.That(Reglas.TransicionesDesde("en_revision").Any(t => t.PuedeTecnico), Is.False);
     }
 
-    [TestCase("asignada", "en_ejecucion")]
-    [TestCase("en_ejecucion", "pausada")]
-    [TestCase("en_ejecucion", "finalizada")]
-    [TestCase("pausada", "en_ejecucion")]
+    [TestCase("pendiente", "en_progreso")]
+    [TestCase("en_progreso", "pausado")]
+    [TestCase("en_progreso", "en_revision")]
+    [TestCase("pausado", "en_progreso")]
     public void UnTecnicoPuedeHacerSoloLasTransicionesMarcadasParaEl(string actual, string nuevo)
     {
         Assert.DoesNotThrow(() => Reglas.ValidarTransicion(actual, nuevo, 7, "motivo", comoTecnico: true));
     }
 
-    [TestCase("finalizada", "cerrada")]
-    [TestCase("finalizada", "asignada")]
-    [TestCase("creada", "asignada")]
-    [TestCase("creada", "cancelada")]
-    [TestCase("asignada", "cancelada")]
-    [TestCase("pausada", "cancelada")]
-    public void UnTecnicoNoPuedeCerrarCancelarNiAsignar(string actual, string nuevo)
+    [TestCase("en_revision", "cerrado")]
+    [TestCase("en_revision", "pendiente")]
+    [TestCase("pendiente", "eliminado")]
+    [TestCase("pausado", "eliminado")]
+    public void UnTecnicoNoPuedeCerrarEliminarNiDevolverAPendiente(string actual, string nuevo)
     {
         var error = Assert.Throws<ErrorDeOrdenException>(() => Reglas.ValidarTransicion(actual, nuevo, 7, "motivo", comoTecnico: true));
 
@@ -103,7 +101,7 @@ public class ReglasDeEstadoOrdenPruebas
     [Test]
     public void ParaUnTecnicoUnaTransicionInexistenteSigueSiendoInvalida()
     {
-        var error = Assert.Throws<ErrorDeOrdenException>(() => Reglas.ValidarTransicion("creada", "cerrada", 7, "motivo", comoTecnico: true));
+        var error = Assert.Throws<ErrorDeOrdenException>(() => Reglas.ValidarTransicion("pendiente", "cerrado", 7, "motivo", comoTecnico: true));
 
         Assert.That(error!.Codigo, Is.EqualTo(ErrorDeOrdenException.TransicionInvalida));
     }
@@ -111,11 +109,11 @@ public class ReglasDeEstadoOrdenPruebas
     [Test]
     public void UnaTransicionHaciaUnEstadoInexistenteSeIgnora()
     {
-        var conSobrante = ReglasDePrueba.TransicionesDocumentadas.Append(new TransicionDeEstado("creada", "inventado", false, false, null, false, false));
+        var conSobrante = ReglasDePrueba.TransicionesDocumentadas.Append(new TransicionDeEstado("pendiente", "inventado", false, false, null, false, false));
 
         var reglas = new ReglasDeEstadoOrden(ReglasDePrueba.EstadosDocumentados, conSobrante);
 
-        Assert.That(reglas.Siguientes("creada"), Is.EqualTo(new[] { "asignada", "cancelada" }));
+        Assert.That(reglas.Siguientes("pendiente"), Is.EqualTo(new[] { "en_progreso", "eliminado" }));
     }
 
     [Test]
@@ -123,9 +121,10 @@ public class ReglasDeEstadoOrdenPruebas
     {
         Assert.Multiple(() =>
         {
-            Assert.That(Reglas.FaseDe("creada"), Is.EqualTo(FasesDeEstado.Pendiente));
-            Assert.That(Reglas.FaseDe("pausada"), Is.EqualTo(FasesDeEstado.EnCurso));
-            Assert.That(Reglas.FaseDe("finalizada"), Is.EqualTo(FasesDeEstado.PorValidar));
+            Assert.That(Reglas.FaseDe("pendiente"), Is.EqualTo(FasesDeEstado.Pendiente));
+            Assert.That(Reglas.FaseDe("pausado"), Is.EqualTo(FasesDeEstado.EnCurso));
+            Assert.That(Reglas.FaseDe("en_revision"), Is.EqualTo(FasesDeEstado.PorValidar));
+            Assert.That(Reglas.FaseDe("eliminado"), Is.EqualTo(FasesDeEstado.Eliminada));
             Assert.That(Reglas.FaseDe("desconocido"), Is.Null);
         });
     }

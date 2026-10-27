@@ -22,7 +22,7 @@ public class AnaliticaPruebas : PruebaBase
             prioridad = "media",
             descripcion = "Orden para analítica",
             fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow),
-            repuestosIds = repuestosIds ?? [],
+            repuestos = (repuestosIds ?? []).Select(id => new { repuestoId = id, cantidad = 1 }),
         });
         respuesta.EnsureSuccessStatusCode();
         return (await respuesta.LeerJsonAsync()).GetProperty("id").GetInt64();
@@ -33,9 +33,9 @@ public class AnaliticaPruebas : PruebaBase
         var tecnico = await DatosDePrueba.CrearUsuarioAsync(Cliente, DatosDePrueba.UsuarioNuevo(idsRol: [RolTecnico]));
         (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/tecnico",
             new { tecnicoId = tecnico.GetProperty("id").GetInt64() })).EnsureSuccessStatusCode();
-        foreach (var (estado, motivo) in new[] { ("en_ejecucion", null), ("finalizada", null), ("cerrada", "Verificada") })
+        foreach (var estado in new[] { "en_progreso", "en_revision", "cerrado" })
         {
-            (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado", new { estado, motivo }))
+            (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado", new { estado }))
                 .EnsureSuccessStatusCode();
         }
     }
@@ -108,7 +108,7 @@ public class AnaliticaPruebas : PruebaBase
         Assert.That(duracion.GetProperty("promedioHoras").GetDouble(), Is.GreaterThanOrEqualTo(0));
         Assert.That(duracion.GetProperty("medianaHoras").GetDouble(), Is.GreaterThanOrEqualTo(0));
         var etapas = tiempos.GetProperty("etapas").EnumerateArray().Select(e => e.GetProperty("estado").GetString()).ToList();
-        Assert.That(etapas, Is.SupersetOf(new[] { "creada", "asignada", "en_ejecucion", "finalizada" }));
+        Assert.That(etapas, Is.SupersetOf(new[] { "pendiente", "en_progreso", "en_revision" }));
     }
 
     [Test]

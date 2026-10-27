@@ -28,6 +28,7 @@ public static class Politicas
     public const string OtConsultar = "ot.consultar";
     public const string OtCrear = "ot.crear";
     public const string OtEditar = "ot.editar";
+    public const string OtGestionarRepuestos = "ot.gestionar_repuestos";
     public const string OtAsignarTecnico = "ot.asignar_tecnico";
     public const string OtRegistrarAvance = "ot.registrar_avance";
 
@@ -104,12 +105,13 @@ public static class PoliticasDeAcceso
         [Politicas.OtCrear] = [Roles.Administrador, Roles.JefeMantenimiento],
         [Politicas.OtEditar] = [Roles.Administrador, Roles.JefeMantenimiento],
         [Politicas.OtAsignarTecnico] = [Roles.Administrador, Roles.JefeMantenimiento],
+        [Politicas.OtGestionarRepuestos] = [Roles.Administrador, Roles.JefeMantenimiento, Roles.Panolero],
         [Politicas.OtRegistrarAvance] = [Roles.Administrador, Roles.JefeMantenimiento, Roles.Tecnico],
 
         [Politicas.DocumentoConsultar] = [Roles.Administrador, Roles.JefeMantenimiento, Roles.Tecnico],
         [Politicas.DocumentoGestionar] = [Roles.Administrador, Roles.JefeMantenimiento],
 
-        [Politicas.StockConsultar] = [Roles.Administrador, Roles.Panolero],
+        [Politicas.StockConsultar] = [Roles.Administrador, Roles.JefeMantenimiento, Roles.Panolero],
         [Politicas.RepuestoGestionar] = [Roles.Administrador, Roles.Panolero],
         [Politicas.StockRegistrarMovimiento] = [Roles.Administrador, Roles.Panolero],
 

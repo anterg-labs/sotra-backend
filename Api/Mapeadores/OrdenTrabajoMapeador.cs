@@ -88,21 +88,61 @@ public static class OrdenTrabajoMapeador
             historialEstados.Add(new HistorialEstadoDto
             {
                 Estado = historial.IdEstadoOtNavigation.Nombre,
+                EstadoAnterior = historial.IdEstadoAnteriorNavigation?.Nombre,
                 FechaHora = historial.FechaHora,
-                Observacion = observacion
+                Observacion = observacion,
+                UsuarioId = historial.IdUsuario,
+                NombreUsuario = NombreCompleto(historial.IdUsuarioNavigation)
             });
         }
 
+        var historialTecnicos = orden.HistorialTecnicoOts
+            .OrderBy(historial => historial.FechaHora)
+            .ThenBy(historial => historial.IdHTecnicoOt)
+            .Select(historial => new HistorialTecnicoDto
+            {
+                TecnicoAnteriorId = historial.IdTecnicoAnterior,
+                NombreTecnicoAnterior = NombreCompleto(historial.IdTecnicoAnteriorNavigation),
+                TecnicoId = historial.IdTecnicoNuevo,
+                NombreTecnico = NombreCompleto(historial.IdTecnicoNuevoNavigation),
+                FechaHora = historial.FechaHora,
+                UsuarioId = historial.IdUsuario,
+                NombreUsuario = NombreCompleto(historial.IdUsuarioNavigation),
+                Observacion = historial.Observacion
+            })
+            .ToList();
+
         var repuestos = new List<RepuestoOrdenDto>();
-        foreach (var relacion in orden.OtRepuestos.OrderBy(item => item.IdOtRepuesto))
+        foreach (var relacion in orden.OtRepuestos.Where(item => item.Estado != EstadosRepuestoOrden.Liberado).OrderBy(item => item.IdOtRepuesto))
         {
             repuestos.Add(new RepuestoOrdenDto
             {
                 Id = relacion.IdRepuestoNavigation.IdRepuesto,
                 Codigo = relacion.IdRepuestoNavigation.Codigo,
-                Nombre = relacion.IdRepuestoNavigation.Nombre
+                Nombre = relacion.IdRepuestoNavigation.Nombre,
+                Cantidad = relacion.Cantidad,
+                Estado = relacion.Estado
             });
         }
+
+        var historialRepuestos = orden.HistorialRepuestoOts
+            .OrderBy(item => item.FechaHora)
+            .ThenBy(item => item.IdHRepuestoOt)
+            .Select(item => new HistorialRepuestoDto
+            {
+                RepuestoId = item.IdRepuesto,
+                Codigo = item.IdRepuestoNavigation.Codigo,
+                Nombre = item.IdRepuestoNavigation.Nombre,
+                Accion = item.Accion,
+                CantidadAnterior = item.CantidadAnterior,
+                CantidadNueva = item.CantidadNueva,
+                EstadoAnterior = item.EstadoAnterior,
+                EstadoNuevo = item.EstadoNuevo,
+                FechaHora = item.FechaHora,
+                UsuarioId = item.IdUsuario,
+                NombreUsuario = NombreCompleto(item.IdUsuarioNavigation)
+            })
+            .ToList();
 
         var dto = new OrdenTrabajoDto
         {
@@ -111,6 +151,8 @@ public static class OrdenTrabajoMapeador
             NombreCliente = orden.IdClienteNavigation.RazonSocial,
             ActivoId = orden.IdActivo,
             NombreActivo = nombreActivo,
+            ResponsableId = orden.IdUsuarioResponsable,
+            NombreResponsable = NombreCompleto(orden.IdUsuarioResponsableNavigation),
             TecnicoId = orden.IdUsuarioTecnico,
             NombreTecnico = nombreTecnico,
             Tipo = tipo,
@@ -128,11 +170,16 @@ public static class OrdenTrabajoMapeador
                 .Where(t => !soloTecnico || t.PuedeTecnico)
                 .Select(t => new TransicionOrdenDto(t.Destino, t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal))
                 .ToList(),
-            HistorialEstados = historialEstados
+            HistorialEstados = historialEstados,
+            HistorialTecnicos = historialTecnicos,
+            HistorialRepuestos = historialRepuestos
         };
         dto.Version = CalcularVersion(dto);
         return dto;
     }
+
+    private static string? NombreCompleto(Usuario? usuario) =>
+        usuario is null ? null : usuario.Nombre + " " + usuario.Apellido;
 
     private static string CalcularVersion(OrdenTrabajoDto dto)
     {

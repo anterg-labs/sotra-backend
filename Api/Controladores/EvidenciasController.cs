@@ -75,7 +75,7 @@ public class EvidenciasController : ControllerBase
         var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancellationToken);
         if (reglas.EsFinal(OrdenTrabajoMapeador.ADto(orden, reglas).Estado))
         {
-            return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o cancelada no admite nuevas evidencias.");
+            return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o eliminada no admite nuevas evidencias.");
         }
 
         if (tipo != "foto" && tipo != "documento" && tipo != "observacion")

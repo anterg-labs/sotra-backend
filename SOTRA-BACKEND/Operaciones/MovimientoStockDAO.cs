@@ -143,6 +143,18 @@ public class MovimientoStockDAO
             return ResultadoMovimientoStock.Fallo(EstadoMovimientoStock.StockExcedido);
         }
 
+        // Las unidades reservadas o entregadas a órdenes abiertas siguen en la empresa y no se pueden retirar a mano.
+        if (stockPosterior < stockAnterior)
+        {
+            var comprometido = (await new ReservasDeRepuestos(_contexto)
+                .ObtenerComprometidoAsync([solicitud.RepuestoId], null, cancelacion))
+                .GetValueOrDefault(solicitud.RepuestoId, StockComprometido.Ninguno);
+            if (stockPosterior < comprometido.Total)
+            {
+                return ResultadoMovimientoStock.Bloqueado(comprometido);
+            }
+        }
+
         await _contexto.Repuestos
             .Where(r => r.IdRepuesto == solicitud.RepuestoId)
             .ExecuteUpdateAsync(cambios => cambios.SetProperty(r => r.Cantidad, (int)stockPosterior), cancelacion);
@@ -191,11 +203,16 @@ public enum EstadoMovimientoStock
     RepuestoInactivo,
     StockInsuficiente,
     StockExcedido,
+    Comprometido,
 }
 
-public sealed record ResultadoMovimientoStock(EstadoMovimientoStock Estado, MovimientoStock? Movimiento)
+public sealed record ResultadoMovimientoStock(EstadoMovimientoStock Estado, MovimientoStock? Movimiento, StockComprometido? Comprometido = null)
 {
     public static ResultadoMovimientoStock Exito(MovimientoStock movimiento) => new(EstadoMovimientoStock.Registrado, movimiento);
 
     public static ResultadoMovimientoStock Fallo(EstadoMovimientoStock estado) => new(estado, null);
+
+    /// <summary>El movimiento dejaría el stock por debajo de lo reservado y entregado a órdenes abiertas.</summary>
+    public static ResultadoMovimientoStock Bloqueado(StockComprometido comprometido) =>
+        new(EstadoMovimientoStock.Comprometido, null, comprometido);
 }

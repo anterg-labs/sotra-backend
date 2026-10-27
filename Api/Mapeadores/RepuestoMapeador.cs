@@ -31,8 +31,10 @@ public static class RepuestoMapeador
         repuesto.CantMin = solicitud.CantidadMinima;
     }
 
-    public static RepuestoDto ADto(Repuesto repuesto)
+    public static RepuestoDto ADto(Repuesto repuesto, StockComprometido? comprometido = null)
     {
+        var reservado = comprometido?.Reservado ?? 0;
+        var entregado = comprometido?.Entregado ?? 0;
         return new RepuestoDto
         {
             Id = repuesto.IdRepuesto,
@@ -43,6 +45,9 @@ public static class RepuestoMapeador
             Ubicacion = repuesto.Ubicacion ?? "",
             Cantidad = repuesto.Cantidad,
             CantidadMinima = repuesto.CantMin ?? 0,
+            CantidadReservada = reservado,
+            CantidadEntregada = entregado,
+            CantidadDisponible = Math.Max(0, repuesto.Cantidad - reservado - entregado),
             Estado = repuesto.Estado ? "activo" : "inactivo",
             EstadoStock = EstadosStock.Calcular(repuesto.Cantidad, repuesto.CantMin)
         };

@@ -15,6 +15,9 @@ public class RepuestoDAO
             new("ubicacion", r => r.Ubicacion),
             new("cantidad", r => r.Cantidad),
             new("cantidadMinima", r => r.CantMin),
+            new("cantidadReservada", r => r.OtRepuestos.Where(x => x.Estado == EstadosRepuestoOrden.Reservado).Sum(x => x.Cantidad)),
+            new("cantidadEntregada", r => r.OtRepuestos.Where(x => x.Estado == EstadosRepuestoOrden.Entregado).Sum(x => x.Cantidad)),
+            new("cantidadDisponible", r => r.Cantidad - r.OtRepuestos.Where(x => EstadosRepuestoOrden.Comprometidos.Contains(x.Estado)).Sum(x => x.Cantidad)),
             new("estado", r => r.Estado),
         ]);
 
@@ -106,6 +109,10 @@ public class RepuestoDAO
             .ExecuteUpdateAsync(cambios => cambios.SetProperty(r => r.CantMin, cantidadMinima), cancelacion);
         return filas == 0 ? null : await _contexto.Repuestos.AsNoTracking().FirstAsync(r => r.IdRepuesto == id, cancelacion);
     }
+
+    /// <summary>Unidades reservadas y entregadas a órdenes abiertas de cada repuesto, agrupadas en la base.</summary>
+    public Task<Dictionary<long, StockComprometido>> ObtenerComprometidoAsync(IReadOnlyCollection<long> ids, CancellationToken cancelacion) =>
+        new ReservasDeRepuestos(_contexto).ObtenerComprometidoAsync(ids, null, cancelacion);
 
     public async Task<Repuesto?> SeleccionarAsync(long id, CancellationToken cancelacion)
     {

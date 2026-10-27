@@ -7,6 +7,10 @@ public class OrdenTrabajoDto
     public required string NombreCliente { get; init; }
     public long ActivoId { get; init; }
     public required string NombreActivo { get; init; }
+
+    /// <summary>Quién creó la orden (el responsable); sin sesión es el primer jefe de mantenimiento activo.</summary>
+    public long ResponsableId { get; init; }
+    public string? NombreResponsable { get; init; }
     public long? TecnicoId { get; init; }
     public string? NombreTecnico { get; init; }
     public required string Tipo { get; init; }
@@ -22,6 +26,8 @@ public class OrdenTrabajoDto
     public List<RepuestoOrdenDto> Repuestos { get; init; } = new();
     public List<TransicionOrdenDto> Transiciones { get; init; } = new();
     public List<HistorialEstadoDto> HistorialEstados { get; init; } = new();
+    public List<HistorialTecnicoDto> HistorialTecnicos { get; init; } = new();
+    public List<HistorialRepuestoDto> HistorialRepuestos { get; init; } = new();
 
     /// <summary>Huella del contenido actual: cambia con cualquier modificación. Es el valor del encabezado <c>ETag</c>.</summary>
     public string Version { get; internal set; } = "";
