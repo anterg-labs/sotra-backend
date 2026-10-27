@@ -20,6 +20,7 @@ public class OrdenesTrabajoPruebas
             Prioridad = 3,
             Descripcion = "Falla en el motor",
             FechaCreada = Base,
+            FechaPrevistaEjecucion = new DateOnly(2026, 1, 10),
             IdClienteNavigation = new Cliente { RazonSocial = "Acme", Nombre = "Ana" },
             IdActivoNavigation = new Activo { NumSerie = "SN-1", Nombre = "Torno" },
         };
@@ -228,9 +229,10 @@ public class OrdenesTrabajoPruebas
     }
 
     [Test]
-    public void ADto_TomaElUltimoEstadoYLaFechaPrevistaDelPrimerHistorial()
+    public void ADto_TomaElUltimoEstadoYLaFechaPrevistaDeLaOrden()
     {
-        var orden = CrearOrden(("pendiente", 0, "2026-02-15"), ("en_progreso", 10, "Se inició"), ("pausado", 20, "Falta de repuesto"));
+        var orden = CrearOrden(("pendiente", 0, null), ("en_progreso", 10, "Se inició"), ("pausado", 20, "Falta de repuesto"));
+        orden.FechaPrevistaEjecucion = new DateOnly(2026, 2, 15);
 
         var dto = OrdenTrabajoMapeador.ADto(orden, Reglas);
 
@@ -241,18 +243,21 @@ public class OrdenesTrabajoPruebas
             Assert.That(dto.Transiciones.Select(transicion => transicion.Estado), Is.EqualTo(new[] { "en_progreso", "eliminado" }));
             Assert.That(dto.HistorialEstados.Select(item => item.Estado),
                 Is.EqualTo(new[] { "pendiente", "en_progreso", "pausado" }));
-            Assert.That(dto.HistorialEstados[0].Observacion, Is.Null, "la fecha prevista no se muestra como observación");
+            Assert.That(dto.HistorialEstados[0].Observacion, Is.Null);
             Assert.That(dto.HistorialEstados[1].Observacion, Is.EqualTo("Se inició"));
             Assert.That(dto.HistorialEstados[2].Observacion, Is.EqualTo("Falta de repuesto"));
         });
     }
 
     [Test]
-    public void ADto_FechaPrevistaInvalidaEnElPrimerHistorialUsaLaDeCreacion()
+    public void ADto_LaObservacionDelPrimerHistorialSeMuestraTalComoSeGuardo()
     {
-        var orden = CrearOrden(("pendiente", 0, "no es una fecha"));
+        var orden = CrearOrden(("pendiente", 0, "Alta urgente"));
 
-        Assert.That(OrdenTrabajoMapeador.ADto(orden, Reglas).FechaPrevistaEjecucion, Is.EqualTo("2026-01-10"));
+        var dto = OrdenTrabajoMapeador.ADto(orden, Reglas);
+
+        Assert.That(dto.HistorialEstados[0].Observacion, Is.EqualTo("Alta urgente"));
+        Assert.That(dto.FechaPrevistaEjecucion, Is.EqualTo("2026-01-10"));
     }
 
     [Test]
@@ -266,7 +271,7 @@ public class OrdenesTrabajoPruebas
     [Test]
     public void ADto_EnElHistorialMuestraDeQueEstadoVinoQuienLoHizoYElMotivo()
     {
-        var orden = CrearOrden(("pendiente", 0, "2026-02-15"), ("en_progreso", 10, null), ("pausado", 20, "Falta de repuesto"));
+        var orden = CrearOrden(("pendiente", 0, null), ("en_progreso", 10, null), ("pausado", 20, "Falta de repuesto"));
         var jefe = new Usuario { IdUsuario = 4, Nombre = "Ana", Apellido = "Pérez", Mail = "", Telefono = "" };
         var historial = orden.HistorialEstadoOts.OrderBy(item => item.FechaHora).ToList();
         historial[1].IdEstadoAnteriorNavigation = historial[0].IdEstadoOtNavigation;
