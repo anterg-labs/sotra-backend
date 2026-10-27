@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.83 (2026-10-26)
+
+- Clientes: `GET /api/v1/clientes` acepta `conActivos=true` para devolver solo los clientes con al menos un activo asociado.
+
 ## Version 1.0.82 (2026-10-26)
 
 - IA: se quita Ollama. Los embeddings `bge-m3` corren dentro de la API con ONNX (como el reranker) y el resumen de las sugerencias lo redacta un proveedor externo con API compatible con OpenAI, por defecto Groq con `openai/gpt-oss-20b` (`IA_API_URL`, `IA_API_MODELO`, `IA_API_CLAVE`, `IA_API_ESFUERZO`). Funciona en un servidor sin GPU.
