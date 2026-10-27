@@ -9,6 +9,8 @@ public class FiltrosOrdenesTrabajoDto
     public string? Estado { get; init; }
     /// <summary>Fase del estado (`estado_ot.fase`): agrupa varios estados, por ejemplo `en_curso`.</summary>
     public string? Fase { get; init; }
+    /// <summary>`true` deja solo las órdenes activas (pendientes, en curso o por validar): las mismas que cuentan los listados de clientes y usuarios.</summary>
+    public bool? SoloActivas { get; init; }
     public string? Prioridad { get; init; }
     public string? Tipo { get; init; }
     public DateOnly? FechaDesde { get; init; }
