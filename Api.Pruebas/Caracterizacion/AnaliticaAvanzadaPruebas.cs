@@ -6,7 +6,7 @@ using NUnit.Framework;
 namespace Api.Pruebas.Caracterizacion;
 
 /// <summary>Comparativa, envejecimiento, pausas por motivo, avisos, análisis de desgaste y calendario de órdenes.</summary>
-public class AnaliticaAvanzadaPruebas : PruebaBase
+public partial class AnaliticaAvanzadaPruebas : PruebaBase
 {
     private const long RolTecnico = 3;
 

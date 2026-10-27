@@ -36,6 +36,7 @@ public sealed class KpisFila
     public int PreventivasEnPlazo { get; set; }
     public int CorrectivasCerradas { get; set; }
     public double HorasParada { get; set; }
+    public double HorasPreventivas { get; set; }
 }
 
 public sealed class KpisPorMesFila
@@ -48,6 +49,17 @@ public sealed class KpisPorMesFila
     public int PreventivasEnPlazo { get; set; }
     public int CorrectivasCerradas { get; set; }
     public double HorasParada { get; set; }
+    public double HorasPreventivas { get; set; }
+}
+
+public sealed class PlanificacionFila
+{
+    public DateTime Periodo { get; set; }
+    public long TipoMaquinaId { get; set; }
+    public string TipoMaquina { get; set; } = "";
+    public int OrdenesCerradas { get; set; }
+    public double HorasPreventivas { get; set; }
+    public double HorasCorrectivas { get; set; }
 }
 
 public sealed class EnvejecimientoFila
@@ -214,7 +226,9 @@ public class AnaliticaAvanzadaDAO(SotraContext contexto)
                             AND (o.fecha_cierre AT TIME ZONE 'UTC')::date <= o.fecha_prevista_ejecucion))::int AS "PreventivasEnPlazo",
         (count(*) FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::int AS "CorrectivasCerradas",
         COALESCE((sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0)
-            FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::float8, 0) AS "HorasParada"
+            FILTER (WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL))::float8, 0) AS "HorasParada",
+        COALESCE((sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0)
+            FILTER (WHERE o.tipo AND o.fecha_cierre IS NOT NULL))::float8, 0) AS "HorasPreventivas"
         """;
 
     private const string SqlKpis = $"""
@@ -229,6 +243,24 @@ public class AnaliticaAvanzadaDAO(SotraContext contexto)
         WHERE TRUE {Filtros}
         GROUP BY 1
         ORDER BY 1
+        """;
+
+    // Agrupa en PostgreSQL: nunca carga órdenes individuales ni multiplica su duración por el historial de pausas.
+    private const string SqlPlanificacion = $"""
+        SELECT date_trunc('month', o.fecha_creada AT TIME ZONE 'UTC') AS "Periodo",
+               tm.id_tipo_maquina AS "TipoMaquinaId", tm.nombre AS "TipoMaquina",
+               count(*)::int AS "OrdenesCerradas",
+               COALESCE(sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0)
+                   FILTER (WHERE o.tipo), 0)::float8 AS "HorasPreventivas",
+               COALESCE(sum(EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0)
+                   FILTER (WHERE NOT o.tipo), 0)::float8 AS "HorasCorrectivas"
+        FROM operativo.orden_trabajo AS o
+        JOIN operativo.activo AS a ON a.id_activo = o.id_activo
+        JOIN operativo.modelo_maquina AS mm ON mm.id_modelo_maquina = a.id_modelo_maquina
+        JOIN operativo.tipo_maquina AS tm ON tm.id_tipo_maquina = mm.id_tipo_maquina
+        WHERE o.fecha_cierre IS NOT NULL {Filtros}
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 2
         """;
 
     private const string SqlEnvejecimiento = $"""
@@ -443,6 +475,9 @@ public class AnaliticaAvanzadaDAO(SotraContext contexto)
 
     public async Task<List<KpisPorMesFila>> ObtenerKpisPorMesAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
         await Consultar<KpisPorMesFila>(SqlKpisPorMes, filtro).ToListAsync(cancelacion);
+
+    public async Task<List<PlanificacionFila>> ObtenerPlanificacionAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
+        await Consultar<PlanificacionFila>(SqlPlanificacion, filtro).ToListAsync(cancelacion);
 
     public async Task<EnvejecimientoFila> ObtenerEnvejecimientoAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
         await Consultar<EnvejecimientoFila>(SqlEnvejecimiento, filtro).SingleAsync(cancelacion);

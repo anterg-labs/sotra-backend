@@ -127,6 +127,11 @@ public class AnaliticaController : ControllerBase
         var porActivo = await _analiticaDao.ObtenerMaquinariaPorActivoAsync(MaximoDeActivos, filtro, cancelacion);
         var porModelo = await _analiticaDao.ObtenerMaquinariaPorModeloAsync(filtro, cancelacion);
         var estimacion = await _avanzadaDao.ObtenerEstimacionAsync(filtro, cancelacion);
+        // La tarjeta y la comparación comparten los últimos 90 días cuando no se eligen fechas.
+        var hastaPlanificacion = filtro.Hasta ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var desdePlanificacion = filtro.Desde ?? hastaPlanificacion.AddDays(-89);
+        var planificacion = await _avanzadaDao.ObtenerPlanificacionAsync(
+            filtro with { Desde = desdePlanificacion, Hasta = hastaPlanificacion }, cancelacion);
 
         return new DesempenoDto
         {
@@ -185,6 +190,45 @@ public class AnaliticaController : ControllerBase
                 HorasReales = Redondear(estimacion.HorasReales),
                 DesviacionPromedioPorcentaje = Redondear(estimacion.DesviacionPromedioPorcentaje),
             },
+            Planificacion = new PlanificacionDto
+            {
+                Periodo = new RangoDeFechasDto
+                {
+                    Desde = desdePlanificacion.ToString("yyyy-MM-dd"),
+                    Hasta = hastaPlanificacion.ToString("yyyy-MM-dd"),
+                },
+                Resumen = AResumenDeHoras(planificacion),
+                PorMes = planificacion.GroupBy(fila => fila.Periodo).OrderBy(grupo => grupo.Key)
+                    .Select(grupo => new PlanificacionPorMesDto
+                    {
+                        Periodo = grupo.Key.ToString("yyyy-MM-dd"),
+                        Resumen = AResumenDeHoras(grupo),
+                    }).ToList(),
+                PorTipo = planificacion.GroupBy(fila => new { fila.TipoMaquinaId, fila.TipoMaquina })
+                    .OrderBy(grupo => grupo.Key.TipoMaquinaId)
+                    .Select(grupo => new PlanificacionPorTipoDto
+                    {
+                        Id = grupo.Key.TipoMaquinaId,
+                        Nombre = grupo.Key.TipoMaquina,
+                        Resumen = AResumenDeHoras(grupo),
+                    }).ToList(),
+            },
+        };
+    }
+
+    private static HorasMantenimientoDto AResumenDeHoras(IEnumerable<PlanificacionFila> filas)
+    {
+        var lista = filas.ToList();
+        var preventivas = lista.Sum(fila => fila.HorasPreventivas);
+        var correctivas = lista.Sum(fila => fila.HorasCorrectivas);
+        var total = preventivas + correctivas;
+        return new HorasMantenimientoDto
+        {
+            OrdenesCerradas = lista.Sum(fila => fila.OrdenesCerradas),
+            HorasPreventivas = Redondear(preventivas)!.Value,
+            HorasCorrectivas = Redondear(correctivas)!.Value,
+            HorasTotales = Redondear(total)!.Value,
+            PorcentajePlanificado = total == 0 ? null : Redondear(preventivas * 100.0 / total),
         };
     }
 

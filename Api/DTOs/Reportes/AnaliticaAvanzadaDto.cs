@@ -62,7 +62,7 @@ public class PuntoDeSerieDto
 /// <summary>Un indicador del período, con el período anterior, el mismo período del año pasado y la serie mensual.</summary>
 public class MetricaComparadaDto
 {
-    /// <summary>Código estable: `ordenes_creadas`, `preventivas_porcentaje`, `cumplimiento_preventivo`, `tiempo_reparacion_horas` u `horas_parada`.</summary>
+    /// <summary>Código estable: `ordenes_creadas`, `preventivas_porcentaje`, `planificado_horas_porcentaje`, `cumplimiento_preventivo`, `tiempo_reparacion_horas` u `horas_parada`.</summary>
     public required string Codigo { get; init; }
     /// <summary>Nombre para mostrar.</summary>
     public required string Nombre { get; init; }

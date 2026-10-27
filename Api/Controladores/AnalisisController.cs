@@ -73,6 +73,7 @@ public class AnalisisController(AnaliticaAvanzadaDAO dao, ServicioDeAvisos aviso
                     PreventivasEnPlazo = fila.PreventivasEnPlazo,
                     CorrectivasCerradas = fila.CorrectivasCerradas,
                     HorasParada = fila.HorasParada,
+                    HorasPreventivas = fila.HorasPreventivas,
                 }),
             };
         }).ToList();
@@ -106,6 +107,10 @@ public class AnalisisController(AnaliticaAvanzadaDAO dao, ServicioDeAvisos aviso
             [
                 Metrica("preventivas_porcentaje", "Preventivas sobre el total", "porcentaje", true,
                     fila => fila.Creadas == 0 ? null : fila.Preventivas * 100.0 / fila.Creadas, fila => fila.Creadas),
+                Metrica("planificado_horas_porcentaje", "Mantenimiento planificado en horas", "porcentaje", true,
+                    fila => fila.HorasPreventivas + fila.HorasParada == 0 ? null
+                        : fila.HorasPreventivas * 100.0 / (fila.HorasPreventivas + fila.HorasParada),
+                    fila => fila.PreventivasCerradas + fila.CorrectivasCerradas),
                 Metrica("cumplimiento_preventivo", "Preventivos cerrados en fecha", "porcentaje", true,
                     fila => fila.PreventivasCerradas == 0 ? null : fila.PreventivasEnPlazo * 100.0 / fila.PreventivasCerradas, fila => fila.PreventivasCerradas),
                 Metrica("tiempo_reparacion_horas", "Tiempo medio de reparación", "horas", false,

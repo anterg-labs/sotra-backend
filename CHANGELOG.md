@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.95 (2026-10-27)
+
+- Reportes A17: porcentaje de mantenimiento planificado en horas en la comparativa de períodos y bloque `planificacion` en desempeño, con totales, meses y tipos de máquina. Solo órdenes con cierre; duración completa desde creación, incluidas pausas, sin datos de personas. No requiere cambios de base de datos.
+
 ## Version 1.0.94 (2026-10-27)
 
 - Reportes: nuevos análisis de maquinaria y proceso: comparación del período con el anterior y con el año pasado, órdenes abiertas por antigüedad con el backlog en semanas, cumplimiento preventivo por tipo de orden y de máquina, horas en pausa por motivo, detalle por modelo, tiempo medio de reparación, Pareto de la parada, costo de la parada y estimado frente a real, órdenes atípicas y patrones de desgaste. Las tendencias suman las órdenes cerradas. No analizan personas.

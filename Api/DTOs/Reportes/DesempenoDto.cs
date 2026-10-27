@@ -16,6 +16,39 @@ public class DesempenoDto
     public required MaquinariaDto Maquinaria { get; init; }
     /// <summary>Tiempo estimado frente al real de las órdenes que tienen estimado.</summary>
     public required EstimacionDto Estimacion { get; init; }
+    /// <summary>Tiempo transcurrido de creación a cierre, incluidas pausas, por tipo de mantenimiento.</summary>
+    public required PlanificacionDto Planificacion { get; init; }
+}
+
+public class HorasMantenimientoDto
+{
+    public int OrdenesCerradas { get; init; }
+    public double HorasPreventivas { get; init; }
+    public double HorasCorrectivas { get; init; }
+    public double HorasTotales { get; init; }
+    /// <summary>Horas preventivas / horas totales × 100; null cuando el total es cero.</summary>
+    public double? PorcentajePlanificado { get; init; }
+}
+
+public class PlanificacionPorMesDto
+{
+    public required string Periodo { get; init; }
+    public required HorasMantenimientoDto Resumen { get; init; }
+}
+
+public class PlanificacionPorTipoDto
+{
+    public long Id { get; init; }
+    public required string Nombre { get; init; }
+    public required HorasMantenimientoDto Resumen { get; init; }
+}
+
+public class PlanificacionDto
+{
+    public required RangoDeFechasDto Periodo { get; init; }
+    public required HorasMantenimientoDto Resumen { get; init; }
+    public required List<PlanificacionPorMesDto> PorMes { get; init; }
+    public required List<PlanificacionPorTipoDto> PorTipo { get; init; }
 }
 
 public class ResumenDeOrdenesDto
