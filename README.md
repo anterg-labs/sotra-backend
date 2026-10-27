@@ -50,7 +50,8 @@ Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattribute
 | `POSTGRES_INITDB_ARGS` | `compose.yml` fija ICU `es-UY` para ordenar en español al crear un volumen nuevo. No cambia una base existente. |
 | `DB_HOST`, `DB_PORT` | Conexión desde la máquina (pgAdmin, `dotnet run`). `DB_PORT` es también el puerto que publica `sotra-db`. Dentro de Docker, el backend y Keycloak usan `db:5432`. |
 | `API_PORT` | Puerto donde se publica la API (`8081`). |
-| `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi`. |
+| `ASPNETCORE_ENVIRONMENT` | `Production` en producción; `Development` habilita `/openapi/v1.json` y `/swagger`. |
+| `OPENAPI_PUBLICAR` | Opcional. Con `true` publica el documento OpenAPI y Swagger también fuera de desarrollo (por ejemplo en staging). **No usar en producción.** |
 | `FRONTEND_ORIGIN` | Origen permitido por CORS. |
 | `RERANKER_*_RUTA`, `EMBEDDINGS_*_RUTA` | Solo para `dotnet run` fuera de Docker: rutas a una copia local de los modelos. En Docker no se configuran (ver "Modelos de IA y base de datos local"). |
 | `IA_API_URL`, `IA_API_MODELO` | Proveedor que redacta los resúmenes, con API compatible con OpenAI. Vacíos: Groq (`https://api.groq.com/openai/v1/`) con `openai/gpt-oss-20b`. |
@@ -363,6 +364,22 @@ El `PUT` recibe los seis campos editables. Enviar `null` en uno de los cuatro ca
 Los controladores responden los errores esperados (`400`, `409`, `422`) con un objeto que incluye `mensaje`, un texto en español pensado para el usuario. El frontend muestra ese `mensaje` tal como llega, así que no debe contener datos técnicos. Por eso las `ArgumentException` se crean solo con el texto, sin el nombre del parámetro: si se agrega, .NET suma al mensaje un texto como `(Parameter 'idCliente')`. Los errores automáticos de validación ahora traen `codigo` (`VALIDACION_FALLIDA`) y un `mensaje` con el texto del primer campo inválido.
 
 Un manejador global (`Api/Infraestructura/ManejadorGlobalDeErrores.cs`) cubre lo que no captura un controlador: `ArgumentException` a `400`, `ConflictoDeDatosException` a `409`, violación de unicidad a `409` y cualquier otra excepción a `500` con un mensaje genérico, sin trazas ni SQL. Para un conflicto con código propio, el DAO lanza `ConflictoDeDatosException(codigo, mensaje)`.
+
+## Documentación de la API (Swagger / OpenAPI)
+
+La API publica su contrato como OpenAPI 3 con el generador de .NET (`Microsoft.AspNetCore.OpenApi`) y una interfaz de Swagger (`Swashbuckle.AspNetCore.SwaggerUI` 10.3.1, licencia MIT, solo la interfaz). Se mantiene en `Api/Infraestructura/DocumentacionOpenApi.cs`.
+
+- **Dónde:** `GET /openapi/v1.json` (el documento) y `/swagger` (la interfaz). Solo en desarrollo o con `OPENAPI_PUBLICAR=true`; en producción no se mapean.
+- **Cómo usarla:** abrir `http://localhost:8081/swagger`, pulsar «Authorize» y pegar un token Bearer de Keycloak (sin la palabra `Bearer`); la autorización se conserva mientras la pestaña siga abierta.
+- **Qué contiene:** título y versión (leída de `version.json`), esquema de seguridad Bearer, una etiqueta por módulo, un `summary` por operación (comentarios `<summary>` en los controladores y en los filtros), las respuestas comunes `400`, `401`, `403`, `404`, `429` (con `Retry-After`) y `500` con el esquema `ErrorApi` (`ProblemDetails` + `codigo`), y los parámetros de consulta en camelCase como se usan en la URL.
+- **Cómo mantenerla:** al agregar un endpoint, escribir su `<summary>` sobre el atributo `[Http...]`. `OpenApiPruebas` falla si una operación no tiene resumen, etiqueta o las respuestas de error comunes, si hay endpoints que no están en el documento (o al revés), si alguna referencia a un esquema no existe, o si cambia qué operaciones exigen token (solo `GET /api/v1/version` es anónima).
+- **Seguridad:** la política de contenido más permisiva (`'unsafe-inline'`) se aplica únicamente a `/swagger`; el resto de la API conserva `default-src 'none'`.
+- **Descripciones:** las 410 propiedades de los DTO tienen su `<summary>` (y los `record` posicionales, sus `<param>`), de modo que cada esquema del documento explica sus campos.
+- **Concurrencia:** `GET` y `PUT /api/v1/ordenes-trabajo/{id}` documentan el encabezado `ETag`; el `PUT` documenta `If-Match` y la respuesta `412 ORDEN_MODIFICADA`.
+- **Ejemplos:** hay ejemplos de solicitud o respuesta de `GET /sesion`, `GET`/`PUT /perfil`, crear orden, cambiar su estado y registrar un ingreso de stock (diccionario `Ejemplos` de `DocumentacionOpenApi.cs`; agregar uno nuevo es una línea).
+- **Identificadores:** cada operación tiene un `operationId` único (`clientes_obtenerPorId`), útil para generar clientes.
+- **Integración continua:** el flujo «Validar backend» exporta el documento (`OPENAPI_SALIDA=<ruta> dotnet test --filter ElDocumentoSeExportaSiSeIndicaUnaSalida`), lo revisa con Spectral (`.spectral.yaml`: reglas estándar de OpenAPI; solo los errores detienen el flujo) y lo guarda como artefacto `openapi`. Localmente: `npx @stoplight/spectral-cli lint openapi.json --ruleset .spectral.yaml`.
+- **Tipos del frontend:** `npm run api:tipos` (en `sotra-frontend/`, con la API en `localhost:8081`) regenera `src/tipos/generados/api.d.ts` con `openapi-typescript`.
 
 ## Seguridad de la API sin sesión
 

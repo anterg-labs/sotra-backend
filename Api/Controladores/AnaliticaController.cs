@@ -29,6 +29,7 @@ public class AnaliticaController : ControllerBase
         _opciones = opciones.Value;
     }
 
+    /// <summary>Tendencia de órdenes por período.</summary>
     [HttpGet("tendencias")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<TendenciasDto>(StatusCodes.Status200OK)]
@@ -79,6 +80,7 @@ public class AnaliticaController : ControllerBase
         };
     }
 
+    /// <summary>Desempeño operativo: órdenes, tiempos, pausas, devoluciones y maquinaria (sin evaluar personas).</summary>
     [HttpGet("desempeno")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<DesempenoDto>(StatusCodes.Status200OK)]
@@ -171,6 +173,7 @@ public class AnaliticaController : ControllerBase
 
     private static double? Porcentaje(int parte, int total) => total == 0 ? null : Redondear(parte * 100.0 / total);
 
+    /// <summary>Tiempos de respuesta, ejecución y cierre de las órdenes.</summary>
     [HttpGet("tiempos")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<TiemposDto>(StatusCodes.Status200OK)]
@@ -219,6 +222,7 @@ public class AnaliticaController : ControllerBase
         };
     }
 
+    /// <summary>Repuestos más utilizados en las órdenes.</summary>
     [HttpGet("repuestos-usados")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<RepuestosUsadosDto>(StatusCodes.Status200OK)]
@@ -249,6 +253,7 @@ public class AnaliticaController : ControllerBase
         };
     }
 
+    /// <summary>Activos con fallas repetidas en un período.</summary>
     [HttpGet("reincidencias")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<ReincidenciasDto>(StatusCodes.Status200OK)]
@@ -292,6 +297,7 @@ public class AnaliticaController : ControllerBase
         };
     }
 
+    /// <summary>Órdenes abiertas que superan los umbrales de alerta.</summary>
     [HttpGet("alertas-maquinaria")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<AlertasMaquinariaDto>(StatusCodes.Status200OK)]

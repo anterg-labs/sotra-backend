@@ -30,6 +30,7 @@ public class PerfilController : ControllerBase
         _registro = registro;
     }
 
+    /// <summary>Devuelve los datos de la persona con sesión (Mi perfil).</summary>
     [HttpGet]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -41,6 +42,7 @@ public class PerfilController : ControllerBase
         return Ok(await CrearRespuestaAsync(usuario, cancelacion));
     }
 
+    /// <summary>Modifica nombre, apellido y teléfono de la persona con sesión.</summary>
     [HttpPut]
     [ProducesResponseType<UsuarioListadoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

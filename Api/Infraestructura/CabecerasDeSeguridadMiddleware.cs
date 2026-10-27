@@ -14,7 +14,9 @@ public sealed class CabecerasDeSeguridadMiddleware(RequestDelegate siguiente)
             cabeceras["X-Content-Type-Options"] = "nosniff";
             cabeceras["X-Frame-Options"] = "DENY";
             cabeceras["Referrer-Policy"] = "no-referrer";
-            cabeceras["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+            cabeceras["Content-Security-Policy"] = DocumentacionOpenApi.EsRutaDeLaInterfaz(contexto.Request.Path)
+                ? DocumentacionOpenApi.PoliticaDeContenidoDeLaInterfaz
+                : "default-src 'none'; frame-ancestors 'none'";
             cabeceras["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
             cabeceras["Cross-Origin-Resource-Policy"] = "same-site";
 

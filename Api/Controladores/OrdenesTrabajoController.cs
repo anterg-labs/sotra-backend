@@ -33,6 +33,7 @@ public class OrdenesTrabajoController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>Lista las órdenes de trabajo con filtros por texto, cliente, activo, técnico, estado, fase, prioridad, tipo y fechas.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<PaginaDto<OrdenTrabajoDto>>> ObtenerTodos([FromQuery] FiltrosOrdenesTrabajoDto filtros, CancellationToken cancelacion)
@@ -85,6 +86,7 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(PaginaDto<OrdenTrabajoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Catálogo de estados de las órdenes con su fase y reglas.</summary>
     [HttpGet("estados")]
     [Authorize(Policy = Politicas.OtConsultar)]
     [ProducesResponseType<List<EstadoOrdenTrabajoDto>>(StatusCodes.Status200OK)]
@@ -96,6 +98,7 @@ public class OrdenesTrabajoController : ControllerBase
             .ToList());
     }
 
+    /// <summary>Devuelve el detalle de una orden de trabajo, con su historial.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.OtConsultar)]
     public async Task<ActionResult<OrdenTrabajoDto>> ObtenerPorId(long id, CancellationToken cancelacion)
@@ -114,6 +117,7 @@ public class OrdenesTrabajoController : ControllerBase
         return OkConVersion(OrdenTrabajoMapeador.ADto(orden, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 
+    /// <summary>Crea una orden de trabajo.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.OtCrear)]
     public async Task<ActionResult<OrdenTrabajoDto>> Crear(OrdenTrabajoCrearDto solicitud, CancellationToken cancelacion)
@@ -137,6 +141,7 @@ public class OrdenesTrabajoController : ControllerBase
         return CreatedAtAction(nameof(ObtenerPorId), new { id = ordenCreada.IdOrden }, respuesta);
     }
 
+    /// <summary>Modifica una orden de trabajo (con control de versión).</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.OtEditar)]
     public async Task<ActionResult<OrdenTrabajoDto>> Actualizar(long id, OrdenTrabajoActualizarDto solicitud, CancellationToken cancelacion)
@@ -167,6 +172,7 @@ public class OrdenesTrabajoController : ControllerBase
         return OkConVersion(OrdenTrabajoMapeador.ADto(ordenActualizada, reglas));
     }
 
+    /// <summary>Reemplaza los repuestos y cantidades de una orden.</summary>
     [HttpPut("{id:long}/repuestos")]
     [Authorize(Policy = Politicas.OtGestionarRepuestos)]
     [ProducesResponseType<OrdenTrabajoDto>(StatusCodes.Status200OK)]
@@ -185,6 +191,7 @@ public class OrdenesTrabajoController : ControllerBase
     private static List<RepuestoPedido> APedidos(IEnumerable<RepuestoPedidoDto> repuestos) =>
         repuestos.Select(repuesto => new RepuestoPedido(repuesto.RepuestoId, repuesto.Cantidad)).ToList();
 
+    /// <summary>Cambia el estado de una orden y registra quién, cuándo y el motivo.</summary>
     [HttpPatch("{id:long}/estado")]
     [Authorize(Policy = Politicas.OtRegistrarAvance)]
     public async Task<ActionResult<OrdenTrabajoDto>> CambiarEstado(long id, CambioEstadoOrdenTrabajoDto solicitud, CancellationToken cancelacion)
@@ -211,6 +218,7 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 
+    /// <summary>Asigna o reasigna el técnico de una orden.</summary>
     [HttpPatch("{id:long}/tecnico")]
     [Authorize(Policy = Politicas.OtAsignarTecnico)]
     public async Task<ActionResult<OrdenTrabajoDto>> AsignarTecnico(long id, AsignacionTecnicoDto solicitud, CancellationToken cancelacion)
@@ -238,6 +246,7 @@ public class OrdenesTrabajoController : ControllerBase
         var encabezado = Request.Headers.IfMatch.ToString().Trim();
         return encabezado.Length == 0 ? null : encabezado.Trim('"');
     }
+    /// <summary>Pide a la IA sugerencias para una orden a partir de la documentación técnica.</summary>
     [HttpPost("sugerencia")]
     [Authorize(Policy = Politicas.OtCrear)]
     [EnableRateLimiting(PoliticasDeLimite.Sugerencias)]

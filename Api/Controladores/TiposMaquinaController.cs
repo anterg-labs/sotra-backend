@@ -20,6 +20,7 @@ public class TiposMaquinaController : ControllerBase
         _tipoMaquinaDao = tipoMaquinaDao;
     }
 
+    /// <summary>Lista los tipos de máquina con filtros por texto y estado.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [ProducesResponseType<PaginaDto<TipoMaquinaDto>>(StatusCodes.Status200OK)]
@@ -46,6 +47,7 @@ public class TiposMaquinaController : ControllerBase
         return Ok(PaginaDto<TipoMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve un tipo de máquina por su id.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.TipoMaquinaConsultar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
@@ -56,6 +58,7 @@ public class TiposMaquinaController : ControllerBase
         return tipo is null ? NotFound() : Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 
+    /// <summary>Registra un tipo de máquina.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status201Created)]
@@ -68,6 +71,7 @@ public class TiposMaquinaController : ControllerBase
         return CreatedAtAction(nameof(ObtenerPorId), new { id = tipoCreado.IdTipoMaquina }, respuesta);
     }
 
+    /// <summary>Modifica un tipo de máquina.</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]
@@ -84,6 +88,7 @@ public class TiposMaquinaController : ControllerBase
         return Ok(TipoMaquinaMapeador.ADto(tipo));
     }
 
+    /// <summary>Cambia el estado de un tipo (baja o reactivación lógica).</summary>
     [HttpPatch("{id:long}")]
     [Authorize(Policy = Politicas.TipoMaquinaGestionar)]
     [ProducesResponseType<TipoMaquinaDto>(StatusCodes.Status200OK)]

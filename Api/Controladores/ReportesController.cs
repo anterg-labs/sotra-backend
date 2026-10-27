@@ -30,6 +30,7 @@ public class ReportesController : ControllerBase
         _repuestoDao = repuestoDao;
     }
 
+    /// <summary>Indicadores del tablero de reportes según los filtros.</summary>
     [HttpGet("indicadores")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     public async Task<ActionResult<IndicadoresDto>> ObtenerIndicadores([FromQuery] FiltrosIndicadoresDto filtros, CancellationToken cancelacion)
@@ -70,6 +71,7 @@ public class ReportesController : ControllerBase
         });
     }
 
+    /// <summary>Descarga un reporte en PDF.</summary>
     [HttpGet("{tipoReporte}/pdf")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     public async Task<IActionResult> DescargarReportePdf(
@@ -88,6 +90,7 @@ public class ReportesController : ControllerBase
         return File(archivo, "application/pdf", "reporte-" + tipoReporte + ".pdf");
     }
 
+    /// <summary>Descarga un reporte en CSV.</summary>
     [HttpGet("{tipoReporte}/csv")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     public async Task<IActionResult> DescargarReporteCsv(
