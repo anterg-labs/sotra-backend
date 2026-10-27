@@ -502,6 +502,7 @@ public class OrdenTrabajoDAO
             .Include(orden => orden.IdClienteNavigation)
             .Include(orden => orden.IdActivoNavigation)
             .Include(orden => orden.IdUsuarioTecnicoNavigation)
+            .Include(orden => orden.IdUsuarioResponsableNavigation)
             .Include(orden => orden.HistorialEstadoOts)
                 .ThenInclude(historial => historial.IdEstadoOtNavigation)
             .Include(orden => orden.HistorialEstadoOts)

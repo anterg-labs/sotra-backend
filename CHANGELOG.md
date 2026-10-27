@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.86 (2026-10-26)
+
+- Órdenes de trabajo: la orden informa quién la creó (`responsableId` y `nombreResponsable`).
+
 ## Version 1.0.85 (2026-10-26)
 
 - Repuestos en órdenes: cada repuesto de una orden tiene cantidad. Al asignarlo queda reservado (ninguna otra orden puede usar esas unidades, pero siguen en la empresa), pasa a entregado cuando la orden entra en progreso y el stock baja recién al cerrar la orden, con un egreso a nombre de quien la cerró. Si la orden se elimina o se quita el repuesto, vuelve a estar libre.

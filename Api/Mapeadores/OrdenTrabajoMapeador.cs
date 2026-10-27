@@ -151,6 +151,8 @@ public static class OrdenTrabajoMapeador
             NombreCliente = orden.IdClienteNavigation.RazonSocial,
             ActivoId = orden.IdActivo,
             NombreActivo = nombreActivo,
+            ResponsableId = orden.IdUsuarioResponsable,
+            NombreResponsable = NombreCompleto(orden.IdUsuarioResponsableNavigation),
             TecnicoId = orden.IdUsuarioTecnico,
             NombreTecnico = nombreTecnico,
             Tipo = tipo,

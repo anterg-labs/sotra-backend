@@ -66,6 +66,17 @@ public class OrdenesTrabajoPruebas : PruebaBase
     }
 
     [Test]
+    public async Task LaOrdenGuardaYMuestraQuienLaCreo()
+    {
+        var orden = await CrearOrdenAsync();
+
+        var detalle = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{orden.GetProperty("id").GetInt64()}")).LeerJsonAsync();
+
+        Assert.That(detalle.GetProperty("responsableId").GetInt64(), Is.GreaterThan(0));
+        Assert.That(detalle.GetProperty("nombreResponsable").GetString(), Is.Not.Empty);
+    }
+
+    [Test]
     public async Task UnaOrdenSinDescripcionOConUnTipoDesconocidoResponde400()
     {
         var activo = await DatosDePrueba.CrearActivoAsync(Cliente);

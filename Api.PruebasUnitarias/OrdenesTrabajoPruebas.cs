@@ -326,6 +326,18 @@ public class OrdenesTrabajoPruebas
     }
 
     [Test]
+    public void ADto_MuestraQuienCreoLaOrden()
+    {
+        var orden = CrearOrden(("pendiente", 0, null));
+        orden.IdUsuarioResponsable = 4;
+        orden.IdUsuarioResponsableNavigation = new Usuario { IdUsuario = 4, Nombre = "Ana", Apellido = "Pérez", Mail = "", Telefono = "" };
+
+        var dto = OrdenTrabajoMapeador.ADto(orden, Reglas);
+
+        Assert.That((dto.ResponsableId, dto.NombreResponsable), Is.EqualTo((4L, "Ana Pérez")));
+    }
+
+    [Test]
     public void ADto_UsaNumeroDeSerieSiElActivoNoTieneNombre()
     {
         var orden = CrearOrden(("pendiente", 0, null));

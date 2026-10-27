@@ -7,6 +7,10 @@ public class OrdenTrabajoDto
     public required string NombreCliente { get; init; }
     public long ActivoId { get; init; }
     public required string NombreActivo { get; init; }
+
+    /// <summary>Quién creó la orden (el responsable); sin sesión es el primer jefe de mantenimiento activo.</summary>
+    public long ResponsableId { get; init; }
+    public string? NombreResponsable { get; init; }
     public long? TecnicoId { get; init; }
     public string? NombreTecnico { get; init; }
     public required string Tipo { get; init; }
