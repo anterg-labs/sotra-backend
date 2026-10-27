@@ -6,7 +6,6 @@ public class FiltrosAnaliticaDto
     public DateOnly? FechaHasta { get; init; }
     public long? ClienteId { get; init; }
     public long? ActivoId { get; init; }
-    public long? TecnicoId { get; init; }
     public string? Agrupacion { get; init; }
     public int? Dias { get; init; }
     public int? Minimo { get; init; }

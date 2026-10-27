@@ -59,7 +59,6 @@ public class ReportesController : ControllerBase
             OrdenesPorEstado = Agrupar(ordenes, o => o.Estado),
             OrdenesPorPrioridad = Agrupar(ordenes, o => OrdenTrabajoMapeador.APrioridadTexto(o.Prioridad)),
             OrdenesPorTipo = Agrupar(ordenes, TextoDelTipo),
-            OrdenesPorTecnico = Agrupar(ordenes.Where(o => o.Tecnico is not null), o => o.Tecnico!),
             ActivosConMasIntervenciones = Agrupar(ordenes, o => o.Activo)
                 .OrderByDescending(grupo => grupo.Cantidad).Take(CantidadDeActivosEnRanking).ToList(),
             RepuestosBajoStock = await ListarRepuestosBajoStockAsync(cancelacion),
@@ -120,8 +119,7 @@ public class ReportesController : ControllerBase
             return (null, RangoDeFechasInvalido());
         }
 
-        if (tipoReporte is not ("ordenes-trabajo" or "activos-intervenidos" or "repuestos-utilizados"
-            or "actividad-tecnicos" or "indicadores"))
+        if (tipoReporte is not ("ordenes-trabajo" or "activos-intervenidos" or "repuestos-utilizados" or "indicadores"))
         {
             return (null, this.RespuestaDeError(400, "TIPO_REPORTE_INVALIDO", "El tipo de reporte no es válido."));
         }
@@ -140,8 +138,6 @@ public class ReportesController : ControllerBase
                 [ArmarTablaActivos(ordenes)]), null),
             "repuestos-utilizados" => (new ReporteArmado("Reporte de repuestos utilizados", criterios,
                 [ArmarTablaRepuestos(tipoValido ? await _ordenTrabajoDao.ListarRepuestosUsadosAsync(filtro, cancelacion) : [])]), null),
-            "actividad-tecnicos" => (new ReporteArmado("Reporte de actividad por técnico", criterios,
-                [ArmarTablaTecnicos(ordenes, reglas)]), null),
             _ => (new ReporteArmado("Reporte de indicadores operativos", criterios,
             [
                 ArmarTablaResumen(ordenes),
@@ -149,7 +145,6 @@ public class ReportesController : ControllerBase
                 ArmarTablaGrupos("Órdenes por prioridad", "Prioridad",
                     Agrupar(ordenes, o => OrdenTrabajoMapeador.APrioridadTexto(o.Prioridad))),
                 ArmarTablaGrupos("Órdenes por tipo de mantenimiento", "Tipo", Agrupar(ordenes, TextoDelTipo)),
-                ArmarTablaTecnicos(ordenes, reglas),
                 ArmarTablaActivos(ordenes)
             ]), null),
         };
@@ -166,7 +161,7 @@ public class ReportesController : ControllerBase
         filtros.Tipo is null or "" or "preventivo" or "correctivo";
 
     private static FiltroOrdenesTrabajo AFiltroDeOrdenes(FiltrosIndicadoresDto filtros) => new(
-        Buscar: null, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId, filtros.Estado, filtros.Prioridad,
+        Buscar: null, filtros.ClienteId, filtros.ActivoId, TecnicoId: null, filtros.Estado, filtros.Prioridad,
         EsPreventivo: filtros.Tipo switch { "preventivo" => true, "correctivo" => false, _ => null },
         filtros.FechaDesde, filtros.FechaHasta, ConSugerencias: null, OrdenarPorCreacion: false, Descendente: false);
 
@@ -174,10 +169,6 @@ public class ReportesController : ControllerBase
 
     private static bool EstaTerminada(ReglasDeEstadoOrden reglas, string estado) =>
         reglas.FaseDe(estado) is { } fase && FasesDeEstado.Terminadas.Contains(fase);
-
-    /// <summary>El trabajo ya se hizo: está por validar o cerrada.</summary>
-    private static bool TieneElTrabajoHecho(ReglasDeEstadoOrden reglas, string estado) =>
-        reglas.FaseDe(estado) is FasesDeEstado.PorValidar or FasesDeEstado.Cerrada;
 
     private static List<CantidadPorGrupoDto> Agrupar(IEnumerable<OrdenResumen> ordenes, Func<OrdenResumen, string> clave) =>
         ordenes.GroupBy(clave)
@@ -206,11 +197,6 @@ public class ReportesController : ControllerBase
         if (filtros.ActivoId is { } activoId)
         {
             criterios.Add("Activo: " + (await _ordenTrabajoDao.ObtenerNombreDeActivoAsync(activoId, cancelacion) ?? "N° " + activoId));
-        }
-
-        if (filtros.TecnicoId is { } tecnicoId)
-        {
-            criterios.Add("Técnico: " + (await _ordenTrabajoDao.ObtenerNombreDeTecnicoAsync(tecnicoId, cancelacion) ?? "N° " + tecnicoId));
         }
 
         if (!string.IsNullOrEmpty(filtros.Estado))
@@ -292,27 +278,6 @@ public class ReportesController : ControllerBase
         foreach (var repuesto in repuestos)
         {
             tabla.Filas.Add(new List<string> { repuesto.Codigo + " - " + repuesto.Nombre, repuesto.Cantidad.ToString() });
-        }
-
-        return tabla;
-    }
-
-    private static TablaReporte ArmarTablaTecnicos(List<OrdenResumen> ordenes, ReglasDeEstadoOrden reglas)
-    {
-        var tabla = new TablaReporte
-        {
-            Titulo = "Actividad por técnico",
-            Columnas = new List<string> { "Técnico", "Órdenes asignadas", "Finalizadas o cerradas", "Pendientes" }
-        };
-
-        foreach (var tecnico in ordenes.Where(o => o.Tecnico is not null).GroupBy(o => o.Tecnico!))
-        {
-            var asignadas = tecnico.Count();
-            var terminadas = tecnico.Count(o => TieneElTrabajoHecho(reglas, o.Estado));
-            tabla.Filas.Add(new List<string>
-            {
-                tecnico.Key, asignadas.ToString(), terminadas.ToString(), (asignadas - terminadas).ToString()
-            });
         }
 
         return tabla;

@@ -297,7 +297,7 @@ public class AnaliticaController : ControllerBase
     [ProducesResponseType<AlertasMaquinariaDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<AlertasMaquinariaDto>> ObtenerAlertasMaquinaria([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
     {
-        var filtro = new FiltroAnalitica(null, null, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId);
+        var filtro = new FiltroAnalitica(null, null, filtros.ClienteId, filtros.ActivoId);
         return Ok(await _cache.ObtenerAsync($"alertas|{filtro}", token => CalcularAlertasAsync(filtro, token), cancelacion));
     }
 
@@ -378,7 +378,7 @@ public class AnaliticaController : ControllerBase
 
     private static FiltroAnalitica ADominio(FiltrosAnaliticaDto filtros)
     {
-        return new FiltroAnalitica(filtros.FechaDesde, filtros.FechaHasta, filtros.ClienteId, filtros.ActivoId, filtros.TecnicoId);
+        return new FiltroAnalitica(filtros.FechaDesde, filtros.FechaHasta, filtros.ClienteId, filtros.ActivoId);
     }
 
     private static double? Redondear(double? valor)

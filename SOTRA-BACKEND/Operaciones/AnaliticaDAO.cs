@@ -5,7 +5,7 @@ using SOTRA_BACKEND.Contexto;
 
 namespace SOTRA_BACKEND.Operaciones;
 
-public sealed record FiltroAnalitica(DateOnly? Desde, DateOnly? Hasta, long? ClienteId, long? ActivoId, long? TecnicoId);
+public sealed record FiltroAnalitica(DateOnly? Desde, DateOnly? Hasta, long? ClienteId, long? ActivoId);
 
 public sealed class PuntoTendenciaFila
 {
@@ -118,7 +118,6 @@ public class AnaliticaDAO
         AND (@hasta IS NULL OR o.fecha_creada < @hasta)
         AND (@clienteId IS NULL OR o.id_cliente = @clienteId)
         AND (@activoId IS NULL OR o.id_activo = @activoId)
-        AND (@tecnicoId IS NULL OR o.id_usuario_tecnico = @tecnicoId)
         """;
 
     private const string SqlTendencias = $"""
@@ -512,7 +511,6 @@ public class AnaliticaDAO
                 filtro.Hasta?.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)),
             Parametro("clienteId", NpgsqlDbType.Bigint, filtro.ClienteId),
             Parametro("activoId", NpgsqlDbType.Bigint, filtro.ActivoId),
-            Parametro("tecnicoId", NpgsqlDbType.Bigint, filtro.TecnicoId),
         });
     }
 

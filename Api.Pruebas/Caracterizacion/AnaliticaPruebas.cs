@@ -330,6 +330,17 @@ public class AnaliticaPruebas : PruebaBase
     }
 
     [Test]
+    public async Task LosReportesNoAnalizanPersonas()
+    {
+        var porTecnico = await Cliente.GetAsync("/api/v1/reportes/actividad-tecnicos/csv");
+        var indicadores = await LeerAsync("/api/v1/reportes/indicadores");
+
+        Assert.That(porTecnico.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That((await porTecnico.LeerJsonAsync()).GetProperty("codigo").GetString(), Is.EqualTo("TIPO_REPORTE_INVALIDO"));
+        Assert.That(indicadores.TryGetProperty("ordenesPorTecnico", out _), Is.False);
+    }
+
+    [Test]
     public async Task ElDesempenoRechazaUnRangoDeFechasInvalido()
     {
         var respuesta = await Cliente.GetAsync("/api/v1/reportes/desempeno?fechaDesde=2026-10-10&fechaHasta=2026-10-01");
