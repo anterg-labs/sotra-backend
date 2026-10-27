@@ -30,6 +30,35 @@ public class UsuariosPruebas : PruebaBase
     }
 
     [Test]
+    public async Task ElPerfilExigeSesion()
+    {
+        Assert.That((await Cliente.GetAsync("/api/v1/perfil")).StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+        var respuesta = await Cliente.PutAsJsonAsync("/api/v1/perfil", new { nombre = "Ana", apellido = "Pérez", telefono = "099123456" });
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
+    public async Task ActualizarDatosPersonalesCambiaSoloNombreApellidoYTelefono()
+    {
+        var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);
+        var id = usuario.GetProperty("id").GetInt64();
+        var telefonoNuevo = "09" + Random.Shared.Next(1000000, 9999999);
+
+        using var alcance = EntornoDePruebas.Fabrica.Services.CreateScope();
+        var dao = alcance.ServiceProvider.GetRequiredService<SOTRA_BACKEND.Operaciones.UsuarioDAO>();
+        var actualizado = await dao.ActualizarDatosPersonalesAsync(id, "Nombre nuevo", "Apellido nuevo", telefonoNuevo, CancellationToken.None);
+
+        Assert.That(actualizado, Is.Not.Null);
+        var leido = await (await Cliente.GetAsync($"/api/v1/usuarios/{id}")).LeerJsonAsync();
+        Assert.That(leido.GetProperty("nombre").GetString(), Is.EqualTo("Nombre nuevo"));
+        Assert.That(leido.GetProperty("apellido").GetString(), Is.EqualTo("Apellido nuevo"));
+        Assert.That(leido.GetProperty("telefono").GetString(), Is.EqualTo(telefonoNuevo));
+        Assert.That(leido.GetProperty("correo").GetString(), Is.EqualTo(usuario.GetProperty("correo").GetString()));
+        Assert.That(leido.GetProperty("estado").GetString(), Is.EqualTo(usuario.GetProperty("estado").GetString()));
+        Assert.That(await dao.ActualizarDatosPersonalesAsync(long.MaxValue, "A", "B", "099000000", CancellationToken.None), Is.Null);
+    }
+
+    [Test]
     public async Task ElAltaInformaQueElCorreoParaElegirLaContrasenaSalio()
     {
         var usuario = await DatosDePrueba.CrearUsuarioAsync(Cliente);

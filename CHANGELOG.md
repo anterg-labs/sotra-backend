@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.90 (2026-10-27)
+
+- Usuarios: «Mi perfil»: `GET /api/v1/perfil` y `PUT /api/v1/perfil` permiten a cualquier persona con sesión ver y cambiar su nombre, apellido y teléfono (el cambio se copia a Keycloak); el correo, los roles y el estado siguen gestionándose por administración.
+
 ## Version 1.0.89 (2026-10-27)
 
 - Órdenes de trabajo: el listado acepta `soloActivas=true` y devuelve solo las órdenes activas (pendientes, en curso o por validar), las mismas que cuentan los conteos de clientes y usuarios.
