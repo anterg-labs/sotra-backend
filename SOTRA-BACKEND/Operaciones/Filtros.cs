@@ -19,4 +19,5 @@ public sealed record FiltroMovimientosStock(
 public sealed record FiltroOrdenesTrabajo(
     string? Buscar, long? ClienteId, long? ActivoId, long? TecnicoId, string? Estado, string? Prioridad,
     bool? EsPreventivo, DateOnly? FechaDesde, DateOnly? FechaHasta, bool? ConSugerencias,
-    bool OrdenarPorCreacion, bool Descendente, string? OrdenarPor = null, string? Fase = null);
+    bool OrdenarPorCreacion, bool Descendente, string? OrdenarPor = null, string? Fase = null,
+    bool? SoloActivas = null);

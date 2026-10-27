@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.89 (2026-10-27)
+
+- Órdenes de trabajo: el listado acepta `soloActivas=true` y devuelve solo las órdenes activas (pendientes, en curso o por validar), las mismas que cuentan los conteos de clientes y usuarios.
+
 ## Version 1.0.88 (2026-10-27)
 
 - Reportes: se elimina todo análisis por persona. Ya no existe el reporte de actividad por técnico (`actividad-tecnicos` responde `400 TIPO_REPORTE_INVALIDO`), los indicadores no traen `ordenesPorTecnico` y los reportes y la analítica no filtran por técnico (un `tecnicoId` se ignora).

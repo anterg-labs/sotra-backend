@@ -378,6 +378,13 @@ public class OrdenesTrabajoPruebas : PruebaBase
         Assert.That(await Cantidad("usuarios", segundo, "cantidadOrdenesAsignadas"), Is.Zero);
         Assert.That(await Cantidad("clientes", clienteId, "cantidadOrdenesAsociadas"), Is.EqualTo(1));
         Assert.That(await Cantidad("clientes", sinOrdenes.GetProperty("id").GetInt64(), "cantidadOrdenesAsociadas"), Is.Zero);
+        async Task<int> TotalListado(string consulta)
+            => (await (await Cliente.GetAsync("/api/v1/ordenes-trabajo?" + consulta)).LeerJsonAsync()).GetProperty("totalElementos").GetInt32();
+
+        // El enlace del conteo abre el listado con el mismo filtro: las cifras deben coincidir y sin soloActivas aparece también la eliminada.
+        Assert.That(await TotalListado($"clienteId={clienteId}&soloActivas=true"), Is.EqualTo(1));
+        Assert.That(await TotalListado($"tecnicoId={primero}&soloActivas=true"), Is.EqualTo(1));
+        Assert.That(await TotalListado($"clienteId={clienteId}"), Is.EqualTo(2));
         (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{id}/tecnico", new { tecnicoId = segundo })).EnsureSuccessStatusCode();
         Assert.That(await Cantidad("usuarios", primero, "cantidadOrdenesAsignadas"), Is.Zero);
         Assert.That(await Cantidad("usuarios", segundo, "cantidadOrdenesAsignadas"), Is.EqualTo(1));

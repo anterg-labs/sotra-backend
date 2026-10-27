@@ -100,6 +100,8 @@ public class OrdenTrabajoDAO
                 .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() == fase);
         }
 
+        if (filtro.SoloActivas == true) consulta = consulta.Where(EsActiva);
+
         consulta = AplicarPrioridad(consulta, filtro.Prioridad);
 
         if (filtro.EsPreventivo is { } esPreventivo) consulta = consulta.Where(o => o.Tipo == esPreventivo);
