@@ -20,6 +20,7 @@ public class ModelosMaquinaController : ControllerBase
         _modeloMaquinaDao = modeloMaquinaDao;
     }
 
+    /// <summary>Lista los modelos de máquina con filtros por texto, tipo y estado.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.ModeloConsultar)]
     [ProducesResponseType<PaginaDto<ModeloMaquinaDto>>(StatusCodes.Status200OK)]
@@ -46,6 +47,7 @@ public class ModelosMaquinaController : ControllerBase
         return Ok(PaginaDto<ModeloMaquinaDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>Devuelve un modelo de máquina por su id.</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = Politicas.ModeloConsultar)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
@@ -56,6 +58,7 @@ public class ModelosMaquinaController : ControllerBase
         return modelo is null ? NotFound() : Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 
+    /// <summary>Registra un modelo de máquina.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.ModeloCrear)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status201Created)]
@@ -69,6 +72,7 @@ public class ModelosMaquinaController : ControllerBase
         return CreatedAtAction(nameof(ObtenerPorId), new { id = modeloCreado.IdModeloMaquina }, respuesta);
     }
 
+    /// <summary>Modifica un modelo de máquina.</summary>
     [HttpPut("{id:long}")]
     [Authorize(Policy = Politicas.ModeloEditar)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]
@@ -85,6 +89,7 @@ public class ModelosMaquinaController : ControllerBase
         return Ok(ModeloMaquinaMapeador.ADto(modelo));
     }
 
+    /// <summary>Cambia el estado de un modelo (baja o reactivación lógica).</summary>
     [HttpPatch("{id:long}")]
     [Authorize(Policy = Politicas.ModeloEditar)]
     [ProducesResponseType<ModeloMaquinaDto>(StatusCodes.Status200OK)]

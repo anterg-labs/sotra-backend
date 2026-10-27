@@ -15,6 +15,7 @@ namespace Api.Controladores;
 public class TerminosController(TerminosDAO terminosDao) : ControllerBase
 {
 
+    /// <summary>Devuelve los términos y condiciones vigentes.</summary>
     [HttpGet("vigente")]
     [ProducesResponseType<TerminosDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -24,6 +25,7 @@ public class TerminosController(TerminosDAO terminosDao) : ControllerBase
         return vigente is null ? NotFound() : Ok(ADto(vigente));
     }
 
+    /// <summary>Publica una nueva versión de los términos y condiciones.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.TerminosAdministrar)]
     [ProducesResponseType<TerminosDto>(StatusCodes.Status200OK)]
@@ -35,6 +37,7 @@ public class TerminosController(TerminosDAO terminosDao) : ControllerBase
         return Ok(ADto(publicada));
     }
 
+    /// <summary>Indica si hay términos vigentes y su versión.</summary>
     [HttpGet("estado")]
     [ProducesResponseType<EstadoTerminosDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<EstadoTerminosDto>> ObtenerEstado(
@@ -53,6 +56,7 @@ public class TerminosController(TerminosDAO terminosDao) : ControllerBase
         };
     }
 
+    /// <summary>Registra la aceptación de los términos.</summary>
     [HttpPost("aceptaciones")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status200OK)]

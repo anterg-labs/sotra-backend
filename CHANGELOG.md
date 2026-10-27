@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.91 (2026-10-27)
+
+- Documentación de la API: el documento OpenAPI ahora tiene título, versión, esquema de seguridad Bearer, etiquetas por módulo, un resumen por cada una de las 75 operaciones y las respuestas de error comunes; se agrega la interfaz Swagger en `/swagger`. Solo se publica en desarrollo o con `OPENAPI_PUBLICAR=true`, y pruebas de contrato impiden dejar endpoints sin documentar.
+
 ## Version 1.0.90 (2026-10-27)
 
 - Usuarios: «Mi perfil»: `GET /api/v1/perfil` y `PUT /api/v1/perfil` permiten a cualquier persona con sesión ver y cambiar su nombre, apellido y teléfono (el cambio se copia a Keycloak); el correo, los roles y el estado siguen gestionándose por administración.

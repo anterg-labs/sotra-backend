@@ -18,6 +18,7 @@ public class RolesController : ControllerBase
         _rolDao = rolDao;
     }
 
+    /// <summary>Lista los roles de SOTRA.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.UsuarioConsultar)]
     [ProducesResponseType<List<RolDto>>(StatusCodes.Status200OK)]

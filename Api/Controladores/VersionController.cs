@@ -10,6 +10,7 @@ namespace Api.Controladores;
 [Route("api/v1/version")]
 public class VersionController : ControllerBase
 {
+    /// <summary>Versión actual de la aplicación (pública).</summary>
     [HttpGet]
     [ProducesResponseType<VersionDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<VersionDto>> ObtenerVersion(CancellationToken cancellationToken)

@@ -24,6 +24,7 @@ public class SesionController : ControllerBase
         _usuarioActual = usuarioActual;
     }
 
+    /// <summary>Datos de la sesión actual, según el token de Keycloak.</summary>
     [HttpGet]
     [ProducesResponseType<SesionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
