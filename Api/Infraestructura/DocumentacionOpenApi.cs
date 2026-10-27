@@ -175,7 +175,7 @@ public static class DocumentacionOpenApi
     // Ejemplos de los flujos principales; las claves son «MÉTODO ruta».
     private static readonly Dictionary<string, (string? Solicitud, string? Respuesta)> Ejemplos = new()
     {
-        ["GET api/v1/sesion"] = (null, """{ "idKeycloak": "7c3b1f1e-5c0a-4a53-9b53-1d6c9a7f2b10", "idUsuario": 4, "correo": "admin.prueba@sotra.test", "nombre": "Admin Prueba", "roles": ["administrador"] }"""),
+        ["GET api/v1/sesion"] = (null, """{ "idKeycloak": "00000000-0000-0000-0000-000000000000", "idUsuario": 4, "correo": "admin.prueba@sotra.test", "nombre": "Admin Prueba", "roles": ["administrador"] }"""),
         ["GET api/v1/perfil"] = (null, """{ "id": 4, "nombre": "Admin", "apellido": "Prueba", "correo": "admin.prueba@sotra.test", "telefono": "099123456", "estado": "activo", "fechaIngreso": "2026-10-17", "cantidadOrdenesAsignadas": 0, "roles": [{ "id": 1, "nombre": "Administrador" }] }"""),
         ["PUT api/v1/perfil"] = ("""{ "nombre": "Ana", "apellido": "Pérez", "telefono": "099123456" }""", null),
         ["POST api/v1/ordenes-trabajo"] = ("""{ "clienteId": 3, "activoId": 12, "tecnicoId": 7, "tipo": "correctivo", "prioridad": "alta", "descripcion": "Pérdida de aceite en el cilindro del brazo.", "observaciones": "", "fechaPrevistaEjecucion": "2026-11-05", "repuestos": [{ "repuestoId": 5, "cantidad": 2 }], "sugerencias": [] }""", null),
