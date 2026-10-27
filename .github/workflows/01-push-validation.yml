@@ -36,6 +36,21 @@ jobs:
       - name: Ejecutar pruebas
         run: dotnet test --no-build --configuration Release
 
+      - name: Exportar el documento OpenAPI
+        run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName~ElDocumentoSeExportaSiSeIndicaUnaSalida"
+        env:
+          OPENAPI_SALIDA: ${{ github.workspace }}/openapi.json
+
+      - name: Revisar el documento OpenAPI con Spectral
+        run: npx --yes @stoplight/spectral-cli@6.15.0 lint openapi.json --ruleset .spectral.yaml
+
+      - name: Guardar el documento OpenAPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: openapi.json
+          if-no-files-found: error
+
   trivy:
     name: Analizar dependencias y archivos
     runs-on: ubuntu-latest

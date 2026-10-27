@@ -14,6 +14,7 @@ public class SolicitudSugerenciaDto
     [Range(1, 1000, ErrorMessage = "El número de sugerencia debe estar entre 1 y 1000.")]
     public int Numero { get; init; } = 1;
 
+    /// <summary>Identificador de la sesión de sugerencias que originó la orden.</summary>
     public Guid? Sesion { get; init; }
 
     /// <summary>Activo de la orden. Si viene, la búsqueda usa solo la documentación de esa máquina y la general.</summary>

@@ -37,6 +37,11 @@ public static class TiposDeDocumento
 }
 
 /// <summary>Datos generales de un documento. El texto vacío se guarda como ausente.</summary>
+/// <param name="Titulo">Título; si falta se usa el nombre del archivo.</param>
+/// <param name="Tipo">Tipo de documento (por defecto <c>manual_tecnico</c>).</param>
+/// <param name="Descripcion">Descripción opcional.</param>
+/// <param name="ActivoId">Activo al que se asocia, opcional.</param>
+/// <param name="ModeloMaquinaId">Modelo de máquina al que se asocia, opcional.</param>
 public sealed record DatosDelDocumento(
     string? Titulo, string Tipo, string? Descripcion, long? ActivoId, long? ModeloMaquinaId)
 {

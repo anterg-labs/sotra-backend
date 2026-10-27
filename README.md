@@ -374,7 +374,12 @@ La API publica su contrato como OpenAPI 3 con el generador de .NET (`Microsoft.A
 - **Qué contiene:** título y versión (leída de `version.json`), esquema de seguridad Bearer, una etiqueta por módulo, un `summary` por operación (comentarios `<summary>` en los controladores y en los filtros), las respuestas comunes `400`, `401`, `403`, `404`, `429` (con `Retry-After`) y `500` con el esquema `ErrorApi` (`ProblemDetails` + `codigo`), y los parámetros de consulta en camelCase como se usan en la URL.
 - **Cómo mantenerla:** al agregar un endpoint, escribir su `<summary>` sobre el atributo `[Http...]`. `OpenApiPruebas` falla si una operación no tiene resumen, etiqueta o las respuestas de error comunes, si hay endpoints que no están en el documento (o al revés), si alguna referencia a un esquema no existe, o si cambia qué operaciones exigen token (solo `GET /api/v1/version` es anónima).
 - **Seguridad:** la política de contenido más permisiva (`'unsafe-inline'`) se aplica únicamente a `/swagger`; el resto de la API conserva `default-src 'none'`.
-- **Pendiente:** ejemplos de solicitud y respuesta de los flujos principales, documentar `If-Match`/`ETag`, generar el documento como artefacto de CI y las mejoras opcionales (ver `PLAN-SWAGGER.md` en la raíz del espacio de trabajo).
+- **Descripciones:** las 410 propiedades de los DTO tienen su `<summary>` (y los `record` posicionales, sus `<param>`), de modo que cada esquema del documento explica sus campos.
+- **Concurrencia:** `GET` y `PUT /api/v1/ordenes-trabajo/{id}` documentan el encabezado `ETag`; el `PUT` documenta `If-Match` y la respuesta `412 ORDEN_MODIFICADA`.
+- **Ejemplos:** hay ejemplos de solicitud o respuesta de `GET /sesion`, `GET`/`PUT /perfil`, crear orden, cambiar su estado y registrar un ingreso de stock (diccionario `Ejemplos` de `DocumentacionOpenApi.cs`; agregar uno nuevo es una línea).
+- **Identificadores:** cada operación tiene un `operationId` único (`clientes_obtenerPorId`), útil para generar clientes.
+- **Integración continua:** el flujo «Validar backend» exporta el documento (`OPENAPI_SALIDA=<ruta> dotnet test --filter ElDocumentoSeExportaSiSeIndicaUnaSalida`), lo revisa con Spectral (`.spectral.yaml`: reglas estándar de OpenAPI; solo los errores detienen el flujo) y lo guarda como artefacto `openapi`. Localmente: `npx @stoplight/spectral-cli lint openapi.json --ruleset .spectral.yaml`.
+- **Tipos del frontend:** `npm run api:tipos` (en `sotra-frontend/`, con la API en `localhost:8081`) regenera `src/tipos/generados/api.d.ts` con `openapi-typescript`.
 
 ## Seguridad de la API sin sesión
 

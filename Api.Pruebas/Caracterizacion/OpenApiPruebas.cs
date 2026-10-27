@@ -187,4 +187,50 @@ public class OpenApiPruebas : PruebaBase
 
         public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
+
+    [Test]
+    public async Task LosFlujosPrincipalesTienenEjemplosYLaConcurrenciaDeOrdenesEstaDocumentada()
+    {
+        var documento = await LeerDocumentoAsync();
+        var rutas = documento.GetProperty("paths");
+
+        Assert.That(rutas.GetProperty("/api/v1/ordenes-trabajo").GetProperty("post").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").TryGetProperty("example", out _), Is.True);
+        Assert.That(rutas.GetProperty("/api/v1/ordenes-trabajo/{id}/estado").GetProperty("patch").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").TryGetProperty("example", out _), Is.True);
+        Assert.That(rutas.GetProperty("/api/v1/repuestos/{id}/ingresos").GetProperty("post").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").TryGetProperty("example", out _), Is.True);
+
+        var modificar = rutas.GetProperty("/api/v1/ordenes-trabajo/{id}").GetProperty("put");
+        Assert.That(modificar.GetProperty("parameters").EnumerateArray().Any(p => p.GetProperty("name").GetString() == "If-Match"), Is.True);
+        Assert.That(modificar.GetProperty("responses").TryGetProperty("412", out _), Is.True);
+        Assert.That(modificar.GetProperty("responses").GetProperty("200").GetProperty("headers").TryGetProperty("ETag", out _), Is.True);
+        Assert.That(rutas.GetProperty("/api/v1/ordenes-trabajo/{id}").GetProperty("get").GetProperty("responses")
+            .GetProperty("200").GetProperty("headers").TryGetProperty("ETag", out _), Is.True);
+    }
+
+    [Test]
+    public async Task CadaOperacionTieneUnIdentificadorUnico()
+    {
+        var documento = await LeerDocumentoAsync();
+        var identificadores = Operaciones(documento).Select(o => o.Operacion.GetProperty("operationId").GetString()!).ToList();
+
+        Assert.That(identificadores, Is.Unique);
+        Assert.That(identificadores, Has.All.Match(@"^[a-z][A-Za-z]*_[a-z][A-Za-z]*$"));
+    }
+
+    /// <summary>La integración continua define <c>OPENAPI_SALIDA</c> para guardar el documento y revisarlo con Spectral.</summary>
+    [Test]
+    public async Task ElDocumentoSeExportaSiSeIndicaUnaSalida()
+    {
+        var salida = Environment.GetEnvironmentVariable("OPENAPI_SALIDA");
+        if (string.IsNullOrWhiteSpace(salida))
+        {
+            Assert.Ignore("OPENAPI_SALIDA no está definida: solo se exporta en la integración continua.");
+        }
+
+        var respuesta = await Cliente.GetAsync("/openapi/v1.json");
+        await File.WriteAllTextAsync(salida!, await respuesta.Content.ReadAsStringAsync());
+        Assert.That(new FileInfo(salida!).Length, Is.GreaterThan(1000));
+    }
 }

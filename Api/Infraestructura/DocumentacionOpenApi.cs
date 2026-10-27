@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -116,6 +117,13 @@ public static class DocumentacionOpenApi
                     }
                 }
 
+                // Identificador estable de la operación (`clientes_obtenerPorId`), útil para generar clientes de la API.
+                if (contexto.Description.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor accion)
+                {
+                    operacion.OperationId = char.ToLowerInvariant(accion.ControllerName[0]) + accion.ControllerName[1..]
+                        + "_" + char.ToLowerInvariant(accion.ActionName[0]) + accion.ActionName[1..];
+                }
+
                 var metadatos = contexto.Description.ActionDescriptor.EndpointMetadata;
                 var esAnonima = metadatos.OfType<IAllowAnonymous>().Any();
                 operacion.Responses ??= new OpenApiResponses();
@@ -142,6 +150,9 @@ public static class DocumentacionOpenApi
                     AgregarRespuesta(operacion, "404", "El recurso solicitado no existe.");
                 }
 
+                DocumentarConcurrencia(operacion, contexto.Description);
+                AgregarEjemplos(operacion, contexto.Description);
+
                 AgregarRespuesta(operacion, "429", "Se superó el límite de solicitudes; se informa `Retry-After`.");
                 if (operacion.Responses.TryGetValue("429", out var limite) && limite is OpenApiResponse respuestaLimite)
                 {
@@ -159,6 +170,72 @@ public static class DocumentacionOpenApi
         });
 
         return servicios;
+    }
+
+    // Ejemplos de los flujos principales; las claves son «MÉTODO ruta».
+    private static readonly Dictionary<string, (string? Solicitud, string? Respuesta)> Ejemplos = new()
+    {
+        ["GET api/v1/sesion"] = (null, """{ "idKeycloak": "7c3b1f1e-5c0a-4a53-9b53-1d6c9a7f2b10", "idUsuario": 4, "correo": "admin.prueba@sotra.test", "nombre": "Admin Prueba", "roles": ["administrador"] }"""),
+        ["GET api/v1/perfil"] = (null, """{ "id": 4, "nombre": "Admin", "apellido": "Prueba", "correo": "admin.prueba@sotra.test", "telefono": "099123456", "estado": "activo", "fechaIngreso": "2026-10-17", "cantidadOrdenesAsignadas": 0, "roles": [{ "id": 1, "nombre": "Administrador" }] }"""),
+        ["PUT api/v1/perfil"] = ("""{ "nombre": "Ana", "apellido": "Pérez", "telefono": "099123456" }""", null),
+        ["POST api/v1/ordenes-trabajo"] = ("""{ "clienteId": 3, "activoId": 12, "tecnicoId": 7, "tipo": "correctivo", "prioridad": "alta", "descripcion": "Pérdida de aceite en el cilindro del brazo.", "observaciones": "", "fechaPrevistaEjecucion": "2026-11-05", "repuestos": [{ "repuestoId": 5, "cantidad": 2 }], "sugerencias": [] }""", null),
+        ["PATCH api/v1/ordenes-trabajo/{id}/estado"] = ("""{ "estado": "en_progreso", "motivo": null }""", null),
+        ["POST api/v1/repuestos/{id}/ingresos"] = ("""{ "cantidad": 10, "observaciones": "Compra a proveedor, factura 1234." }""", null),
+    };
+
+    private static void AgregarEjemplos(OpenApiOperation operacion, Microsoft.AspNetCore.Mvc.ApiExplorer.ApiDescription descripcion)
+    {
+        if (!Ejemplos.TryGetValue(descripcion.HttpMethod + " " + descripcion.RelativePath, out var ejemplo))
+        {
+            return;
+        }
+
+        if (ejemplo.Solicitud is not null && operacion.RequestBody?.Content?.TryGetValue("application/json", out var cuerpo) == true)
+        {
+            cuerpo.Example = JsonNode.Parse(ejemplo.Solicitud);
+        }
+
+        if (ejemplo.Respuesta is not null
+            && operacion.Responses!.TryGetValue("200", out var correcta) && correcta is OpenApiResponse respuesta
+            && respuesta.Content?.TryGetValue("application/json", out var contenido) == true)
+        {
+            contenido.Example = JsonNode.Parse(ejemplo.Respuesta);
+        }
+    }
+
+    /// <summary>'+N+'    /// Concurrencia optimista de las órdenes: <c>GET</c> y <c>PUT /ordenes-trabajo/{id}</c> devuelven el <c>ETag</c> con la versión
+    /// y el <c>PUT</c> acepta <c>If-Match</c> (la versión leída, o <c>*</c>); si cambió responde <c>412</c>.
+    /// </summary>
+    private static void DocumentarConcurrencia(OpenApiOperation operacion, Microsoft.AspNetCore.Mvc.ApiExplorer.ApiDescription descripcion)
+    {
+        if (descripcion.RelativePath != "api/v1/ordenes-trabajo/{id}" || descripcion.HttpMethod is not ("GET" or "PUT"))
+        {
+            return;
+        }
+
+        if (operacion.Responses!.TryGetValue("200", out var correcta) && correcta is OpenApiResponse respuesta)
+        {
+            respuesta.Headers ??= new Dictionary<string, IOpenApiHeader>();
+            respuesta.Headers["ETag"] = new OpenApiHeader
+            {
+                Description = "Versión de la orden entre comillas; se envía en `If-Match` al modificarla.",
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+            };
+        }
+
+        if (descripcion.HttpMethod == "PUT")
+        {
+            operacion.Parameters ??= [];
+            operacion.Parameters.Add(new OpenApiParameter
+            {
+                Name = "If-Match",
+                In = ParameterLocation.Header,
+                Required = false,
+                Description = "Versión de la orden que se leyó (valor del `ETag`), o `*` para no comprobarla. Si la orden cambió, responde `412 ORDEN_MODIFICADA`.",
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+            });
+            AgregarRespuesta(operacion, "412", "La orden cambió desde que se leyó (`ORDEN_MODIFICADA`); hay que volver a cargarla.");
+        }
     }
 
     private static void AgregarRespuesta(OpenApiOperation operacion, string codigo, string descripcion)

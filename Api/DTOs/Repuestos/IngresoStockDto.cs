@@ -6,6 +6,8 @@ namespace Api.DTOs.Repuestos;
 /// </summary>
 public class IngresoStockDto
 {
+    /// <summary>Cantidad (unidades, órdenes u otro conteo según el contexto).</summary>
     public int Cantidad { get; init; }
+    /// <summary>Observaciones adicionales, opcionales.</summary>
     public string? Observaciones { get; init; }
 }
