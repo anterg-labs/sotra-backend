@@ -69,8 +69,12 @@ public static class BaseVectorial
                 descripcion TEXT,
                 vigente BOOLEAN NOT NULL DEFAULT TRUE,
                 modelo_maquina_id BIGINT,
+                estado_procesamiento VARCHAR(20) NOT NULL DEFAULT 'listo',
+                error_procesamiento VARCHAR(50),
                 CONSTRAINT "CK_DOCUMENTO_TECNICO_TIPO" CHECK (tipo IN
-                    ('normativa', 'procedimiento_interno', 'manual_tecnico', 'politica_seguridad', 'otro'))
+                    ('normativa', 'procedimiento_interno', 'manual_tecnico', 'politica_seguridad', 'otro')),
+                CONSTRAINT "CK_DOCUMENTO_TECNICO_ESTADO_PROCESAMIENTO" CHECK (estado_procesamiento IN
+                    ('pendiente', 'procesando', 'listo', 'error'))
             );
             ALTER TABLE vectorial.documento_tecnico
                 ADD COLUMN IF NOT EXISTS documento_vectorial_id BIGINT;

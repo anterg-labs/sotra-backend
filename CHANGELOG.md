@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Version 1.0.93 (2026-10-27)
+
+- Documentos técnicos: la subida de un documento para las sugerencias de IA guarda el PDF y responde enseguida; los fragmentos y embeddings se generan en segundo plano, de a un documento por vez. Antes, un manual grande tardaba minutos dentro del pedido y Cloudflare lo cortaba a los 100 segundos (`524`), sin guardar nada.
+- Documentos técnicos: cada documento informa `estadoProcesamiento` (`pendiente`, `procesando`, `listo` o `error`) y, si falló, `codigoErrorProcesamiento` y `mensajeErrorProcesamiento`. Al arrancar, la API retoma los que quedaron pendientes o a medio procesar.
+- Documentos técnicos: `POST /documentos-tecnicos/{id}/reprocesar` responde `202` y pone el documento en la cola; mientras tanto, las sugerencias siguen usando los fragmentos anteriores.
+- Base de datos: columnas `estado_procesamiento` y `error_procesamiento` en `vectorial.documento_tecnico`, en `02-vectorial.sql` y en `database/cambios/2026-10-27-documento-tecnico-estado-procesamiento.sql` para bases existentes.
+
 ## Version 1.0.92 (2026-10-27)
 
 - Documentación de la API: el documento OpenAPI describe todas las propiedades de los DTO, documenta `ETag`, `If-Match` y el `412` de las órdenes, incluye ejemplos de los flujos principales y un identificador único por operación. La integración continua lo exporta, lo revisa con Spectral y lo guarda como artefacto.

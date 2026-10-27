@@ -28,4 +28,13 @@ public class DocumentoTecnicoDto
     public int CantidadFragmentos { get; init; }
     /// <summary>Fecha y hora de creación (ISO 8601, UTC).</summary>
     public DateTime CreadoEn { get; init; }
+
+    /// <summary><c>pendiente</c>, <c>procesando</c>, <c>listo</c> o <c>error</c>. Sin IA, siempre <c>listo</c>.</summary>
+    public required string EstadoProcesamiento { get; init; }
+
+    /// <summary>Código del último error del procesamiento; <c>null</c> si no hubo.</summary>
+    public string? CodigoErrorProcesamiento { get; init; }
+
+    /// <summary>Motivo del último error del procesamiento, para mostrar; <c>null</c> si no hubo.</summary>
+    public string? MensajeErrorProcesamiento { get; init; }
 }

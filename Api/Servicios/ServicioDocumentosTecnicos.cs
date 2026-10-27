@@ -9,7 +9,7 @@ namespace Api.Servicios;
 public class ServicioDocumentosTecnicos : IAsyncDisposable
 {
     // pdf-v5: quita encabezados, pies y etiquetas de figura repetidos. Los documentos procesados con una versión
-    // anterior se actualizan con POST /documentos-tecnicos/{id}/reprocesar.
+    // anterior se actualizan con POST /documentos-tecnicos/{id}/reprocesar, que los vuelve a poner en la cola.
     private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v5:1400:200";
     private const int FragmentosPorPedidoDeEmbeddings = 8;
 
@@ -18,7 +18,8 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
                activo.nombre, activo.num_serie, documento.usa_sugerencias_ia,
                documento.cantidad_fragmentos, documento.creado_en,
                COALESCE(documento.titulo, documento.nombre_archivo), documento.tipo, documento.descripcion,
-               documento.vigente, documento.modelo_maquina_id, modelo.nombre
+               documento.vigente, documento.modelo_maquina_id, modelo.nombre,
+               documento.estado_procesamiento, documento.error_procesamiento
 
         """;
 
@@ -37,11 +38,16 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     };
 
     private readonly ServicioEmbeddings _embeddings;
+    private readonly ColaDeDocumentosTecnicos _cola;
+    private readonly ILogger<ServicioDocumentosTecnicos> _registro;
     private readonly NpgsqlDataSource _baseDatos;
 
-    public ServicioDocumentosTecnicos(ServicioEmbeddings embeddings)
+    public ServicioDocumentosTecnicos(ServicioEmbeddings embeddings, ColaDeDocumentosTecnicos cola,
+        ILogger<ServicioDocumentosTecnicos> registro)
     {
         _embeddings = embeddings;
+        _cola = cola;
+        _registro = registro;
         _baseDatos = BaseVectorial.CrearConexion();
     }
 
@@ -115,6 +121,11 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         return await lector.ReadAsync(cancellationToken) ? LeerDocumento(lector) : null;
     }
 
+    /// <summary>
+    /// Guarda el PDF y responde enseguida. Si se usa para las sugerencias de IA, queda <c>pendiente</c> y los
+    /// fragmentos se generan en segundo plano (<see cref="ProcesarAsync"/>): un manual grande tarda minutos, más que
+    /// lo que esperan los proxies del despliegue.
+    /// </summary>
     public async Task<DocumentoTecnicoDto> GuardarAsync(string nombreArchivo, DatosDelDocumento datosSolicitados,
         bool usaSugerenciasIa, byte[] archivo, CancellationToken cancellationToken)
     {
@@ -123,48 +134,36 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         TiposDeDocumento.Validar(datos);
         await ValidarActivoAsync(datos.ActivoId, cancellationToken);
         await ValidarModeloAsync(datos.ModeloMaquinaId, cancellationToken);
-
-        var fragmentos = new List<FragmentoDocumento>();
-        var vectores = new List<float[]>();
         if (usaSugerenciasIa)
         {
-            fragmentos = ExtraerFragmentos(archivo);
-            vectores = CrearVectores(fragmentos, cancellationToken);
+            // Sin los modelos locales el documento no podría procesarse: se rechaza sin guardarlo.
+            _embeddings.VerificarDisponible();
         }
 
-        var huella = Convert.ToHexString(SHA256.HashData(archivo));
-        await using var conexion = await _baseDatos.OpenConnectionAsync(cancellationToken);
-        await using var transaccion = await conexion.BeginTransactionAsync(cancellationToken);
-
-        long? documentoVectorialId = null;
-        if (usaSugerenciasIa)
-        {
-            documentoVectorialId = await InsertarFragmentosAsync(conexion, transaccion,
-                nombreArchivo, huella, fragmentos, vectores, cancellationToken);
-        }
-
-        await using var comando = new NpgsqlCommand("""
+        await using var comando = _baseDatos.CreateCommand("""
             INSERT INTO vectorial.documento_tecnico
                 (nombre_archivo, activo_id, usa_sugerencias_ia, cantidad_fragmentos,
                  archivo, texto, creado_en, documento_vectorial_id,
-                 titulo, tipo, descripcion, modelo_maquina_id)
-            VALUES ($1, $2, $3, $4, $5, '', $6, $7, $8, $9, $10, $11)
+                 titulo, tipo, descripcion, modelo_maquina_id, estado_procesamiento)
+            VALUES ($1, $2, $3, 0, $4, '', $5, NULL, $6, $7, $8, $9, $10)
             RETURNING id
-            """, conexion, transaccion);
+            """);
         comando.Parameters.AddWithValue(nombreArchivo);
         comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ActivoId));
         comando.Parameters.AddWithValue(usaSugerenciasIa);
-        comando.Parameters.AddWithValue(fragmentos.Count);
         comando.Parameters.AddWithValue(archivo);
         comando.Parameters.AddWithValue(DateTime.UtcNow);
-        comando.Parameters.AddWithValue(ValorONuloParaBase(documentoVectorialId));
         comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Titulo ?? DBNull.Value);
         comando.Parameters.AddWithValue(datos.Tipo);
         comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Descripcion ?? DBNull.Value);
         comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ModeloMaquinaId));
+        comando.Parameters.AddWithValue(usaSugerenciasIa ? EstadosDeProcesamiento.Pendiente : EstadosDeProcesamiento.Listo);
 
         var id = Convert.ToInt64(await comando.ExecuteScalarAsync(cancellationToken));
-        await transaccion.CommitAsync(cancellationToken);
+        if (usaSugerenciasIa)
+        {
+            _cola.Encolar(id);
+        }
 
         return (await ObtenerAsync(id, cancellationToken))!;
     }
@@ -194,17 +193,15 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     }
 
     /// <summary>
-    /// Vuelve a extraer los fragmentos del PDF guardado con la versión actual del procesamiento y reemplaza los
-    /// anteriores. El documento conserva su id y sus datos generales. Devuelve <c>null</c> si no existe.
+    /// Pone el documento otra vez en la cola para extraer los fragmentos del PDF guardado con la versión actual del
+    /// procesamiento. Hasta que termine, las sugerencias siguen usando los fragmentos anteriores. El documento conserva
+    /// su id y sus datos generales. Devuelve <c>null</c> si no existe.
     /// </summary>
     public async Task<DocumentoTecnicoDto?> ReprocesarAsync(long id, CancellationToken cancellationToken)
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
-        byte[]? archivo = null;
-        string nombreArchivo;
-        long? documentoVectorialAnterior = null;
         await using (var leer = _baseDatos.CreateCommand("""
-            SELECT archivo, nombre_archivo, usa_sugerencias_ia, documento_vectorial_id
+            SELECT usa_sugerencias_ia, archivo IS NOT NULL AND length(archivo) > 0
             FROM vectorial.documento_tecnico WHERE id = $1
             """))
         {
@@ -215,34 +212,117 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
                 return null;
             }
 
-            if (!lector.GetBoolean(2))
+            if (!lector.GetBoolean(0))
             {
                 throw new ConflictoDeDatosException("DOCUMENTO_SIN_SUGERENCIAS_IA",
                     "El documento no se usa para las sugerencias de IA: no hay nada que reprocesar.");
             }
 
-            if (!lector.IsDBNull(0))
+            if (!lector.GetBoolean(1))
             {
-                archivo = (byte[])lector[0];
-            }
-
-            nombreArchivo = lector.GetString(1);
-            if (!lector.IsDBNull(3))
-            {
-                documentoVectorialAnterior = lector.GetInt64(3);
+                throw new ConflictoDeDatosException("DOCUMENTO_SIN_ARCHIVO",
+                    "El documento no tiene el PDF guardado. Hay que volver a subirlo.");
             }
         }
 
-        if (archivo is null || archivo.Length == 0)
+        _embeddings.VerificarDisponible();
+        await using (var marcar = _baseDatos.CreateCommand("""
+            UPDATE vectorial.documento_tecnico
+            SET estado_procesamiento = $2, error_procesamiento = NULL
+            WHERE id = $1
+            """))
         {
-            throw new ConflictoDeDatosException("DOCUMENTO_SIN_ARCHIVO",
-                "El documento no tiene el PDF guardado. Hay que volver a subirlo.");
+            marcar.Parameters.AddWithValue(id);
+            marcar.Parameters.AddWithValue(EstadosDeProcesamiento.Pendiente);
+            await marcar.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        var fragmentos = ExtraerFragmentos(archivo);
-        var vectores = CrearVectores(fragmentos, cancellationToken);
-        var huella = Convert.ToHexString(SHA256.HashData(archivo));
+        _cola.Encolar(id);
+        return await ObtenerAsync(id, cancellationToken);
+    }
 
+    /// <summary>Documentos que esperan ser procesados o que quedaron a medio procesar, en orden de llegada.</summary>
+    public async Task<List<long>> ListarPendientesDeProcesarAsync(CancellationToken cancellationToken)
+    {
+        await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+        await using var comando = _baseDatos.CreateCommand("""
+            SELECT id FROM vectorial.documento_tecnico
+            WHERE estado_procesamiento IN ($1, $2)
+            ORDER BY id
+            """);
+        comando.Parameters.AddWithValue(EstadosDeProcesamiento.Pendiente);
+        comando.Parameters.AddWithValue(EstadosDeProcesamiento.Procesando);
+        var pendientes = new List<long>();
+        await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
+        while (await lector.ReadAsync(cancellationToken))
+        {
+            pendientes.Add(lector.GetInt64(0));
+        }
+
+        return pendientes;
+    }
+
+    /// <summary>
+    /// Extrae los fragmentos del PDF guardado, calcula sus embeddings y los deja como los fragmentos del documento.
+    /// Un error queda registrado en el documento (<c>error</c> con su código) en lugar de lanzarse. Si mientras tanto el
+    /// documento se borró o se pidió procesarlo de nuevo, descarta lo calculado.
+    /// </summary>
+    public async Task ProcesarAsync(long id, CancellationToken cancellationToken)
+    {
+        await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
+        byte[] archivo;
+        string nombreArchivo;
+        long? documentoVectorialAnterior = null;
+        await using (var tomar = _baseDatos.CreateCommand("""
+            UPDATE vectorial.documento_tecnico
+            SET estado_procesamiento = $2, error_procesamiento = NULL
+            WHERE id = $1 AND usa_sugerencias_ia AND estado_procesamiento IN ($3, $2)
+            RETURNING archivo, nombre_archivo, documento_vectorial_id
+            """))
+        {
+            tomar.Parameters.AddWithValue(id);
+            tomar.Parameters.AddWithValue(EstadosDeProcesamiento.Procesando);
+            tomar.Parameters.AddWithValue(EstadosDeProcesamiento.Pendiente);
+            await using var lector = await tomar.ExecuteReaderAsync(cancellationToken);
+            if (!await lector.ReadAsync(cancellationToken))
+            {
+                return;
+            }
+
+            archivo = lector.IsDBNull(0) ? [] : (byte[])lector[0];
+            nombreArchivo = lector.GetString(1);
+            if (!lector.IsDBNull(2))
+            {
+                documentoVectorialAnterior = lector.GetInt64(2);
+            }
+        }
+
+        List<FragmentoDocumento> fragmentos;
+        List<float[]> vectores;
+        try
+        {
+            fragmentos = ExtraerFragmentos(archivo);
+            vectores = CrearVectores(fragmentos, cancellationToken);
+        }
+        catch (InvalidDataException excepcion)
+        {
+            await RegistrarErrorAsync(id, excepcion.Message, cancellationToken);
+            return;
+        }
+        catch (ModeloLocalNoDisponibleException excepcion)
+        {
+            _registro.LogError(excepcion, "Faltan los modelos de IA locales al procesar el documento técnico {DocumentoId}", id);
+            await RegistrarErrorAsync(id, ErroresDeProcesamiento.ServicioIaNoDisponible, cancellationToken);
+            return;
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            _registro.LogError(excepcion, "Falló el procesamiento del documento técnico {DocumentoId}", id);
+            await RegistrarErrorAsync(id, ErroresDeProcesamiento.ProcesamientoFallido, cancellationToken);
+            return;
+        }
+
+        var huella = Convert.ToHexString(SHA256.HashData(archivo));
         await using var conexion = await _baseDatos.OpenConnectionAsync(cancellationToken);
         await using var transaccion = await conexion.BeginTransactionAsync(cancellationToken);
         var documentoVectorialNuevo = await InsertarFragmentosAsync(conexion, transaccion,
@@ -250,14 +330,22 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
 
         await using (var actualizar = new NpgsqlCommand("""
             UPDATE vectorial.documento_tecnico
-            SET documento_vectorial_id = $2, cantidad_fragmentos = $3
-            WHERE id = $1
+            SET documento_vectorial_id = $2, cantidad_fragmentos = $3,
+                estado_procesamiento = $4, error_procesamiento = NULL
+            WHERE id = $1 AND estado_procesamiento = $5
             """, conexion, transaccion))
         {
             actualizar.Parameters.AddWithValue(id);
             actualizar.Parameters.AddWithValue(documentoVectorialNuevo);
             actualizar.Parameters.AddWithValue(fragmentos.Count);
-            await actualizar.ExecuteNonQueryAsync(cancellationToken);
+            actualizar.Parameters.AddWithValue(EstadosDeProcesamiento.Listo);
+            actualizar.Parameters.AddWithValue(EstadosDeProcesamiento.Procesando);
+            if (await actualizar.ExecuteNonQueryAsync(cancellationToken) == 0)
+            {
+                // Se borró o volvió a la cola mientras se procesaba: lo calculado ya no corresponde.
+                await transaccion.RollbackAsync(cancellationToken);
+                return;
+            }
         }
 
         // Otro documento técnico puede compartir los fragmentos anteriores (el mismo PDF subido dos veces).
@@ -273,7 +361,20 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         }
 
         await transaccion.CommitAsync(cancellationToken);
-        return await ObtenerAsync(id, cancellationToken);
+    }
+
+    private async Task RegistrarErrorAsync(long id, string codigo, CancellationToken cancellationToken)
+    {
+        await using var comando = _baseDatos.CreateCommand("""
+            UPDATE vectorial.documento_tecnico
+            SET estado_procesamiento = $2, error_procesamiento = $3
+            WHERE id = $1 AND estado_procesamiento = $4
+            """);
+        comando.Parameters.AddWithValue(id);
+        comando.Parameters.AddWithValue(EstadosDeProcesamiento.Error);
+        comando.Parameters.AddWithValue(codigo);
+        comando.Parameters.AddWithValue(EstadosDeProcesamiento.Procesando);
+        await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>Marca un documento como vigente u obsoleto. Las sugerencias de IA solo usan los vigentes.</summary>
@@ -356,18 +457,18 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         }
         catch
         {
-            throw new InvalidDataException("PDF_INVALIDO");
+            throw new InvalidDataException(ErroresDeProcesamiento.PdfInvalido);
         }
 
         if (fragmentos.Count == 0)
         {
-            throw new InvalidDataException("PDF_SIN_TEXTO");
+            throw new InvalidDataException(ErroresDeProcesamiento.PdfSinTexto);
         }
 
         return fragmentos;
     }
 
-    // Los embeddings se calculan en la API por lotes; entre lote y lote se respeta la cancelación del pedido.
+    // Los embeddings se calculan en la API por lotes; entre lote y lote se respeta la cancelación (el apagado de la API).
     private List<float[]> CrearVectores(List<FragmentoDocumento> fragmentos, CancellationToken cancellationToken)
     {
         var vectores = new List<float[]>();
@@ -497,6 +598,7 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             nombreActivo = lector.GetString(4);
         }
 
+        var codigoError = lector.IsDBNull(15) ? null : lector.GetString(15);
         return new DocumentoTecnicoDto
         {
             Id = lector.GetInt64(0),
@@ -511,7 +613,10 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             Descripcion = lector.IsDBNull(10) ? null : lector.GetString(10),
             Vigente = lector.GetBoolean(11),
             ModeloMaquinaId = lector.IsDBNull(12) ? null : lector.GetInt64(12),
-            NombreModelo = lector.IsDBNull(13) ? null : lector.GetString(13)
+            NombreModelo = lector.IsDBNull(13) ? null : lector.GetString(13),
+            EstadoProcesamiento = lector.GetString(14),
+            CodigoErrorProcesamiento = codigoError,
+            MensajeErrorProcesamiento = codigoError is null ? null : ErroresDeProcesamiento.Mensaje(codigoError)
         };
     }
 

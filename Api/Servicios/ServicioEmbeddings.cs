@@ -50,7 +50,13 @@ public class ServicioEmbeddings : IDisposable
         }
     }
 
-    public List<float[]> Crear(List<string> textos)
+    /// <summary>Carga el modelo si hace falta; lanza <see cref="ModeloLocalNoDisponibleException"/> si no está.</summary>
+    public virtual void VerificarDisponible()
+    {
+        Preparar();
+    }
+
+    public virtual List<float[]> Crear(List<string> textos)
     {
         Preparar();
         var vectores = new List<float[]>();

@@ -66,6 +66,8 @@ builder.Services.AddScoped<RedactorDeSugerencias>();
 builder.Services.AddSingleton<ServicioEmbeddings>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();
+builder.Services.AddSingleton<ColaDeDocumentosTecnicos>();
+builder.Services.AddHostedService<ProcesadorDeDocumentosTecnicos>();
 builder.Services.AddScoped<ServicioSugerencias>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<UsuarioActual>();
