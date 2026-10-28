@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.96 (2026-10-27)
+
+- Reportes A18: tiempos acumulados por orden y etapa, media, mediana, P90, referencia histórica y listado paginado de excesos. El administrador configura o restablece umbrales sin máximos de negocio. Tabla `umbral_etapa_ot`, incremental idempotente e init actualizado; dump regenerado con datos ficticios en base descartable.
+
 ## Version 1.0.95 (2026-10-27)
 
 - Reportes A17: porcentaje de mantenimiento planificado en horas en la comparativa de períodos y bloque `planificacion` en desempeño, con totales, meses y tipos de máquina. Solo órdenes con cierre; duración completa desde creación, incluidas pausas, sin datos de personas. No requiere cambios de base de datos.

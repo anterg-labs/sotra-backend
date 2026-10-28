@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict mb6sHAccbqKBvaFg86XcXcHaxoKq6OHLnyWV7QufeYAV69GZS44v9fT6uujlzG8
+\restrict GOknd0TztqmRJPtpSqmwCGHVkSKpRNSo3wvymvUeScXo93NAFbBLAasUafNUgPm
 
--- Dumped from database version 18.6 (Debian 18.6-1.pgdg12+2)
--- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg12+2)
+-- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
+-- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -836,6 +836,18 @@ CREATE TABLE operativo.transicion_estado_ot (
 
 
 --
+-- Name: umbral_etapa_ot; Type: TABLE; Schema: operativo; Owner: -
+--
+
+CREATE TABLE operativo.umbral_etapa_ot (
+    etapa character varying(20) NOT NULL,
+    umbral_horas double precision,
+    CONSTRAINT "CK_UMBRAL_ETAPA_OT_ETAPA" CHECK (((etapa)::text = ANY ((ARRAY['pendiente'::character varying, 'en_progreso'::character varying, 'revision'::character varying, 'pausa'::character varying])::text[]))),
+    CONSTRAINT "CK_UMBRAL_ETAPA_OT_HORAS" CHECK (((umbral_horas IS NULL) OR ((umbral_horas >= (0)::double precision) AND (umbral_horas < 'Infinity'::double precision))))
+);
+
+
+--
 -- Name: usuario_rol; Type: TABLE; Schema: operativo; Owner: -
 --
 
@@ -962,11 +974,11 @@ ALTER TABLE ONLY operativo.usuario ALTER COLUMN id_usuario SET DEFAULT nextval('
 --
 
 COPY operativo.aceptacion_terminos (id_aceptacion, id_usuario, id_terminos, aceptado_en) FROM stdin;
-1	1	1	2026-10-27 20:49:57.438853+00
-2	3	1	2026-10-27 20:49:57.438853+00
-3	4	1	2026-10-27 20:49:57.438853+00
-4	5	1	2026-10-27 20:49:57.438853+00
-5	6	1	2026-10-27 20:49:57.438853+00
+1	1	1	2026-10-27 23:51:57.2563+00
+2	3	1	2026-10-27 23:51:57.2563+00
+3	4	1	2026-10-27 23:51:57.2563+00
+4	5	1	2026-10-27 23:51:57.2563+00
+5	6	1	2026-10-27 23:51:57.2563+00
 \.
 
 
@@ -1019,13 +1031,13 @@ COPY operativo.causa_falla (id_causa_falla, nombre, estado) FROM stdin;
 --
 
 COPY operativo.cliente (id_cliente, razon_social, nombre, correo, telefono, direccion, observaciones, estado, fecha_ingreso) FROM stdin;
-1	Construcciones del Este S.A.	Marcelo Ibarra	marcelo.ibarra@construccionesdeleste.example.com	44435006	Ruta 8 km 132, Treinta y Tres	Cliente con contrato de mantenimiento anual.	t	2026-09-12
-2	Vial Norte S.R.L.	Patricia Acosta	patricia.acosta@vialnorte.example.com	46221180	Av. Artigas 1450, Tacuarembó	Obras viales en el norte del país.	t	2026-09-12
-3	Hormigones del Litoral S.A.	Gonzalo Techera	gonzalo.techera@hormigoneslitoral.example.com	22927741	Camino Maldonado km 21, Canelones	Coordinar visitas por la mañana.	t	2026-09-13
-4	Cantera Sierra Chica	Ricardo Olivera	ricardo.olivera@sierrachica.example.com	45623390	Ruta 55 km 18, Colonia		t	2026-09-13
-5	Agro Servicios Rocha	Natalia Cabrera	natalia.cabrera@agrorocha.example.com	44728815	Ruta 9 km 215, Rocha	Maquinaria en establecimientos rurales.	t	2026-09-14
-6	Transportes Oriental Ltda.	Federico Barrios	federico.barrios@transportesoriental.example.com	24876620	Bulevar Artigas 2210, Montevideo	Cuenta suspendida a pedido del cliente.	f	2026-09-14
-7	SUPER CONSTRUCTURA SLA	SUPER CONSTRUCTURA SLA	\N	\N	\N	Cliente con activos SANY que tienen manual técnico cargado.	t	2026-10-25
+1	Empresa de ejemplo 1	Contacto de ejemplo 1	cliente1@example.test	090000001	Dirección ficticia		t	2026-09-12
+2	Empresa de ejemplo 2	Contacto de ejemplo 2	cliente2@example.test	090000002	Dirección ficticia		t	2026-09-12
+3	Empresa de ejemplo 3	Contacto de ejemplo 3	cliente3@example.test	090000003	Dirección ficticia		t	2026-09-13
+4	Empresa de ejemplo 4	Contacto de ejemplo 4	cliente4@example.test	090000004	Dirección ficticia		t	2026-09-13
+5	Empresa de ejemplo 5	Contacto de ejemplo 5	cliente5@example.test	090000005	Dirección ficticia		t	2026-09-14
+6	Empresa de ejemplo 6	Contacto de ejemplo 6	cliente6@example.test	090000006	Dirección ficticia		f	2026-09-14
+7	Empresa de ejemplo 7	Contacto de ejemplo 7	cliente7@example.test	090000007	Dirección ficticia		t	2026-10-25
 \.
 
 
@@ -1370,7 +1382,7 @@ COPY operativo.rol_permiso (id_rol, id_permiso) FROM stdin;
 --
 
 COPY operativo.terminos_condiciones (id_terminos, version, titulo, texto, datos_almacenados, vigente, creado_en, id_usuario_autor) FROM stdin;
-1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-27 20:49:57.438853+00	\N
+1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-27 23:51:57.000053+00	\N
 \.
 
 
@@ -1406,24 +1418,36 @@ COPY operativo.transicion_estado_ot (id_estado_origen, id_estado_destino, exige_
 
 
 --
+-- Data for Name: umbral_etapa_ot; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+COPY operativo.umbral_etapa_ot (etapa, umbral_horas) FROM stdin;
+pendiente	\N
+en_progreso	\N
+revision	\N
+pausa	\N
+\.
+
+
+--
 -- Data for Name: usuario; Type: TABLE DATA; Schema: operativo; Owner: -
 --
 
 COPY operativo.usuario (id_usuario, nombre, apellido, mail, telefono, estado, fecha_ingreso, id_keycloak) FROM stdin;
-1	Kevin	Moreira	kmoreira@gmail.com	99583488	t	2026-09-12	\N
-3	Nicolas	Diaz	nicodiaz@gmail.com	99568742	t	2026-09-12	\N
-4	Cris	Romero	crisrome@gmail.com	99653147	t	2026-09-12	\N
-5	Martín	Silva	martin.silva@example.com	99111205	t	2026-09-14	\N
-6	Laura	Gómez	laura.gomez@example.com	99222316	t	2026-09-14	\N
-7	Roberto	Pérez	roberto.perez@example.com	99333427	t	2026-09-15	\N
-8	Diego	Fernández	diego.fernandez@example.com	99444538	t	2026-09-15	\N
-9	Lucía	Méndez	lucia.mendez@example.com	99555649	t	2026-09-16	\N
-10	Andrés	Rodríguez	andres.rodriguez@example.com	99666750	t	2026-09-16	\N
-11	Camila	Ferreira	camila.ferreira@example.com	99777861	f	2026-09-17	\N
-12	Admin	Prueba	admin.prueba@sotra.test	99900101	t	2026-10-17	\N
-13	Jefe	Prueba	jefe.prueba@sotra.test	99900102	t	2026-10-17	\N
-14	Técnico	Prueba	tecnico.prueba@sotra.test	99900103	t	2026-10-17	\N
-15	Pañolero	Prueba	panolero.prueba@sotra.test	99900104	t	2026-10-17	\N
+1	Usuario de ejemplo 1	Ficticio	usuario1@example.test	090000001	t	2026-09-12	\N
+3	Usuario de ejemplo 3	Ficticio	usuario3@example.test	090000003	t	2026-09-12	\N
+4	Usuario de ejemplo 4	Ficticio	usuario4@example.test	090000004	t	2026-09-12	\N
+5	Usuario de ejemplo 5	Ficticio	usuario5@example.test	090000005	t	2026-09-14	\N
+6	Usuario de ejemplo 6	Ficticio	usuario6@example.test	090000006	t	2026-09-14	\N
+7	Usuario de ejemplo 7	Ficticio	usuario7@example.test	090000007	t	2026-09-15	\N
+8	Usuario de ejemplo 8	Ficticio	usuario8@example.test	090000008	t	2026-09-15	\N
+9	Usuario de ejemplo 9	Ficticio	usuario9@example.test	090000009	t	2026-09-16	\N
+10	Usuario de ejemplo 10	Ficticio	usuario10@example.test	090000010	t	2026-09-16	\N
+11	Usuario de ejemplo 11	Ficticio	usuario11@example.test	090000011	f	2026-09-17	\N
+12	Usuario de ejemplo 12	Ficticio	usuario12@example.test	090000012	t	2026-10-17	\N
+13	Usuario de ejemplo 13	Ficticio	usuario13@example.test	090000013	t	2026-10-17	\N
+14	Usuario de ejemplo 14	Ficticio	usuario14@example.test	090000014	t	2026-10-17	\N
+15	Usuario de ejemplo 15	Ficticio	usuario15@example.test	090000015	t	2026-10-17	\N
 \.
 
 
@@ -1777,6 +1801,14 @@ ALTER TABLE ONLY operativo.tipo_maquina
 
 ALTER TABLE ONLY operativo.transicion_estado_ot
     ADD CONSTRAINT "PK_TRANSICION_ESTADO_OT" PRIMARY KEY (id_estado_origen, id_estado_destino);
+
+
+--
+-- Name: umbral_etapa_ot PK_UMBRAL_ETAPA_OT; Type: CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.umbral_etapa_ot
+    ADD CONSTRAINT "PK_UMBRAL_ETAPA_OT" PRIMARY KEY (etapa);
 
 
 --
@@ -2557,5 +2589,5 @@ ALTER TABLE ONLY operativo.terminos_condiciones
 -- PostgreSQL database dump complete
 --
 
-\unrestrict mb6sHAccbqKBvaFg86XcXcHaxoKq6OHLnyWV7QufeYAV69GZS44v9fT6uujlzG8
+\unrestrict GOknd0TztqmRJPtpSqmwCGHVkSKpRNSo3wvymvUeScXo93NAFbBLAasUafNUgPm
 

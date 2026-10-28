@@ -52,6 +52,7 @@ builder.Services.AddScoped<MovimientoStockDAO>();
 builder.Services.AddScoped<OrdenTrabajoDAO>();
 builder.Services.AddScoped<AnaliticaDAO>();
 builder.Services.AddScoped<AnaliticaAvanzadaDAO>();
+builder.Services.AddScoped<DemorasEtapasDAO>();
 builder.Services.AddScoped<Api.Servicios.ServicioDeAvisos>();
 builder.Services.AddOptions<OpcionesDeAlertasDeMaquinaria>()
     .Bind(builder.Configuration.GetSection(OpcionesDeAlertasDeMaquinaria.Seccion))

@@ -38,6 +38,7 @@ public partial class SotraContext : DbContext
     public virtual DbSet<CausaFalla> CausasFalla { get; set; }
 
     public virtual DbSet<ReglaAviso> ReglasAviso { get; set; }
+    public virtual DbSet<UmbralEtapaOt> UmbralesEtapaOt { get; set; }
 
     public virtual DbSet<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; }
 
@@ -186,6 +187,14 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.VentanaDias).HasColumnName("ventana_dias");
             entity.Property(e => e.VentanaCriticaDias).HasColumnName("ventana_critica_dias");
             entity.Property(e => e.MinimoDatos).HasColumnName("minimo_datos");
+        });
+
+        modelBuilder.Entity<UmbralEtapaOt>(entity =>
+        {
+            entity.HasKey(e => e.Etapa).HasName("PK_UMBRAL_ETAPA_OT");
+            entity.ToTable("umbral_etapa_ot", EsquemaOperativo);
+            entity.Property(e => e.Etapa).HasMaxLength(20).HasColumnName("etapa");
+            entity.Property(e => e.UmbralHoras).HasColumnName("umbral_horas");
         });
 
         modelBuilder.Entity<Cliente>(entity =>

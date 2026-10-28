@@ -2090,3 +2090,17 @@ VALUES
     ('R17', 'Orden crítica sin asignar', true, 24, 72, NULL, NULL, 1),
     ('R18', 'Orden sin movimiento', true, 7, 14, NULL, NULL, 1)
 ON CONFLICT (codigo) DO NOTHING;
+
+
+-- A18: umbrales en horas por etapa. NULL usa la media histórica de tiempos terminados.
+-- Sin máximos de negocio; cero es válido. Se rechazan duraciones negativas, NaN e infinitos.
+CREATE TABLE IF NOT EXISTS operativo.umbral_etapa_ot (
+    etapa character varying(20) NOT NULL,
+    umbral_horas double precision,
+    CONSTRAINT "PK_UMBRAL_ETAPA_OT" PRIMARY KEY (etapa),
+    CONSTRAINT "CK_UMBRAL_ETAPA_OT_ETAPA" CHECK (etapa IN ('pendiente', 'en_progreso', 'revision', 'pausa')),
+    CONSTRAINT "CK_UMBRAL_ETAPA_OT_HORAS" CHECK (umbral_horas IS NULL OR (umbral_horas >= 0 AND umbral_horas < 'Infinity'::double precision))
+);
+INSERT INTO operativo.umbral_etapa_ot (etapa, umbral_horas)
+VALUES ('pendiente', NULL), ('en_progreso', NULL), ('revision', NULL), ('pausa', NULL)
+ON CONFLICT (etapa) DO NOTHING;
