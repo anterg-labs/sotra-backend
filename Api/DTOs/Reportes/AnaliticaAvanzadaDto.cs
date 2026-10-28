@@ -134,32 +134,6 @@ public class EnvejecimientoDto
     public required List<OrdenAntiguaDto> MasAntiguas { get; init; }
 }
 
-public class OrdenAtipicaDto
-{
-    /// <summary>Identificador de la orden.</summary>
-    public long OrdenId { get; init; }
-    /// <summary>Nombre del activo.</summary>
-    public required string NombreActivo { get; init; }
-    /// <summary>Tipo de máquina del grupo de comparación.</summary>
-    public required string TipoMaquina { get; init; }
-    /// <summary>Horas de la creación al cierre.</summary>
-    public double Horas { get; init; }
-    /// <summary>Mediana del tipo de máquina.</summary>
-    public double MedianaHoras { get; init; }
-    /// <summary>Límite superior normal del tipo de máquina (tercer cuartil más una vez y media el rango intercuartílico).</summary>
-    public double LimiteHoras { get; init; }
-    /// <summary>Cuántas veces supera la mediana.</summary>
-    public double VecesLaMediana { get; init; }
-}
-
-public class AtipicasDto
-{
-    /// <summary>Mínimo de órdenes cerradas por tipo de máquina para evaluar un grupo.</summary>
-    public int MinimoPorGrupo { get; init; }
-    /// <summary>Órdenes correctivas cerradas con duración muy por encima de lo habitual para su tipo de máquina.</summary>
-    public required List<OrdenAtipicaDto> Elementos { get; init; }
-}
-
 public class DesgasteActivoDto
 {
     /// <summary>Identificador del activo.</summary>
@@ -184,34 +158,12 @@ public class DesgasteActivoDto
     public double? UsoPromedioEntreFallas { get; init; }
 }
 
-public class PatronDeFallasDto
-{
-    /// <summary>Identificador del modelo.</summary>
-    public long ModeloId { get; init; }
-    /// <summary>Nombre del modelo.</summary>
-    public required string Modelo { get; init; }
-    /// <summary>Intervalos usados para la estimación.</summary>
-    public int Intervalos { get; init; }
-    /// <summary>Forma de la distribución de Weibull (menor que 1: fallas tempranas; cerca de 1: aleatorias; mayor que 1: desgaste).</summary>
-    public double Forma { get; init; }
-    /// <summary>Escala característica, en días.</summary>
-    public double EscalaDias { get; init; }
-    /// <summary>Calidad del ajuste (R²).</summary>
-    public double AjusteR2 { get; init; }
-    /// <summary>`tempranas`, `aleatorias` o `desgaste`.</summary>
-    public required string Patron { get; init; }
-}
-
 public class DesgasteDto
 {
     /// <summary>Mínimo de correctivas de un activo para analizar sus intervalos.</summary>
     public int MinimoDeIntervalos { get; init; }
-    /// <summary>Mínimo de intervalos de un modelo para estimar su patrón de fallas.</summary>
-    public int MinimoParaPatron { get; init; }
     /// <summary>Activos con datos suficientes, los que más acortan sus intervalos primero.</summary>
     public required List<DesgasteActivoDto> Activos { get; init; }
-    /// <summary>Patrón de fallas por modelo; vacío si ninguno alcanza el mínimo de datos.</summary>
-    public required List<PatronDeFallasDto> Patrones { get; init; }
     /// <summary>`true` si no hubo datos suficientes para ningún análisis.</summary>
     public bool DatosInsuficientes { get; init; }
 }

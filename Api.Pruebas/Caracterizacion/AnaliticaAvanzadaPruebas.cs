@@ -283,17 +283,10 @@ public partial class AnaliticaAvanzadaPruebas : PruebaBase
     }
 
     [Test]
-    public async Task LasOrdenesAtipicasExigenUnMinimoPorGrupoYSinDatosVienenVacias()
+    public async Task LaRutaDeReparacionesAtipicasRetiradaRespondeNoEncontrado()
     {
-        var activo = await DatosDePrueba.CrearActivoAsync(Cliente);
-        var clienteId = activo.GetProperty("clienteId").GetInt64();
-        var atipicas = await LeerAsync($"/api/v1/reportes/analisis/atipicas?clienteId={clienteId}");
-        Assert.That(atipicas.GetProperty("minimoPorGrupo").GetInt32(), Is.EqualTo(8));
-        Assert.That(atipicas.GetProperty("elementos").GetArrayLength(), Is.EqualTo(0));
-
-        var invalido = await Cliente.GetAsync("/api/v1/reportes/analisis/atipicas?minimo=1");
-        Assert.That(invalido.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-        Assert.That((await invalido.LeerJsonAsync()).GetProperty("codigo").GetString(), Is.EqualTo("MINIMO_INVALIDO"));
+        var respuesta = await Cliente.GetAsync("/api/v1/reportes/analisis/atipicas");
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
@@ -313,8 +306,7 @@ public partial class AnaliticaAvanzadaPruebas : PruebaBase
         var elemento = desgaste.GetProperty("activos").EnumerateArray().Single();
         Assert.That(elemento.GetProperty("intervalosDias").GetArrayLength(), Is.EqualTo(3));
         Assert.That(elemento.GetProperty("unidadUso").GetString(), Is.EqualTo("horas"));
-        Assert.That(desgaste.GetProperty("patrones").GetArrayLength(), Is.EqualTo(0));
-        Assert.That(desgaste.GetProperty("minimoParaPatron").GetInt32(), Is.EqualTo(20));
+        Assert.That(desgaste.TryGetProperty("patrones", out _), Is.False);
         Assert.That(desgaste.GetProperty("datosInsuficientes").GetBoolean(), Is.False);
     }
 
