@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.106 (2026-10-28)
+
+- Documentación: se corrigen las versiones del frontend citadas en los apartados de mantenimiento planificado y demoras por etapa.
+
 ## Version 1.0.105 (2026-10-27)
 
 - Desarrollo por red: emisor público de Keycloak configurable en Compose y herramienta local para registrar la IP detectada como callback, con respaldo y sin modificar usuarios o contraseñas.

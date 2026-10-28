@@ -797,12 +797,12 @@ Tabla `operativo.registro_error`: SQL incremental `database/cambios/2026-10-27-r
 
 ## Mantenimiento planificado en horas (A17, 2026-10-27)
 
-Backend 1.0.95 y frontend 1.0.76. `AnaliticaAvanzadaDAO` agrega las horas por mes y tipo de máquina en PostgreSQL, sin cargar órdenes individuales ni unir su historial. `desempeno.planificacion` devuelve período, resumen, `porMes` y `porTipo`; `analisis/comparativa` incorpora `planificado_horas_porcentaje`. Se toma creación a cierre con pausas, solo órdenes con fecha de cierre, y se filtra por creación, cliente y activo. Sin fechas: últimos 90 días, igual que la comparativa. El total cero es `null`; no requiere migración.
+Backend 1.0.95 y frontend 1.0.77. `AnaliticaAvanzadaDAO` agrega las horas por mes y tipo de máquina en PostgreSQL, sin cargar órdenes individuales ni unir su historial. `desempeno.planificacion` devuelve período, resumen, `porMes` y `porTipo`; `analisis/comparativa` incorpora `planificado_horas_porcentaje`. Se toma creación a cierre con pausas, solo órdenes con fecha de cierre, y se filtra por creación, cliente y activo. Sin fechas: últimos 90 días, igual que la comparativa. El total cero es `null`; no requiere migración.
 
 En Maquinaria, `planificacion-en-horas.tsx` muestra tarjeta y tendencia, barras mensuales SVG sin estilos en línea, tabla y ayuda, y desglose por tipo; conserva las tres tarjetas superiores. Pruebas en `PlanificacionEnHorasPruebas.cs`, `planificacion-en-horas.test.tsx` y `e2e/reportes-planificacion.spec.ts`. Resultados en `sotra-test-automation/Estado de las pruebas locales.md` (desde el backend: `../sotra-test-automation/Estado de las pruebas locales.md`).
 
 
-## A18: demoras por etapa (backend 1.0.96 / frontend 1.0.77)
+## A18: demoras por etapa (backend 1.0.96 / frontend 1.0.78)
 
 `DemorasEtapasDAO` agrega el historial en una sentencia SQL: totales por orden/etapa, media, mediana, P90, histórico global de etapas terminadas y página de excesos. Repite etapas sumando sus tramos, separa pausas de progreso y mide los tramos activos hasta la consulta. `DemorasEtapasController` expone GET `/api/v1/reportes/demoras-etapas`, GET `/umbrales` y PUT `/umbrales/{etapa}` bajo esa ruta. Consulta con `reporte.consultar`; configuración con `aviso.configurar` (solo administrador). Umbral finito no negativo o null para media histórica; la igualdad no demora. Lista de 20 pares orden/etapa por página (máximo 100), ordenada por exceso. Sin nuevos avisos duplicados.
 
