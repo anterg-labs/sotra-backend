@@ -44,9 +44,11 @@ public sealed class RegistroErroresPruebas : PruebaBase
     {
         var correlacion = Guid.NewGuid().ToString("N");
         using var alcance = EntornoDePruebas.Fabrica.Services.CreateScope();
-        var registro = alcance.ServiceProvider.GetRequiredService<ILogger<RegistroErroresPruebas>>();
+        // Logger propio con el sumidero real: el logger estático de Serilog lo reemplazan otros servidores de prueba creados en la misma ejecución.
+        var sumidero = new SumideroDeErrores(alcance.ServiceProvider.GetRequiredService<RegistroDeErrores>());
+        using var registro = new Serilog.LoggerConfiguration().Enrich.FromLogContext().WriteTo.Sink(sumidero).CreateLogger();
         using (Serilog.Context.LogContext.PushProperty("IdCorrelacion", correlacion))
-            registro.LogError("Dato privado de prueba: {Dato}", "NO_GUARDAR_ESTE_TEXTO");
+            registro.Error("Dato privado de prueba: {Dato}", "NO_GUARDAR_ESTE_TEXTO");
 
         var contexto = alcance.ServiceProvider.GetRequiredService<SotraContext>();
         // El guardado ocurre en segundo plano: se espera hasta que el registro aparezca.
@@ -56,7 +58,12 @@ public sealed class RegistroErroresPruebas : PruebaBase
             cantidad = await contexto.Database.SqlQueryRaw<long>(
                 "SELECT count(*)::bigint AS \"Value\" FROM operativo.registro_error WHERE id_correlacion = {0} AND origen = 'api' AND codigo = 'LOG_ERROR'",
                 correlacion).SingleAsync();
-            if (cantidad == 0) await Task.Delay(100);
+            // Si la primera escritura no llegó a tiempo queda pendiente en disco y el servicio la reenvía cada 30 s: se fuerza el reenvío.
+            if (cantidad == 0)
+            {
+                alcance.ServiceProvider.GetRequiredService<RegistroDeErrores>().ReintentarPendientes();
+                await Task.Delay(100);
+            }
         }
         Assert.That(cantidad, Is.EqualTo(1));
         var sensible = await contexto.Database.SqlQueryRaw<long>(

@@ -103,8 +103,8 @@ public sealed class RegistroDeErrores
             Database = baseDeDatos,
             Username = usuario,
             Password = contrasena,
-            Timeout = 2,
-            CommandTimeout = 2,
+            Timeout = 5,
+            CommandTimeout = 5,
         };
         return new NpgsqlConnection(conexion.ConnectionString);
     }
