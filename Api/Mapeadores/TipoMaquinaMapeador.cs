@@ -10,6 +10,7 @@ public static class TipoMaquinaMapeador
         return new TipoMaquina
         {
             Nombre = tipo.Nombre,
+            CostoHoraParada = tipo.CostoHoraParada,
             Estado = true
         };
     }
@@ -17,6 +18,10 @@ public static class TipoMaquinaMapeador
     public static void AplicarCambios(TipoMaquina destino, TipoMaquinaActualizarDto cambios)
     {
         destino.Nombre = cambios.Nombre;
+        if (cambios.CostoHoraParada is not null)
+        {
+            destino.CostoHoraParada = cambios.CostoHoraParada;
+        }
 
         if (cambios.Estado == "activo")
         {
@@ -38,6 +43,7 @@ public static class TipoMaquinaMapeador
         {
             Id = tipo.IdTipoMaquina,
             Nombre = tipo.Nombre,
+            CostoHoraParada = tipo.CostoHoraParada,
             Estado = tipo.Estado ? "activo" : "inactivo"
         };
     }

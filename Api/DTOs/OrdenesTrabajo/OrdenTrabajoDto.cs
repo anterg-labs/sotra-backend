@@ -31,6 +31,18 @@ public class OrdenTrabajoDto
     public string Observaciones { get; init; } = "";
     /// <summary>Fecha prevista de ejecución (`aaaa-mm-dd`).</summary>
     public required string FechaPrevistaEjecucion { get; init; }
+    /// <summary>Tiempo estimado en horas, si se informó.</summary>
+    public decimal? TiempoEstimadoHoras { get; init; }
+    /// <summary>Identificador de la causa de falla (solo correctivas), si se informó.</summary>
+    public long? CausaFallaId { get; init; }
+    /// <summary>Nombre de la causa de falla.</summary>
+    public string? CausaFalla { get; init; }
+    /// <summary>Lectura del horómetro o del odómetro del activo, según su unidad de uso.</summary>
+    public decimal? LecturaUso { get; init; }
+    /// <summary>Unidad de uso del activo: `horas` o `kilometros`.</summary>
+    public string UnidadUso { get; init; } = "horas";
+    /// <summary>Cada cambio de la lectura de uso, con el valor anterior, el nuevo, cuándo y quién.</summary>
+    public List<HistorialLecturaUsoDto> HistorialLecturaUso { get; init; } = new();
     /// <summary>Estado del registro (`activo` o `inactivo`) o, en órdenes, valor del estado vigente del catálogo.</summary>
     public required string Estado { get; init; }
     /// <summary>Fecha y hora de creación (ISO 8601, UTC).</summary>

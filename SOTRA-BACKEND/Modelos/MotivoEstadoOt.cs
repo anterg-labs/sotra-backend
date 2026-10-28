@@ -9,5 +9,7 @@ public partial class MotivoEstadoOt
 
     public string? Descripcion { get; set; }
 
+    public string? Codigo { get; set; }
+
     public virtual ICollection<HistorialEstadoOt> HistorialEstadoOts { get; set; } = new List<HistorialEstadoOt>();
 }

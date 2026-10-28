@@ -47,6 +47,8 @@ public class EntornoDePruebas
             ["DB_USER"] = UsuarioBase,
             ["DB_PASSWORD"] = ContrasenaBase,
             ["FRONTEND_ORIGIN"] = "http://localhost",
+            // Sin caché de analítica: cada prueba lee los datos que acaba de crear (los avisos no tienen filtros que separen las pruebas).
+            ["CacheAnalitica__Segundos"] = "0",
             // Sin modelos locales ni clave del proveedor: las pruebas nunca cargan modelos ni llaman a la API externa,
             // aunque la máquina tenga esas variables definidas. Una variable vacía se elimina del entorno.
             ["EMBEDDINGS_MODELO_RUTA"] = "",

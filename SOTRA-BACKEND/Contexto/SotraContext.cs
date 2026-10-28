@@ -33,6 +33,13 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<HistorialRepuestoOt> HistorialRepuestoOts { get; set; }
 
+    public virtual DbSet<HistorialLecturaUsoOt> HistorialLecturaUsoOts { get; set; }
+
+    public virtual DbSet<CausaFalla> CausasFalla { get; set; }
+
+    public virtual DbSet<ReglaAviso> ReglasAviso { get; set; }
+    public virtual DbSet<UmbralEtapaOt> UmbralesEtapaOt { get; set; }
+
     public virtual DbSet<HistorialRecomendacionIa> HistorialRecomendacionesIa { get; set; }
 
     public virtual DbSet<ModeloMaquina> ModeloMaquinas { get; set; }
@@ -107,6 +114,7 @@ public partial class SotraContext : DbContext
                 .HasDefaultValue(true)
                 .HasColumnName("estado");
             entity.Property(e => e.AnioFabricacion).HasColumnName("anio_fabricacion");
+            entity.Property(e => e.UnidadUso).HasMaxLength(10).HasDefaultValue("horas").HasColumnName("unidad_uso");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.IdCliente).HasColumnName("id_cliente");
             entity.Property(e => e.IdModeloMaquina).HasColumnName("id_modelo_maquina");
@@ -129,6 +137,64 @@ public partial class SotraContext : DbContext
                 .HasForeignKey(d => d.IdModeloMaquina)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_MODELO_MAQUINA_ACTIVO");
+        });
+
+        modelBuilder.Entity<CausaFalla>(entity =>
+        {
+            entity.HasKey(e => e.IdCausaFalla).HasName("PK_CAUSA_FALLA");
+
+            entity.ToTable("causa_falla", EsquemaOperativo);
+
+            entity.Property(e => e.IdCausaFalla).ValueGeneratedOnAdd().HasColumnName("id_causa_falla");
+            entity.Property(e => e.Nombre).HasMaxLength(80).HasColumnName("nombre");
+            entity.Property(e => e.Estado).HasDefaultValue(true).HasColumnName("estado");
+        });
+
+        modelBuilder.Entity<HistorialLecturaUsoOt>(entity =>
+        {
+            entity.HasKey(e => e.IdHLecturaUsoOt).HasName("PK_HISTORIAL_LECTURA_USO_OT");
+
+            entity.ToTable("historial_lectura_uso_ot", EsquemaOperativo);
+
+            entity.Property(e => e.IdHLecturaUsoOt).ValueGeneratedOnAdd().HasColumnName("id_h_lectura_uso_ot");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.LecturaAnterior).HasColumnName("lectura_anterior");
+            entity.Property(e => e.LecturaNueva).HasColumnName("lectura_nueva");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.FechaHora).HasColumnName("fecha_hora");
+
+            entity.HasOne(d => d.IdOrdenNavigation).WithMany(p => p.HistorialLecturaUsoOts)
+                .HasForeignKey(d => d.IdOrden)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_HISTORIAL_LECTURA_USO_OT_ORDEN");
+
+            entity.HasOne(d => d.IdUsuarioNavigation).WithMany()
+                .HasForeignKey(d => d.IdUsuario)
+                .HasConstraintName("FK_HISTORIAL_LECTURA_USO_OT_USUARIO");
+        });
+
+        modelBuilder.Entity<ReglaAviso>(entity =>
+        {
+            entity.HasKey(e => e.Codigo).HasName("PK_REGLA_AVISO");
+
+            entity.ToTable("regla_aviso", EsquemaOperativo);
+
+            entity.Property(e => e.Codigo).HasMaxLength(30).HasColumnName("codigo");
+            entity.Property(e => e.Nombre).HasMaxLength(120).HasColumnName("nombre");
+            entity.Property(e => e.Activa).HasColumnName("activa");
+            entity.Property(e => e.Umbral).HasColumnName("umbral");
+            entity.Property(e => e.UmbralCritico).HasColumnName("umbral_critico");
+            entity.Property(e => e.VentanaDias).HasColumnName("ventana_dias");
+            entity.Property(e => e.VentanaCriticaDias).HasColumnName("ventana_critica_dias");
+            entity.Property(e => e.MinimoDatos).HasColumnName("minimo_datos");
+        });
+
+        modelBuilder.Entity<UmbralEtapaOt>(entity =>
+        {
+            entity.HasKey(e => e.Etapa).HasName("PK_UMBRAL_ETAPA_OT");
+            entity.ToTable("umbral_etapa_ot", EsquemaOperativo);
+            entity.Property(e => e.Etapa).HasMaxLength(20).HasColumnName("etapa");
+            entity.Property(e => e.UmbralHoras).HasColumnName("umbral_horas");
         });
 
         modelBuilder.Entity<Cliente>(entity =>
@@ -413,6 +479,7 @@ public partial class SotraContext : DbContext
                 .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_MOTIVO_ESTADO_OT_ID\"'::regclass)")
                 .HasColumnName("id_motivo_es");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Codigo).HasMaxLength(30).HasColumnName("codigo");
         });
 
         modelBuilder.Entity<EvidenciaOt>(entity =>
@@ -537,6 +604,10 @@ public partial class SotraContext : DbContext
                 .HasColumnName("prioridad");
             entity.Property(e => e.Resultado).HasColumnName("resultado");
             entity.Property(e => e.Tipo).HasColumnName("tipo");
+            entity.Property(e => e.FechaPrevistaEjecucion).HasColumnName("fecha_prevista_ejecucion");
+            entity.Property(e => e.TiempoEstimadoHoras).HasColumnName("tiempo_estimado_horas");
+            entity.Property(e => e.IdCausaFalla).HasColumnName("id_causa_falla");
+            entity.Property(e => e.LecturaUso).HasColumnName("lectura_uso");
 
             entity.HasOne(d => d.IdActivoNavigation).WithMany(p => p.OrdenTrabajos)
                 .HasForeignKey(d => d.IdActivo)
@@ -556,6 +627,10 @@ public partial class SotraContext : DbContext
             entity.HasOne(d => d.IdUsuarioTecnicoNavigation).WithMany(p => p.OrdenTrabajoIdUsuarioTecnicoNavigations)
                 .HasForeignKey(d => d.IdUsuarioTecnico)
                 .HasConstraintName("FK_USUARIO_TECNICO_ORDEN_TRABAJO");
+
+            entity.HasOne(d => d.IdCausaFallaNavigation).WithMany(p => p.OrdenTrabajos)
+                .HasForeignKey(d => d.IdCausaFalla)
+                .HasConstraintName("FK_ORDEN_TRABAJO_CAUSA_FALLA");
         });
 
         modelBuilder.Entity<OtRepuesto>(entity =>
@@ -617,6 +692,7 @@ public partial class SotraContext : DbContext
                 .HasDefaultValueSql("nextval('" + EsquemaOperativo + ".\"SEC_REPUESTO_ID\"'::regclass)")
                 .HasColumnName("id_repuesto");
             entity.Property(e => e.CantMin).HasColumnName("cant_min");
+            entity.Property(e => e.CostoUnitario).HasColumnName("costo_unitario");
             entity.Property(e => e.Cantidad).HasColumnName("cantidad");
             entity.Property(e => e.Codigo)
                 .HasMaxLength(50)
@@ -689,6 +765,7 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.Nombre)
                 .HasMaxLength(60)
                 .HasColumnName("nombre");
+            entity.Property(e => e.CostoHoraParada).HasColumnName("costo_hora_parada");
         });
 
         modelBuilder.Entity<Usuario>(entity =>

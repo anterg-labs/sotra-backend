@@ -86,6 +86,68 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(PaginaDto<OrdenTrabajoDto>.Crear(elementos, total, filtros.Pagina, filtros.TamanoPagina));
     }
 
+    /// <summary>
+    /// Órdenes de un rango de fechas (hasta 100 días) ubicadas por su fecha prevista de ejecución, para la vista de
+    /// calendario. Las eliminadas no se muestran salvo que se habiliten.
+    /// </summary>
+    [HttpGet("calendario")]
+    [Authorize(Policy = Politicas.OtConsultar)]
+    [ProducesResponseType<CalendarioOrdenesDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CalendarioOrdenesDto>> ObtenerCalendario([FromQuery] FiltrosCalendarioDto filtros, CancellationToken cancelacion)
+    {
+        const int maximoDeDias = 100;
+        const int maximoDeOrdenes = 3000;
+        var desde = filtros.Desde!.Value;
+        var hasta = filtros.Hasta!.Value;
+        if (desde > hasta || hasta.DayNumber - desde.DayNumber + 1 > maximoDeDias)
+        {
+            return this.RespuestaDeError(400, "RANGO_FECHAS_INVALIDO",
+                "La fecha desde no puede ser posterior a la fecha hasta y el rango no puede superar los " + maximoDeDias + " días.");
+        }
+
+        if (filtros.Tipo is not (null or "" or "preventivo" or "correctivo"))
+        {
+            return Ok(new CalendarioOrdenesDto { Desde = desde.ToString("yyyy-MM-dd"), Hasta = hasta.ToString("yyyy-MM-dd"), Elementos = [] });
+        }
+
+        var tecnicoId = (long?)null;
+        if (User.EsSoloTecnico())
+        {
+            tecnicoId = await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion);
+            if (tecnicoId is null)
+            {
+                return Ok(new CalendarioOrdenesDto { Desde = desde.ToString("yyyy-MM-dd"), Hasta = hasta.ToString("yyyy-MM-dd"), Elementos = [] });
+            }
+        }
+
+        var filtro = new FiltroOrdenesTrabajo(
+            null, filtros.ClienteId, filtros.ActivoId, tecnicoId, filtros.Estado, filtros.Prioridad,
+            filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo", null, null, null,
+            OrdenarPorCreacion: false, Descendente: false);
+        var filas = await _ordenTrabajoDao.ListarCalendarioAsync(filtro, desde, hasta, filtros.IncluirEliminadas, maximoDeOrdenes, cancelacion);
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var elementos = filas.Take(maximoDeOrdenes).Select(fila => new CalendarioOrdenDto
+        {
+            Id = fila.Id,
+            Fecha = fila.Fecha.ToString("yyyy-MM-dd"),
+            NombreActivo = fila.NombreActivo,
+            NombreCliente = fila.NombreCliente,
+            Tipo = fila.EsPreventivo ? "preventivo" : "correctivo",
+            Prioridad = OrdenTrabajoMapeador.APrioridadTexto(fila.Prioridad),
+            Estado = fila.Estado,
+            Fase = fila.Fase,
+            Vencida = fila.Fecha < hoy && fila.Fase is "pendiente" or "en_curso" or "por_validar",
+        }).ToList();
+        return Ok(new CalendarioOrdenesDto
+        {
+            Desde = desde.ToString("yyyy-MM-dd"),
+            Hasta = hasta.ToString("yyyy-MM-dd"),
+            Truncado = filas.Count > maximoDeOrdenes,
+            Elementos = elementos,
+        });
+    }
+
     /// <summary>Catálogo de estados de las órdenes con su fase y reglas.</summary>
     [HttpGet("estados")]
     [Authorize(Policy = Politicas.OtConsultar)]
@@ -96,6 +158,16 @@ public class OrdenesTrabajoController : ControllerBase
         return Ok(reglas.Estados
             .Select(estado => new EstadoOrdenTrabajoDto(estado.Nombre, estado.Etiqueta, estado.Orden, estado.Fase, estado.Tono))
             .ToList());
+    }
+
+    /// <summary>Catálogo de motivos codificados para pausas y devoluciones.</summary>
+    [HttpGet("motivos")]
+    [Authorize(Policy = Politicas.OtConsultar)]
+    [ProducesResponseType<List<MotivoOrdenTrabajoDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<MotivoOrdenTrabajoDto>>> ObtenerMotivos(CancellationToken cancelacion)
+    {
+        var motivos = await _ordenTrabajoDao.ListarMotivosAsync(cancelacion);
+        return Ok(motivos.Select(motivo => new MotivoOrdenTrabajoDto(motivo.Codigo!, motivo.Descripcion ?? motivo.Codigo!)).ToList());
     }
 
     /// <summary>Devuelve el detalle de una orden de trabajo, con su historial.</summary>
@@ -131,7 +203,10 @@ public class OrdenesTrabajoController : ControllerBase
             Tipo = OrdenTrabajoMapeador.ATipoBooleano(solicitud.Tipo),
             Prioridad = OrdenTrabajoMapeador.APrioridadNumero(solicitud.Prioridad),
             Descripcion = solicitud.Descripcion.Trim(),
-            Resultado = TextoOpcional.Normalizar(solicitud.Observaciones)
+            Resultado = TextoOpcional.Normalizar(solicitud.Observaciones),
+            TiempoEstimadoHoras = solicitud.TiempoEstimadoHoras,
+            IdCausaFalla = solicitud.CausaFallaId,
+            LecturaUso = solicitud.LecturaUso
         };
 
         var ordenCreada = await _ordenTrabajoDao.CrearAsync(orden, solicitud.FechaPrevistaEjecucion,
@@ -151,7 +226,8 @@ public class OrdenesTrabajoController : ControllerBase
             solicitud.ClienteId, solicitud.ActivoId, solicitud.TecnicoId,
             OrdenTrabajoMapeador.ATipoBooleano(solicitud.Tipo),
             OrdenTrabajoMapeador.APrioridadNumero(solicitud.Prioridad),
-            solicitud.Descripcion.Trim(), TextoOpcional.Normalizar(solicitud.Observaciones));
+            solicitud.Descripcion.Trim(), TextoOpcional.Normalizar(solicitud.Observaciones),
+            solicitud.TiempoEstimadoHoras, solicitud.CausaFallaId, solicitud.LecturaUso, solicitud.MotivoCodigo);
 
         var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion);
         var versionEsperada = LeerVersionEsperada();
@@ -214,7 +290,7 @@ public class OrdenesTrabajoController : ControllerBase
         }
 
         var ordenActualizada = await _ordenTrabajoDao.CambiarEstadoAsync(orden, solicitud.Estado, motivo, User.EsSoloTecnico(),
-            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion);
+            await _usuarioActual.ObtenerIdUsuarioAsync(cancelacion), cancelacion, solicitud.LecturaUso, solicitud.MotivoCodigo);
         return Ok(OrdenTrabajoMapeador.ADto(ordenActualizada, await _ordenTrabajoDao.ObtenerReglasAsync(cancelacion), User.EsSoloTecnico()));
     }
 

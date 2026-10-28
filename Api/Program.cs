@@ -42,6 +42,7 @@ builder.Services.AddDbContext<SotraContext>();
 builder.Services.AddScoped<UsuarioDAO>();
 builder.Services.AddScoped<ClienteDAO>();
 builder.Services.AddScoped<TipoMaquinaDAO>();
+builder.Services.AddScoped<CausaFallaDAO>();
 builder.Services.AddScoped<ModeloMaquinaDAO>();
 builder.Services.AddScoped<RolDAO>();
 builder.Services.AddScoped<TerminosDAO>();
@@ -50,6 +51,9 @@ builder.Services.AddScoped<RepuestoDAO>();
 builder.Services.AddScoped<MovimientoStockDAO>();
 builder.Services.AddScoped<OrdenTrabajoDAO>();
 builder.Services.AddScoped<AnaliticaDAO>();
+builder.Services.AddScoped<AnaliticaAvanzadaDAO>();
+builder.Services.AddScoped<DemorasEtapasDAO>();
+builder.Services.AddScoped<Api.Servicios.ServicioDeAvisos>();
 builder.Services.AddOptions<OpcionesDeAlertasDeMaquinaria>()
     .Bind(builder.Configuration.GetSection(OpcionesDeAlertasDeMaquinaria.Seccion))
     .ValidateDataAnnotations()

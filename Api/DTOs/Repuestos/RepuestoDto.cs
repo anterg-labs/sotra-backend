@@ -31,4 +31,7 @@ public class RepuestoDto
     public required string Estado { get; init; }
     /// <summary>Estado del stock: `sin_stock`, `stock_bajo` o `normal`.</summary>
     public required string EstadoStock { get; init; }
+
+    /// <summary>Costo unitario, si se cargó.</summary>
+    public decimal? CostoUnitario { get; init; }
 }

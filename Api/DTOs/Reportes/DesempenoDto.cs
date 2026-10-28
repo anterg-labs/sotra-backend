@@ -14,6 +14,41 @@ public class DesempenoDto
     public required FlujoDeProcesoDto Flujo { get; init; }
     /// <summary>Resumen por tipo de máquina y por activo.</summary>
     public required MaquinariaDto Maquinaria { get; init; }
+    /// <summary>Tiempo estimado frente al real de las órdenes que tienen estimado.</summary>
+    public required EstimacionDto Estimacion { get; init; }
+    /// <summary>Tiempo transcurrido de creación a cierre, incluidas pausas, por tipo de mantenimiento.</summary>
+    public required PlanificacionDto Planificacion { get; init; }
+}
+
+public class HorasMantenimientoDto
+{
+    public int OrdenesCerradas { get; init; }
+    public double HorasPreventivas { get; init; }
+    public double HorasCorrectivas { get; init; }
+    public double HorasTotales { get; init; }
+    /// <summary>Horas preventivas / horas totales × 100; null cuando el total es cero.</summary>
+    public double? PorcentajePlanificado { get; init; }
+}
+
+public class PlanificacionPorMesDto
+{
+    public required string Periodo { get; init; }
+    public required HorasMantenimientoDto Resumen { get; init; }
+}
+
+public class PlanificacionPorTipoDto
+{
+    public long Id { get; init; }
+    public required string Nombre { get; init; }
+    public required HorasMantenimientoDto Resumen { get; init; }
+}
+
+public class PlanificacionDto
+{
+    public required RangoDeFechasDto Periodo { get; init; }
+    public required HorasMantenimientoDto Resumen { get; init; }
+    public required List<PlanificacionPorMesDto> PorMes { get; init; }
+    public required List<PlanificacionPorTipoDto> PorTipo { get; init; }
 }
 
 public class ResumenDeOrdenesDto
@@ -81,6 +116,9 @@ public class PausasDto
 
     /// <summary>Los motivos más frecuentes (mismo texto sin distinguir mayúsculas).</summary>
     public required List<MotivoDto> Motivos { get; init; }
+
+    /// <summary>Pausas y horas en pausa por motivo codificado; las pausas sin código van como `sin_codificar`.</summary>
+    public required List<PausaPorMotivoDto> PorMotivo { get; init; }
 }
 
 public class DevolucionesDto
@@ -112,8 +150,11 @@ public class MaquinariaDto
     /// <summary>Detalle por tipo de máquina.</summary>
     public required List<MaquinariaItemDto> PorTipo { get; init; }
 
-    /// <summary>Los activos con más horas de parada acumuladas.</summary>
+    /// <summary>Los activos con más horas de parada acumuladas, con el porcentaje acumulado del total (Pareto).</summary>
     public required List<MaquinariaItemDto> Activos { get; init; }
+
+    /// <summary>Detalle por modelo de máquina, de más a menos horas de parada.</summary>
+    public required List<MaquinariaItemDto> PorModelo { get; init; }
 }
 
 public class MaquinariaItemDto
@@ -136,4 +177,22 @@ public class MaquinariaItemDto
 
     /// <summary>Horas de parada acumuladas: de la creación al cierre de las correctivas cerradas.</summary>
     public double HorasParada { get; init; }
+
+    /// <summary>Correctivas cerradas (base del tiempo medio de reparación).</summary>
+    public int CorrectivasCerradas { get; init; }
+
+    /// <summary>Tiempo medio de reparación en horas: parada acumulada sobre correctivas cerradas; vacío si no hay.</summary>
+    public double? TiempoMedioReparacionHoras { get; init; }
+
+    /// <summary>Porcentaje de la parada total del período que representa este registro.</summary>
+    public double? PorcentajeDeLaParada { get; init; }
+
+    /// <summary>Porcentaje acumulado de la parada total hasta este registro (lista ordenada de mayor a menor).</summary>
+    public double? PorcentajeAcumulado { get; init; }
+
+    /// <summary>Activos del modelo en servicio (solo en el detalle por modelo).</summary>
+    public int? ActivosEnServicio { get; init; }
+
+    /// <summary>Costo de la parada (horas de parada por el costo por hora del tipo de máquina); vacío si no se cargó el costo.</summary>
+    public decimal? CostoParada { get; init; }
 }

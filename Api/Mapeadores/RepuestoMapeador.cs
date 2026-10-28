@@ -17,6 +17,7 @@ public static class RepuestoMapeador
             Ubicacion = TextoOpcional.Normalizar(solicitud.Ubicacion),
             Cantidad = solicitud.Cantidad,
             CantMin = solicitud.CantidadMinima,
+            CostoUnitario = solicitud.CostoUnitario,
             Estado = true
         };
     }
@@ -29,6 +30,10 @@ public static class RepuestoMapeador
         repuesto.Marca = TextoOpcional.Normalizar(solicitud.Marca);
         repuesto.Ubicacion = TextoOpcional.Normalizar(solicitud.Ubicacion);
         repuesto.CantMin = solicitud.CantidadMinima;
+        if (solicitud.CostoUnitario is not null)
+        {
+            repuesto.CostoUnitario = solicitud.CostoUnitario;
+        }
     }
 
     public static RepuestoDto ADto(Repuesto repuesto, StockComprometido? comprometido = null)
@@ -45,6 +50,7 @@ public static class RepuestoMapeador
             Ubicacion = repuesto.Ubicacion ?? "",
             Cantidad = repuesto.Cantidad,
             CantidadMinima = repuesto.CantMin ?? 0,
+            CostoUnitario = repuesto.CostoUnitario,
             CantidadReservada = reservado,
             CantidadEntregada = entregado,
             CantidadDisponible = Math.Max(0, repuesto.Cantidad - reservado - entregado),

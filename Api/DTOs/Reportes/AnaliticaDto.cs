@@ -28,6 +28,8 @@ public class PuntoTendenciaDto
     public int Correctivas { get; init; }
     /// <summary>Total.</summary>
     public int Total { get; init; }
+    /// <summary>Órdenes cerradas en el período (por fecha de cierre).</summary>
+    public int Cerradas { get; init; }
 }
 
 public class TendenciasDto
@@ -88,6 +90,10 @@ public class TiemposDto
     public required List<EtapaDto> Etapas { get; init; }
     /// <summary>Cumplimiento de los plazos.</summary>
     public required CumplimientoDto Cumplimiento { get; init; }
+    /// <summary>Cumplimiento de la fecha prevista por tipo de orden (preventivo y correctivo).</summary>
+    public required List<CumplimientoGrupoDto> CumplimientoPorTipoDeOrden { get; init; }
+    /// <summary>Cumplimiento del plan preventivo por tipo de máquina.</summary>
+    public required List<CumplimientoGrupoDto> CumplimientoPreventivoPorTipoDeMaquina { get; init; }
 }
 
 public class RepuestoUsadoDto

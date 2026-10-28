@@ -104,6 +104,7 @@ public class ActivoDAO
         activoExistente.AnioFabricacion = activo.AnioFabricacion;
         activoExistente.Nombre = activo.Nombre;
         activoExistente.Ubicacion = activo.Ubicacion;
+        activoExistente.UnidadUso = activo.UnidadUso;
         activoExistente.Estado = activo.Estado;
 
         await _contexto.SaveChangesAsync(cancelacion);

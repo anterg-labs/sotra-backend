@@ -24,4 +24,7 @@ public class ActivoDto
     public string? Ubicacion { get; init; }
     /// <summary>Estado del registro (`activo` o `inactivo`) o, en órdenes, valor del estado vigente del catálogo.</summary>
     public required string Estado { get; init; }
+
+    /// <summary>Cómo se mide el uso del activo: `horas` (horómetro) o `kilometros` (odómetro).</summary>
+    public string UnidadUso { get; init; } = "horas";
 }

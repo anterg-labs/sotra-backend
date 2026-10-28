@@ -30,4 +30,8 @@ public class RepuestoCrearDto
     /// <summary>Stock mínimo antes de alertar.</summary>
     [Range(0, int.MaxValue)]
     public int CantidadMinima { get; init; }
+
+    /// <summary>Costo unitario del repuesto, opcional. Si no se envía, no cambia lo guardado.</summary>
+    [Range(0.0, 999999999.0, ErrorMessage = "El costo unitario no puede ser negativo.")]
+    public decimal? CostoUnitario { get; init; }
 }
