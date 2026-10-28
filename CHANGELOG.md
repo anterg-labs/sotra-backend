@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Version 1.0.106 (2026-10-28)
+
+- Documentación: se corrigen las versiones del frontend citadas en los apartados de mantenimiento planificado y demoras por etapa.
+
+## Version 1.0.105 (2026-10-27)
+
+- Desarrollo por red: emisor público de Keycloak configurable en Compose y herramienta local para registrar la IP detectada como callback, con respaldo y sin modificar usuarios o contraseñas.
+
 ## Version 1.0.104 (2026-10-27)
 
 - Inicio: el indicador `ordenesSinAsignar` cuenta órdenes en fase pendiente sin técnico. El filtro `sinAsignar=true` en listado y calendario usa el mismo criterio; no cambia el esquema de la base.

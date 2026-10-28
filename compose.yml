@@ -62,7 +62,7 @@ services:
       IA_API_CLAVE: ${IA_API_CLAVE:-}
       IA_API_ESFUERZO: ${IA_API_ESFUERZO-low}
       IA_API_LLAMADAS_POR_MINUTO: ${IA_API_LLAMADAS_POR_MINUTO:-10}
-      KEYCLOAK_EMISOR: http://localhost:${KC_PORT}/realms/sotra
+      KEYCLOAK_EMISOR: ${KEYCLOAK_EMISOR:-http://localhost:${KC_PORT}/realms/sotra}
       KEYCLOAK_METADATA: http://keycloak:8080/realms/sotra/.well-known/openid-configuration
       KEYCLOAK_AUDIENCIA: sotra-api
       AUTH_OBLIGATORIA: ${AUTH_OBLIGATORIA:-true}
@@ -125,7 +125,7 @@ services:
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
-      KC_HOSTNAME: http://localhost:${KC_PORT}
+      KC_HOSTNAME: ${KEYCLOAK_URL_PUBLICA:-http://localhost:${KC_PORT}}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"

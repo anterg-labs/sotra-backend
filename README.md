@@ -797,18 +797,26 @@ Tabla `operativo.registro_error`: SQL incremental `database/cambios/2026-10-27-r
 
 ## Mantenimiento planificado en horas (A17, 2026-10-27)
 
-Backend 1.0.95 y frontend 1.0.76. `AnaliticaAvanzadaDAO` agrega las horas por mes y tipo de máquina en PostgreSQL, sin cargar órdenes individuales ni unir su historial. `desempeno.planificacion` devuelve período, resumen, `porMes` y `porTipo`; `analisis/comparativa` incorpora `planificado_horas_porcentaje`. Se toma creación a cierre con pausas, solo órdenes con fecha de cierre, y se filtra por creación, cliente y activo. Sin fechas: últimos 90 días, igual que la comparativa. El total cero es `null`; no requiere migración.
+Backend 1.0.95 y frontend 1.0.77. `AnaliticaAvanzadaDAO` agrega las horas por mes y tipo de máquina en PostgreSQL, sin cargar órdenes individuales ni unir su historial. `desempeno.planificacion` devuelve período, resumen, `porMes` y `porTipo`; `analisis/comparativa` incorpora `planificado_horas_porcentaje`. Se toma creación a cierre con pausas, solo órdenes con fecha de cierre, y se filtra por creación, cliente y activo. Sin fechas: últimos 90 días, igual que la comparativa. El total cero es `null`; no requiere migración.
 
 En Maquinaria, `planificacion-en-horas.tsx` muestra tarjeta y tendencia, barras mensuales SVG sin estilos en línea, tabla y ayuda, y desglose por tipo; conserva las tres tarjetas superiores. Pruebas en `PlanificacionEnHorasPruebas.cs`, `planificacion-en-horas.test.tsx` y `e2e/reportes-planificacion.spec.ts`. Resultados en `sotra-test-automation/Estado de las pruebas locales.md` (desde el backend: `../sotra-test-automation/Estado de las pruebas locales.md`).
 
 
-## A18: demoras por etapa (backend 1.0.96 / frontend 1.0.77)
+## A18: demoras por etapa (backend 1.0.96 / frontend 1.0.78)
 
 `DemorasEtapasDAO` agrega el historial en una sentencia SQL: totales por orden/etapa, media, mediana, P90, histórico global de etapas terminadas y página de excesos. Repite etapas sumando sus tramos, separa pausas de progreso y mide los tramos activos hasta la consulta. `DemorasEtapasController` expone GET `/api/v1/reportes/demoras-etapas`, GET `/umbrales` y PUT `/umbrales/{etapa}` bajo esa ruta. Consulta con `reporte.consultar`; configuración con `aviso.configurar` (solo administrador). Umbral finito no negativo o null para media histórica; la igualdad no demora. Lista de 20 pares orden/etapa por página (máximo 100), ordenada por exceso. Sin nuevos avisos duplicados.
 
 La tabla `umbral_etapa_ot` está en `01-init.sql`, incremental `2026-10-27-umbrales-etapas.sql` y dump sanitizado. Se aplica sola en despliegue con `db-datos`; `python -I database/validar-a18.py` dentro del backend valida y exporta desde una base descartable. No se exporta la base local con datos.
 
 Frontend: `demoras-por-etapa.tsx` en Proceso; cuatro gráficas SVG sin estilos inline, con referencia, tablas y enlaces a órdenes; `configuracion/demoras-etapas/` permite guardar o restablecer referencias. Contratos de red validados en `contrato-demoras-etapas.ts`. Los cuatro bloques superiores del resumen están en una fila de escritorio, con Atención necesaria al final, y se apilan en móvil. Pruebas nuevas: `DemorasEtapasPruebas`, `demoras-por-etapa.test.tsx`, formulario de umbrales y `e2e/reportes-demoras.spec.ts`. Resultados en `sotra-test-automation/Estado de las pruebas locales.md` de la raíz del espacio de trabajo.
+
+### Retorno del login y acceso local por red (2026-10-27)
+
+El inicio de sesión de Auth.js construye la dirección pública desde los encabezados del pedido. En Docker, el callback llegaba a Next como `localhost:3000`, aunque el navegador hubiese entrado por el puerto 80 o por la IP del equipo. Keycloak rechazaba el intercambio del código con `invalid_grant / Incorrect redirect_uri`, y la página de error también apuntaba al puerto interno. El Route Handler `/api/auth/[...nextauth]` reconstruye ahora el origen con `x-forwarded-host` o `Host` y `x-forwarded-proto`, igual que el inicio de sesión. Conserva ruta, consulta, cookies y cuerpo POST. Las referencias públicas no incluyen el puerto interno del contenedor. Un proxy de despliegue debe sobrescribir estos encabezados con los del acceso público confiable.
+
+Para desarrollo por red, `keycloak/configurar-acceso-local.py` del backend toma la IP detectada por el frontend, respalda los callbacks previos fuera del directorio de importación y agrega únicamente ese origen al cliente existente. Configura el emisor público de Keycloak y de la API en los archivos locales de entorno, y deja `AUTH_URL` vacío para inferir el origen del frontend. No modifica usuarios, contraseñas ni roles. Compose admite `KEYCLOAK_URL_PUBLICA` y `KEYCLOAK_EMISOR`. Si cambia la red: actualizar la IP con `npm run qr:actualizar-ip` en el frontend, ejecutar el script Python y recrear Keycloak, backend y frontend con sus mismos volúmenes. La identidad necesita un emisor estable y callbacks explícitamente autorizados; el dominio de la aplicación se obtiene del pedido. El QR mantiene el cierre mediante cruz visible en la esquina superior derecha, Escape y fondo.
+
+Cambiar el emisor invalida las sesiones anteriores: se debe iniciar una sesión nueva. No se cambió el esquema SQL ni se requiere una migración. El acceso local por HTTP permite abrir la aplicación; la instalación de la PWA depende de los requisitos del navegador y de un contexto seguro.
 
 ## A9: estacionalidad (backend 1.0.97 / frontend 1.0.79)
 
