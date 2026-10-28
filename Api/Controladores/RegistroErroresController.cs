@@ -15,6 +15,7 @@ public sealed class RegistroErroresController(RegistroDeErrores registro) : Cont
     private static readonly HashSet<string> CodigosPermitidos =
     ["SESION_API_NO_DISPONIBLE", "SESION_API_ERROR", "SESION_RESPUESTA_INVALIDA", "AUTH_CALLBACK_ERROR", "TOKEN_RENOVACION_FALLIDA"];
 
+    /// <summary>Registra un código de fallo de sesión informado por el servidor de Next; no guarda mensajes libres ni datos de la persona.</summary>
     [HttpPost]
     [AllowAnonymous]
     [EnableRateLimiting(PoliticasDeLimite.Errores)]
