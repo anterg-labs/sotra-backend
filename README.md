@@ -788,6 +788,12 @@ Rendimiento: `OrdenTrabajoDAO.Filtrar` es la base compartida del listado y de lo
 
 Tabla `operativo.visibilidad_reporte`: SQL incremental `database/cambios/2026-10-27-visibilidad-reportes.sql`, más `database/init/01-init.sql` y `sotra-dump.sql`. `db-datos` aplica pendientes en despliegue. Contratos en Flujo de datos SOTRA, secciones 16.17–16.19.
 
+## Registro de errores y fallos de sesión (backend 1.0.103)
+
+`POST /api/v1/registro-errores/sesion` recibe códigos permitidos de fallos finales del servidor de Next; los errores Error/Fatal de la API y fallos de `/api/v1/sesion` se guardan directamente. Se almacenan solo metadatos saneados, sin mensajes libres ni secretos. El volumen `sotra_errores_pendientes` conserva eventos durante una caída de PostgreSQL y se reintenta; retención en base de 90 días.
+
+Tabla `operativo.registro_error`: SQL incremental `database/cambios/2026-10-27-registro-errores.sql`, más `database/init/01-init.sql`. `db-datos` aplica pendientes en despliegue; `python -I database/validar-registro-errores.py` verifica init, incrementales e idempotencia en una base descartable y regenera el dump saneado.
+
 ## Mantenimiento planificado en horas (A17, 2026-10-27)
 
 Backend 1.0.95 y frontend 1.0.76. `AnaliticaAvanzadaDAO` agrega las horas por mes y tipo de máquina en PostgreSQL, sin cargar órdenes individuales ni unir su historial. `desempeno.planificacion` devuelve período, resumen, `porMes` y `porTipo`; `analisis/comparativa` incorpora `planificado_horas_porcentaje`. Se toma creación a cierre con pausas, solo órdenes con fecha de cierre, y se filtra por creación, cliente y activo. Sin fechas: últimos 90 días, igual que la comparativa. El total cero es `null`; no requiere migración.

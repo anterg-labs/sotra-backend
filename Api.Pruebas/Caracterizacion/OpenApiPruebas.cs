@@ -48,6 +48,9 @@ public class OpenApiPruebas : PruebaBase
         Assert.That(documento.GetProperty("components").GetProperty("schemas").TryGetProperty("ErrorApi", out _), Is.True);
     }
 
+    /// <summary>La versión y el registro de fallos de sesión del servidor de Next (puede ocurrir sin sesión) son las únicas rutas anónimas.</summary>
+    private static readonly HashSet<string> RutasAnonimas = ["/api/v1/version", "/api/v1/registro-errores/sesion"];
+
     [Test]
     public async Task SoloLaVersionEsAnonimaYElRestoExigeTokenBearer()
     {
@@ -56,7 +59,7 @@ public class OpenApiPruebas : PruebaBase
         foreach (var (ruta, metodo, operacion) in Operaciones(documento))
         {
             var exigeToken = operacion.TryGetProperty("security", out var seguridad) && seguridad.GetArrayLength() > 0;
-            Assert.That(exigeToken, Is.EqualTo(ruta != "/api/v1/version"), $"{metodo} {ruta}");
+            Assert.That(exigeToken, Is.EqualTo(!RutasAnonimas.Contains(ruta)), $"{metodo} {ruta}");
         }
     }
 
@@ -75,7 +78,7 @@ public class OpenApiPruebas : PruebaBase
             var respuestas = operacion.GetProperty("responses");
             Assert.That(respuestas.TryGetProperty("429", out _), Is.True, nombre + ": sin 429");
             Assert.That(respuestas.TryGetProperty("500", out _), Is.True, nombre + ": sin 500");
-            if (ruta != "/api/v1/version")
+            if (!RutasAnonimas.Contains(ruta))
             {
                 Assert.That(respuestas.TryGetProperty("401", out _), Is.True, nombre + ": sin 401");
                 Assert.That(respuestas.TryGetProperty("403", out _), Is.True, nombre + ": sin 403");

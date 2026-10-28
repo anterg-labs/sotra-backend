@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.103 (2026-10-27)
+
+- Reportes: errores de API y fallos de sesión registrados en PostgreSQL con respaldo temporal y retención de 90 días; migraciones automáticas e inicialización de bases nuevas.
+
 ## Version 1.0.102 (2026-10-27)
 
 - Reportes: consumo de repuestos en unidades descontadas al cerrar órdenes, filtrado por fecha del egreso, cliente y activo. Configuración persistente por elemento de Reportes; inicialización de bases nuevas y migración automática de la tabla de preferencias.
