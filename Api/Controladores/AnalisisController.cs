@@ -12,18 +12,15 @@ using SOTRA_BACKEND.Operaciones;
 namespace Api.Controladores;
 
 /// <summary>
-/// Análisis avanzado de maquinaria y proceso: comparativa de períodos, envejecimiento de órdenes, órdenes atípicas,
-/// patrones de desgaste y avisos de ineficiencia. Nunca analiza ni compara personas.
+/// Análisis avanzado de maquinaria y proceso: comparativa de períodos, envejecimiento de órdenes,
+/// intervalos entre correctivas y avisos de ineficiencia. Nunca analiza ni compara personas.
 /// </summary>
 [ApiController]
 [Route("api/v1/reportes")]
 public class AnalisisController(AnaliticaAvanzadaDAO dao, ServicioDeAvisos avisos, SotraContext contexto, CacheDeAnalitica cache) : ControllerBase
 {
-    private const int MinimoDeAtipicasPorDefecto = 8;
     private const int MinimoDeIntervalos = 3;
-    private const int MinimoParaPatron = 20;
     private const int MaximoDeActivosConDesgaste = 20;
-    private const int MaximoDeAtipicas = 20;
     private const int MaximoDeMasAntiguas = 5;
 
     /// <summary>Indicadores clave del período frente al período anterior y al mismo período del año pasado.</summary>
@@ -163,44 +160,7 @@ public class AnalisisController(AnaliticaAvanzadaDAO dao, ServicioDeAvisos aviso
         };
     }
 
-    /// <summary>Correctivas cuya duración queda muy por encima de lo habitual para su tipo de máquina.</summary>
-    [HttpGet("analisis/atipicas")]
-    [Authorize(Policy = Politicas.ReporteConsultar)]
-    [ProducesResponseType<AtipicasDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<AtipicasDto>> ObtenerAtipicas([FromQuery] FiltrosAnaliticaDto filtros, CancellationToken cancelacion)
-    {
-        if (RangoInvalido(filtros) is { } error)
-        {
-            return error;
-        }
-
-        var minimo = filtros.Minimo ?? MinimoDeAtipicasPorDefecto;
-        if (minimo is < 4 or > 1000)
-        {
-            return this.RespuestaDeError(400, "MINIMO_INVALIDO", "El mínimo por grupo debe estar entre 4 y 1000.");
-        }
-
-        var filtro = new FiltroAnalitica(filtros.FechaDesde, filtros.FechaHasta, filtros.ClienteId, filtros.ActivoId);
-        var filas = await cache.ObtenerAsync($"atipicas|{filtro}|{minimo}",
-            token => dao.ObtenerOrdenesAtipicasAsync(minimo, MaximoDeAtipicas, filtro, token), cancelacion);
-        return Ok(new AtipicasDto
-        {
-            MinimoPorGrupo = minimo,
-            Elementos = filas.Select(fila => new OrdenAtipicaDto
-            {
-                OrdenId = fila.OrdenId,
-                NombreActivo = fila.NombreActivo,
-                TipoMaquina = fila.TipoMaquina,
-                Horas = Redondear(fila.Horas)!.Value,
-                MedianaHoras = Redondear(fila.MedianaHoras)!.Value,
-                LimiteHoras = Redondear(fila.LimiteHoras)!.Value,
-                VecesLaMediana = fila.MedianaHoras > 0 ? Redondear(fila.Horas / fila.MedianaHoras)!.Value : 0,
-            }).ToList(),
-        });
-    }
-
-    /// <summary>Intervalos entre correctivas por activo y patrón de fallas por modelo.</summary>
+    /// <summary>Intervalos entre correctivas por activo.</summary>
     [HttpGet("analisis/desgaste")]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<DesgasteDto>(StatusCodes.Status200OK)]
@@ -249,35 +209,12 @@ public class AnalisisController(AnaliticaAvanzadaDAO dao, ServicioDeAvisos aviso
             });
         }
 
-        var patrones = new List<PatronDeFallasDto>();
-        foreach (var grupo in filas.Where(fila => fila.Dias > 0).GroupBy(fila => fila.ModeloId))
-        {
-            var tiempos = grupo.Select(fila => fila.Dias).ToList();
-            if (tiempos.Count < MinimoParaPatron || Estadistica.AjusteWeibull(tiempos) is not { } ajuste)
-            {
-                continue;
-            }
-
-            patrones.Add(new PatronDeFallasDto
-            {
-                ModeloId = grupo.Key,
-                Modelo = grupo.First().Modelo,
-                Intervalos = tiempos.Count,
-                Forma = Redondear(ajuste.Forma)!.Value,
-                EscalaDias = Redondear(ajuste.Escala)!.Value,
-                AjusteR2 = Redondear(ajuste.R2)!.Value,
-                Patron = ajuste.Forma < 0.9 ? "tempranas" : ajuste.Forma <= 1.1 ? "aleatorias" : "desgaste",
-            });
-        }
-
         return new DesgasteDto
         {
             MinimoDeIntervalos = MinimoDeIntervalos,
-            MinimoParaPatron = MinimoParaPatron,
             Activos = activos.OrderByDescending(activo => activo.SeAcortan).ThenBy(activo => activo.PendienteDiasPorIntervalo)
                 .Take(MaximoDeActivosConDesgaste).ToList(),
-            Patrones = patrones.OrderBy(patron => patron.Modelo).ToList(),
-            DatosInsuficientes = activos.Count == 0 && patrones.Count == 0,
+            DatosInsuficientes = activos.Count == 0,
         };
     }
 

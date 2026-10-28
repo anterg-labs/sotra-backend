@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## Version 1.0.101 (2026-10-27)
+
+- Reportes: se retira el endpoint de reparaciones atípicas y el ajuste Weibull por modelo. El reporte de intervalos entre correctivas conserva sus datos descriptivos; no hay cambios en la base.
+
+## Version 1.0.100 (2026-10-27)
+
+- Reportes: nuevo GET /api/v1/reportes/analisis/desgaste-edad-uso. Agrupa una observación por activo con órdenes en el período, correctivas, edad al último registro y última lectura conocida hasta esa fecha; conserva horas y kilómetros separados. Sin cambio de esquema.
+
+## Version 1.0.99 (2026-10-27)
+
+- Reportes A13: GET /api/v1/reportes/resumen-por-cliente agrupa órdenes, correctivas, correctivas cerradas, horas de parada y reincidencias por empresa cliente. Usa el criterio y la ventana configurable de reincidencias existentes, filtros y caché de analítica; sin cambios de base de datos.
+
+## Version 1.0.98 (2026-10-27)
+
+- Reportes A12: GET /api/v1/reportes/repuestos-por-modelo agrupa por modelo los repuestos vinculados a correctivas y cuenta órdenes asociadas y con suministro. Excluye vínculos liberados, admite filtros de fecha, cliente y activo y no modifica la base de datos.
+
+## Version 1.0.97 (2026-10-27)
+
+- A9: GET /api/v1/reportes/estacionalidad agrega correctivas por mes UTC de creación y tipo de máquina, con filtros, doce meses, ceros, totales y caché. Consulta agregada en PostgreSQL; sin cambios de esquema.
+
 ## Version 1.0.96 (2026-10-27)
 
 - Reportes A18: tiempos acumulados por orden y etapa, media, mediana, P90, referencia histórica y listado paginado de excesos. El administrador configura o restablece umbrales sin máximos de negocio. Tabla `umbral_etapa_ot`, incremental idempotente e init actualizado; dump regenerado con datos ficticios en base descartable.

@@ -89,24 +89,11 @@ public sealed class EstimacionFila
     public double? DesviacionPromedioPorcentaje { get; set; }
 }
 
-public sealed class OrdenAtipicaFila
-{
-    public long OrdenId { get; set; }
-    public string NombreActivo { get; set; } = "";
-    public long TipoMaquinaId { get; set; }
-    public string TipoMaquina { get; set; } = "";
-    public double Horas { get; set; }
-    public double MedianaHoras { get; set; }
-    public double LimiteHoras { get; set; }
-    public int MuestraDelGrupo { get; set; }
-}
-
 public sealed class IntervaloFila
 {
     public long ActivoId { get; set; }
     public string NombreActivo { get; set; } = "";
     public string Cliente { get; set; } = "";
-    public long ModeloId { get; set; }
     public string Modelo { get; set; } = "";
     public string UnidadUso { get; set; } = "horas";
     public int Numero { get; set; }
@@ -154,7 +141,7 @@ public sealed class ParadaActivoFila
     public double Horas { get; set; }
 }
 
-/// <summary>Consultas de análisis avanzado: comparativas, envejecimiento, órdenes atípicas, desgaste y avisos.</summary>
+/// <summary>Consultas de análisis avanzado: comparativas, envejecimiento, intervalos entre correctivas y avisos.</summary>
 public class AnaliticaAvanzadaDAO(SotraContext contexto)
 {
     private const string Filtros = AnaliticaDAO.FiltrosDeOrden;
@@ -317,34 +304,6 @@ public class AnaliticaAvanzadaDAO(SotraContext contexto)
         WHERE o.tiempo_estimado_horas IS NOT NULL AND o.fecha_inicio IS NOT NULL AND real.horas IS NOT NULL AND real.horas >= 0 {Filtros}
         """;
 
-    private const string SqlAtipicas = $"""
-        WITH horas AS (
-            SELECT o.id_orden, a.id_activo, COALESCE(a.nombre, a.num_serie) AS activo, tm.id_tipo_maquina, tm.nombre AS tipo_maquina,
-                   EXTRACT(EPOCH FROM (o.fecha_cierre - o.fecha_creada)) / 3600.0 AS horas
-            FROM operativo.orden_trabajo AS o
-            JOIN operativo.activo AS a ON a.id_activo = o.id_activo
-            JOIN operativo.modelo_maquina AS mm ON mm.id_modelo_maquina = a.id_modelo_maquina
-            JOIN operativo.tipo_maquina AS tm ON tm.id_tipo_maquina = mm.id_tipo_maquina
-            WHERE NOT o.tipo AND o.fecha_cierre IS NOT NULL {Filtros}
-        ), grupos AS (
-            SELECT id_tipo_maquina, count(*)::int AS n,
-                   percentile_cont(0.25) WITHIN GROUP (ORDER BY horas) AS q1,
-                   percentile_cont(0.5) WITHIN GROUP (ORDER BY horas) AS mediana,
-                   percentile_cont(0.75) WITHIN GROUP (ORDER BY horas) AS q3
-            FROM horas
-            GROUP BY id_tipo_maquina
-            HAVING count(*) >= @minimo
-        )
-        SELECT h.id_orden AS "OrdenId", h.activo AS "NombreActivo", h.id_tipo_maquina AS "TipoMaquinaId", h.tipo_maquina AS "TipoMaquina",
-               h.horas::float8 AS "Horas", g.mediana::float8 AS "MedianaHoras",
-               (g.q3 + 1.5 * (g.q3 - g.q1))::float8 AS "LimiteHoras", g.n AS "MuestraDelGrupo"
-        FROM horas AS h
-        JOIN grupos AS g ON g.id_tipo_maquina = h.id_tipo_maquina
-        WHERE h.horas > g.q3 + 1.5 * (g.q3 - g.q1) AND g.q3 > g.q1
-        ORDER BY h.horas / NULLIF(g.q3 + 1.5 * (g.q3 - g.q1), 0) DESC, h.id_orden
-        LIMIT @limite
-        """;
-
     private const string SqlIntervalos = $"""
         WITH correctivas AS (
             SELECT o.id_activo, o.fecha_creada, o.lectura_uso,
@@ -354,7 +313,7 @@ public class AnaliticaAvanzadaDAO(SotraContext contexto)
             WHERE NOT o.tipo {Filtros}
         )
         SELECT a.id_activo AS "ActivoId", COALESCE(a.nombre, a.num_serie) AS "NombreActivo", cl.razon_social AS "Cliente",
-               mm.id_modelo_maquina AS "ModeloId", mm.nombre AS "Modelo", a.unidad_uso AS "UnidadUso",
+               mm.nombre AS "Modelo", a.unidad_uso AS "UnidadUso",
                (row_number() OVER (PARTITION BY a.id_activo ORDER BY c.fecha_creada))::int AS "Numero",
                (EXTRACT(EPOCH FROM (c.fecha_creada - c.anterior)) / 86400.0)::float8 AS "Dias",
                CASE WHEN c.lectura_uso IS NOT NULL AND c.lectura_anterior IS NOT NULL
@@ -490,11 +449,6 @@ public class AnaliticaAvanzadaDAO(SotraContext contexto)
 
     public async Task<EstimacionFila> ObtenerEstimacionAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
         await Consultar<EstimacionFila>(SqlEstimacion, filtro).SingleAsync(cancelacion);
-
-    public async Task<List<OrdenAtipicaFila>> ObtenerOrdenesAtipicasAsync(
-        int minimoPorGrupo, int limite, FiltroAnalitica filtro, CancellationToken cancelacion) =>
-        await Consultar<OrdenAtipicaFila>(SqlAtipicas, filtro,
-            new NpgsqlParameter("minimo", minimoPorGrupo), new NpgsqlParameter("limite", limite)).ToListAsync(cancelacion);
 
     public async Task<List<IntervaloFila>> ObtenerIntervalosEntreCorrectivasAsync(FiltroAnalitica filtro, CancellationToken cancelacion) =>
         await Consultar<IntervaloFila>(SqlIntervalos, filtro).ToListAsync(cancelacion);
