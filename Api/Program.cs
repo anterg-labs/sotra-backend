@@ -12,12 +12,14 @@ DotNetEnv.Env.NoClobber().TraversePath().Load();
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
+var registroErrores = new RegistroDeErrores();
 
 builder.Host.UseSerilog((contexto, configuracion) =>
 {
     configuracion
         .ReadFrom.Configuration(contexto.Configuration)
         .Enrich.FromLogContext();
+    configuracion.WriteTo.Sink(new SumideroDeErrores(registroErrores));
 
     if (contexto.HostingEnvironment.IsDevelopment())
     {
@@ -30,6 +32,8 @@ builder.Host.UseSerilog((contexto, configuracion) =>
 });
 
 builder.Services.AgregarManejoDeErrores();
+builder.Services.AddSingleton(registroErrores);
+builder.Services.AddHostedService<ReenvioDeErrores>();
 builder.Services.AgregarLimiteDeSolicitudes(builder.Configuration);
 builder.Services.AgregarObservabilidad(builder.Configuration);
 builder.Services.AgregarProxiesDeConfianza(builder.Configuration);
@@ -158,6 +162,18 @@ app.UseStatusCodePages();
 app.UseRouting();
 app.UseCors("FrontendPolicy");
 app.UseRateLimiter();
+app.Use(async (contexto, siguiente) =>
+{
+    await siguiente();
+    if (contexto.Request.Path.Equals("/api/v1/sesion", StringComparison.OrdinalIgnoreCase)
+        && contexto.Response.StatusCode is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden)
+    {
+        registroErrores.Guardar(new ErrorRegistrable(DateTimeOffset.UtcNow, "api", "sesion",
+            contexto.Response.StatusCode == 401 ? "SESION_NO_AUTENTICADA" : "SESION_SIN_PERMISO",
+            null, contexto.Response.StatusCode, "/api/v1/sesion",
+            contexto.Items[CorrelacionMiddleware.Cabecera]?.ToString()));
+    }
+});
 app.UseAuthentication();
 app.UseAuthorization();
 

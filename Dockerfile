@@ -22,6 +22,7 @@ RUN dotnet publish Api/Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 WORKDIR /app
+RUN mkdir -p /var/lib/sotra/errores && chmod 1777 /var/lib/sotra/errores
 
 COPY --from=build /app/publish .
 

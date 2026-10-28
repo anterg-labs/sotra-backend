@@ -51,6 +51,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      SOTRA_ERROR_SPOOL_DIR: /var/lib/sotra/errores
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
       RERANKER_MODELO_RUTA: /modelos/model_quantized.onnx
       RERANKER_TOKENIZADOR_RUTA: /modelos/tokenizer.json
@@ -74,6 +75,7 @@ services:
       - "${API_PORT}:8080"
     volumes:
       - modelos_ia:/modelos:ro
+      - errores_pendientes:/var/lib/sotra/errores
     restart: unless-stopped
     depends_on:
       db-datos:
@@ -148,6 +150,8 @@ services:
 
 volumes:
   postgres_data:
+  errores_pendientes:
+    name: sotra_errores_pendientes
   # Conserva el nombre del volumen que usaba compose.ia.yml para no volver a descargar el reranker.
   modelos_ia:
     name: sotra_modelos_reranker

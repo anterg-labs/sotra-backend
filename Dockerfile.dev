@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0
 
 WORKDIR /src
+RUN mkdir -p /var/lib/sotra/errores && chmod 1777 /var/lib/sotra/errores
 
 COPY SOTRA-BACKEND/SOTRA-BACKEND.csproj SOTRA-BACKEND/
 COPY Api/Api.csproj Api/

@@ -31,6 +31,7 @@ public static class PoliticasDeLimite
 {
     public const string Sugerencias = "sugerencias";
     public const string Subidas = "subidas";
+    public const string Errores = "errores";
 }
 
 public static class ConfiguracionDeLimiteDeSolicitudes
@@ -57,6 +58,7 @@ public static class ConfiguracionDeLimiteDeSolicitudes
             {
                 limitador.AddPolicy(PoliticasDeLimite.Sugerencias, _ => RateLimitPartition.GetNoLimiter("libre"));
                 limitador.AddPolicy(PoliticasDeLimite.Subidas, _ => RateLimitPartition.GetNoLimiter("libre"));
+                limitador.AddPolicy(PoliticasDeLimite.Errores, _ => RateLimitPartition.GetNoLimiter("libre"));
                 return;
             }
 
@@ -70,6 +72,7 @@ public static class ConfiguracionDeLimiteDeSolicitudes
 
             AgregarPolitica(limitador, PoliticasDeLimite.Sugerencias, opciones.PorMinutoSugerencias);
             AgregarPolitica(limitador, PoliticasDeLimite.Subidas, opciones.PorMinutoSubidas);
+            AgregarPolitica(limitador, PoliticasDeLimite.Errores, 20);
         });
 
         return servicios;
