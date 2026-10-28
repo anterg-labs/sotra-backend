@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.104 (2026-10-27)
+
+- Inicio: el indicador `ordenesSinAsignar` cuenta órdenes en fase pendiente sin técnico. El filtro `sinAsignar=true` en listado y calendario usa el mismo criterio; no cambia el esquema de la base.
+
 ## Version 1.0.103 (2026-10-27)
 
 - Reportes: errores de API y fallos de sesión registrados en PostgreSQL con respaldo temporal y retención de 90 días; migraciones automáticas e inicialización de bases nuevas.

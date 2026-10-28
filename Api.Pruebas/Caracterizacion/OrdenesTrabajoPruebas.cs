@@ -15,7 +15,7 @@ public class OrdenesTrabajoPruebas : PruebaBase
         return tecnico.GetProperty("id").GetInt64();
     }
 
-    private async Task<JsonElement> CrearOrdenAsync(long? tecnicoId = null, long[]? repuestosIds = null)
+    private async Task<JsonElement> CrearOrdenAsync(long? tecnicoId = null, long[]? repuestosIds = null, string descripcion = "Cambio de filtro hidráulico")
     {
         var activo = await DatosDePrueba.CrearActivoAsync(Cliente);
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/ordenes-trabajo", new
@@ -25,7 +25,7 @@ public class OrdenesTrabajoPruebas : PruebaBase
             tecnicoId,
             tipo = "correctivo",
             prioridad = "media",
-            descripcion = "Cambio de filtro hidráulico",
+            descripcion,
             observaciones = "",
             fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)),
             sugerencias = Array.Empty<string>(),
@@ -50,6 +50,41 @@ public class OrdenesTrabajoPruebas : PruebaBase
         var tecnicoId = await CrearTecnicoAsync();
         var orden = await CrearOrdenAsync(tecnicoId);
         return orden.GetProperty("id").GetInt64();
+    }
+
+    [Test]
+    public async Task SinAsignarCuentaYListaSoloOrdenesPendientesSinTecnico()
+    {
+        async Task<int> ContarIndicadorAsync()
+        {
+            var respuesta = await (await Cliente.GetAsync("/api/v1/reportes/indicadores")).LeerJsonAsync();
+            return respuesta.GetProperty("ordenesSinAsignar").GetInt32();
+        }
+
+        var cantidadInicial = await ContarIndicadorAsync();
+        var tecnicoId = await CrearTecnicoAsync();
+        var busqueda = $"Orden sin asignar {Guid.NewGuid():N}";
+        var sinTecnico = await CrearOrdenAsync(descripcion: busqueda);
+        var conTecnico = await CrearOrdenAsync(tecnicoId, descripcion: $"Orden asignada {Guid.NewGuid():N}");
+        var idSinTecnico = sinTecnico.GetProperty("id").GetInt64();
+        var idConTecnico = conTecnico.GetProperty("id").GetInt64();
+
+        Assert.That(await ContarIndicadorAsync(), Is.EqualTo(cantidadInicial + 1));
+        var listado = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo?sinAsignar=true&buscar={Uri.EscapeDataString(busqueda)}")).LeerJsonAsync();
+        var ids = listado.GetProperty("elementos").EnumerateArray().Select(o => o.GetProperty("id").GetInt64()).ToList();
+        Assert.That(ids, Does.Contain(idSinTecnico));
+        Assert.That(listado.GetProperty("totalElementos").GetInt32(), Is.EqualTo(1));
+        var listadoAsignado = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo?sinAsignar=true&buscar={idConTecnico}")).LeerJsonAsync();
+        Assert.That(listadoAsignado.GetProperty("elementos").EnumerateArray().Any(o => o.GetProperty("id").GetInt64() == idConTecnico), Is.False);
+
+        var fecha = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)).ToString("yyyy-MM-dd");
+        var calendario = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/calendario?desde={fecha}&hasta={fecha}&sinAsignar=true")).LeerJsonAsync();
+        Assert.That(calendario.GetProperty("elementos").EnumerateArray().Any(o => o.GetProperty("id").GetInt64() == idSinTecnico), Is.True);
+        Assert.That(calendario.GetProperty("elementos").EnumerateArray().Any(o => o.GetProperty("id").GetInt64() == idConTecnico), Is.False);
+
+        var asignacion = await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{idSinTecnico}/tecnico", new { tecnicoId });
+        Assert.That(asignacion.StatusCode, Is.EqualTo(HttpStatusCode.OK), await asignacion.Content.ReadAsStringAsync());
+        Assert.That(await ContarIndicadorAsync(), Is.EqualTo(cantidadInicial));
     }
 
     [Test]

@@ -10,6 +10,8 @@ public class FiltrosOrdenesTrabajoDto
     public long? ActivoId { get; init; }
     /// <summary>Filtra por el id del técnico asignado.</summary>
     public long? TecnicoId { get; init; }
+    /// <summary>`true` devuelve solo órdenes en fase pendiente y sin técnico asignado.</summary>
+    public bool SinAsignar { get; init; }
     /// <summary>Filtra por estado.</summary>
     public string? Estado { get; init; }
     /// <summary>Fase del estado (`estado_ot.fase`): agrupa varios estados, por ejemplo `en_curso`.</summary>
