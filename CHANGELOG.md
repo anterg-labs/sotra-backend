@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.102 (2026-10-27)
+
+- Reportes: consumo de repuestos en unidades descontadas al cerrar órdenes, filtrado por fecha del egreso, cliente y activo. Configuración persistente por elemento de Reportes; inicialización de bases nuevas y migración automática de la tabla de preferencias.
+
 ## Version 1.0.101 (2026-10-27)
 
 - Reportes: se retira el endpoint de reparaciones atípicas y el ajuste Weibull por modelo. El reporte de intervalos entre correctivas conserva sus datos descriptivos; no hay cambios en la base.

@@ -780,6 +780,14 @@ Rendimiento: `OrdenTrabajoDAO.Filtrar` es la base compartida del listado y de lo
 
 `DesgasteEdadUsoDAO` agrega una observación por activo con órdenes en el período, correctivas y última fecha de orden; obtiene la última lectura de uso disponible hasta esa fecha por consulta lateral. `GET /api/v1/reportes/analisis/desgaste-edad-uso` calcula edad con el año de fabricación del activo, devuelve `null` cuando falta y mantiene la unidad propia de cada máquina. No existe año de fabricación del modelo para usarlo como respaldo. Los conteos son descriptivos, sin tasa ni atribución causal. Consulta parametrizada, permiso `reporte.consultar`, filtros de fecha/cliente/activo y caché corta. No requiere migración ni cambio de `01-init.sql` o dump. Contrato en Flujo de datos SOTRA, 16.20.
 
+## Consumo de repuestos y visibilidad de reportes (backend 1.0.102)
+
+`GET /api/v1/reportes/consumo-repuestos` agrupa las unidades descontadas por egresos asociados al cierre de órdenes, por repuesto; filtra por fecha UTC del egreso, cliente y activo. Reservas y entregas no cerradas no cuentan. El DAO usa el enlace `ot_repuesto.id_movimiento`, no interpreta texto libre.
+
+`GET /api/v1/reportes/visibilidad` y `PUT /api/v1/reportes/visibilidad/{codigo}` leen y guardan cada preferencia global de presentación por separado. Una fila ausente significa visible. Solo Administrador puede modificar.
+
+Tabla `operativo.visibilidad_reporte`: SQL incremental `database/cambios/2026-10-27-visibilidad-reportes.sql`, más `database/init/01-init.sql` y `sotra-dump.sql`. `db-datos` aplica pendientes en despliegue. Contratos en Flujo de datos SOTRA, secciones 16.17–16.19.
+
 ## Mantenimiento planificado en horas (A17, 2026-10-27)
 
 Backend 1.0.95 y frontend 1.0.76. `AnaliticaAvanzadaDAO` agrega las horas por mes y tipo de máquina en PostgreSQL, sin cargar órdenes individuales ni unir su historial. `desempeno.planificacion` devuelve período, resumen, `porMes` y `porTipo`; `analisis/comparativa` incorpora `planificado_horas_porcentaje`. Se toma creación a cierre con pausas, solo órdenes con fecha de cierre, y se filtra por creación, cliente y activo. Sin fechas: últimos 90 días, igual que la comparativa. El total cero es `null`; no requiere migración.
