@@ -23,6 +23,7 @@ public sealed class VisibilidadReportesController(SotraContext contexto) : Contr
 {
     private static readonly Regex CodigoValido = new("^[a-z][a-z0-9_]{1,99}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    /// <summary>Lista las preferencias guardadas; un elemento sin fila se muestra.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<List<VisibilidadReporteFila>>(StatusCodes.Status200OK)]
@@ -32,6 +33,7 @@ public sealed class VisibilidadReportesController(SotraContext contexto) : Contr
             FROM operativo.visibilidad_reporte ORDER BY codigo
             """).ToListAsync(cancelacion));
 
+    /// <summary>Muestra u oculta un elemento de Reportes para todas las personas. Solo administración.</summary>
     [HttpPut("{codigo}")]
     [Authorize(Policy = Politicas.AvisoConfigurar)]
     [ProducesResponseType<VisibilidadReporteFila>(StatusCodes.Status200OK)]
