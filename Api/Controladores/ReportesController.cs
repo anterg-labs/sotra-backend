@@ -67,6 +67,7 @@ public class ReportesController : ControllerBase
             PromedioHorasHastaCierre = CalcularPromedio(horasHastaCierre),
             OrdenesAltaPrioridadPendientes = ordenes.Count(o => o.Prioridad >= 5 && !EstaTerminada(reglas, o.Estado)),
             OrdenesPendientesDeValidacion = ordenes.Count(o => reglas.FaseDe(o.Estado) == FasesDeEstado.PorValidar),
+            OrdenesSinAsignar = ordenes.Count(o => o.TecnicoId is null && reglas.FaseDe(o.Estado) == FasesDeEstado.Pendiente),
             OrdenesRecientes = ordenesRecientes
         });
     }

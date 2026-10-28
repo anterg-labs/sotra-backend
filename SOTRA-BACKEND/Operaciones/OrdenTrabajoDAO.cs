@@ -85,6 +85,12 @@ public class OrdenTrabajoDAO
         if (filtro.ClienteId is { } clienteId) consulta = consulta.Where(o => o.IdCliente == clienteId);
         if (filtro.ActivoId is { } activoId) consulta = consulta.Where(o => o.IdActivo == activoId);
         if (filtro.TecnicoId is { } tecnicoId) consulta = consulta.Where(o => o.IdUsuarioTecnico == tecnicoId);
+        if (filtro.SinAsignar)
+        {
+            consulta = consulta.Where(o => o.IdUsuarioTecnico == null && o.HistorialEstadoOts
+                .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                .Select(h => h.IdEstadoOtNavigation.Fase).FirstOrDefault() == FasesDeEstado.Pendiente);
+        }
 
         if (!string.IsNullOrEmpty(filtro.Estado))
         {

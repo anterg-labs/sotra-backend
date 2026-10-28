@@ -25,6 +25,8 @@ public class IndicadoresDto
     public int OrdenesAltaPrioridadPendientes { get; init; }
     /// <summary>Órdenes terminadas pendientes de validación.</summary>
     public int OrdenesPendientesDeValidacion { get; init; }
+    /// <summary>Órdenes en fase pendiente sin técnico asignado.</summary>
+    public int OrdenesSinAsignar { get; init; }
     /// <summary>Órdenes más recientes.</summary>
     public List<OrdenTrabajoDto> OrdenesRecientes { get; init; } = new();
 }

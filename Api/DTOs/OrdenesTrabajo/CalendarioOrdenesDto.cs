@@ -17,6 +17,8 @@ public class FiltrosCalendarioDto
 
     /// <summary>Filtra por el id del activo.</summary>
     public long? ActivoId { get; init; }
+    /// <summary>`true` devuelve solo órdenes en fase pendiente y sin técnico asignado.</summary>
+    public bool SinAsignar { get; init; }
 
     /// <summary>Filtra por estado; si se informa, se muestran también las órdenes de ese estado aunque sea `eliminado`.</summary>
     public string? Estado { get; init; }

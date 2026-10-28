@@ -73,7 +73,7 @@ public class OrdenesTrabajoController : ControllerBase
             filtros.Prioridad, filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo",
             filtros.FechaDesde, filtros.FechaHasta, filtros.ConSugerencias,
             OrdenarPorCreacion: false, Descendente: filtros.DireccionOrden == "desc", OrdenarPor: filtros.OrdenarPor, Fase: filtros.Fase,
-            SoloActivas: filtros.SoloActivas);
+            SoloActivas: filtros.SoloActivas, SinAsignar: filtros.SinAsignar);
 
         if (filtros.Tipo is not (null or "" or "preventivo" or "correctivo"))
         {
@@ -124,7 +124,7 @@ public class OrdenesTrabajoController : ControllerBase
         var filtro = new FiltroOrdenesTrabajo(
             null, filtros.ClienteId, filtros.ActivoId, tecnicoId, filtros.Estado, filtros.Prioridad,
             filtros.Tipo is null or "" ? null : filtros.Tipo == "preventivo", null, null, null,
-            OrdenarPorCreacion: false, Descendente: false);
+            OrdenarPorCreacion: false, Descendente: false, SinAsignar: filtros.SinAsignar);
         var filas = await _ordenTrabajoDao.ListarCalendarioAsync(filtro, desde, hasta, filtros.IncluirEliminadas, maximoDeOrdenes, cancelacion);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var elementos = filas.Take(maximoDeOrdenes).Select(fila => new CalendarioOrdenDto
