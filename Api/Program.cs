@@ -56,6 +56,7 @@ builder.Services.AddScoped<EstacionalidadDAO>();
 builder.Services.AddScoped<DesgasteEdadUsoDAO>();
 builder.Services.AddScoped<RepuestosPorModeloDAO>();
 builder.Services.AddScoped<ResumenPorClienteDAO>();
+builder.Services.AddScoped<ConsumoDeRepuestosDAO>();
 builder.Services.AddScoped<DemorasEtapasDAO>();
 builder.Services.AddScoped<Api.Servicios.ServicioDeAvisos>();
 builder.Services.AddOptions<OpcionesDeAlertasDeMaquinaria>()

@@ -2104,3 +2104,10 @@ CREATE TABLE IF NOT EXISTS operativo.umbral_etapa_ot (
 INSERT INTO operativo.umbral_etapa_ot (etapa, umbral_horas)
 VALUES ('pendiente', NULL), ('en_progreso', NULL), ('revision', NULL), ('pausa', NULL)
 ON CONFLICT (etapa) DO NOTHING;
+
+-- Preferencias globales de visualización; los elementos nuevos son visibles por defecto.
+CREATE TABLE IF NOT EXISTS operativo.visibilidad_reporte (
+    codigo character varying(100) PRIMARY KEY,
+    visible boolean NOT NULL,
+    CONSTRAINT "CK_VISIBILIDAD_REPORTE_CODIGO" CHECK (codigo ~ '^[a-z][a-z0-9_]{1,99}$')
+);

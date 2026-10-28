@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict GOknd0TztqmRJPtpSqmwCGHVkSKpRNSo3wvymvUeScXo93NAFbBLAasUafNUgPm
+\restrict wqbX9weuuvmvm2VdVTMypLgqSjjcdp56ZzSAQDmudR5ip13F1rtnQfoEZX0dC9h
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
@@ -858,6 +858,17 @@ CREATE TABLE operativo.usuario_rol (
 
 
 --
+-- Name: visibilidad_reporte; Type: TABLE; Schema: operativo; Owner: -
+--
+
+CREATE TABLE operativo.visibilidad_reporte (
+    codigo character varying(100) NOT NULL,
+    visible boolean NOT NULL,
+    CONSTRAINT "CK_VISIBILIDAD_REPORTE_CODIGO" CHECK (((codigo)::text ~ '^[a-z][a-z0-9_]{1,99}$'::text))
+);
+
+
+--
 -- Name: activo id_activo; Type: DEFAULT; Schema: operativo; Owner: -
 --
 
@@ -974,11 +985,11 @@ ALTER TABLE ONLY operativo.usuario ALTER COLUMN id_usuario SET DEFAULT nextval('
 --
 
 COPY operativo.aceptacion_terminos (id_aceptacion, id_usuario, id_terminos, aceptado_en) FROM stdin;
-1	1	1	2026-10-27 23:51:57.2563+00
-2	3	1	2026-10-27 23:51:57.2563+00
-3	4	1	2026-10-27 23:51:57.2563+00
-4	5	1	2026-10-27 23:51:57.2563+00
-5	6	1	2026-10-27 23:51:57.2563+00
+1	1	1	2026-10-28 01:36:42.025493+00
+2	3	1	2026-10-28 01:36:42.025493+00
+3	4	1	2026-10-28 01:36:42.025493+00
+4	5	1	2026-10-28 01:36:42.025493+00
+5	6	1	2026-10-28 01:36:42.025493+00
 \.
 
 
@@ -1382,7 +1393,7 @@ COPY operativo.rol_permiso (id_rol, id_permiso) FROM stdin;
 --
 
 COPY operativo.terminos_condiciones (id_terminos, version, titulo, texto, datos_almacenados, vigente, creado_en, id_usuario_autor) FROM stdin;
-1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-27 23:51:57.000053+00	\N
+1	1	Términos y condiciones de uso de SOTRA	SOTRA es la plataforma de gestión de mantenimiento de CVM. Al usarla aceptás estos términos.\n\nUso de tus datos: los datos personales que se guardan en SOTRA se usan únicamente para gestionar tu cuenta, asignarte tareas y registrar quién hizo cada acción dentro del sistema. No se venden, no se ceden a terceros ni se usan para publicidad ni para fines ajenos al mantenimiento.\n\nMarco legal: el tratamiento de tus datos personales se rige por la Ley N.º 18.331 de Protección de Datos Personales de Uruguay.\n\nTus derechos: podés pedir que se corrijan tus datos o que se dé de baja tu cuenta. La baja conserva el historial de trabajo (órdenes, evidencias y movimientos) para no perder la trazabilidad, pero deja de permitir tu acceso.\n\nSeguridad: el acceso es personal; no compartas tus credenciales.	Nombre y apellido\nCorreo electrónico\nTeléfono\nRol o roles asignados\nEstado de la cuenta y fecha de ingreso\nContraseña (no se guarda en SOTRA: la gestiona Keycloak y nunca se muestra)\nRegistro de tus acciones en el sistema (qué hiciste, sobre qué recurso, cuándo y con qué resultado)\nFotos y archivos que adjuntes como evidencia en una orden de trabajo\nFecha y versión de los términos que aceptaste	t	2026-10-28 01:36:41.804173+00	\N
 \.
 
 
@@ -1470,6 +1481,14 @@ COPY operativo.usuario_rol (id_usuario, id_rol) FROM stdin;
 13	2
 14	3
 15	4
+\.
+
+
+--
+-- Data for Name: visibilidad_reporte; Type: TABLE DATA; Schema: operativo; Owner: -
+--
+
+COPY operativo.visibilidad_reporte (codigo, visible) FROM stdin;
 \.
 
 
@@ -1961,6 +1980,14 @@ ALTER TABLE ONLY operativo.aceptacion_terminos
 
 ALTER TABLE ONLY operativo.terminos_condiciones
     ADD CONSTRAINT terminos_condiciones_pkey PRIMARY KEY (id_terminos);
+
+
+--
+-- Name: visibilidad_reporte visibilidad_reporte_pkey; Type: CONSTRAINT; Schema: operativo; Owner: -
+--
+
+ALTER TABLE ONLY operativo.visibilidad_reporte
+    ADD CONSTRAINT visibilidad_reporte_pkey PRIMARY KEY (codigo);
 
 
 --
@@ -2589,5 +2616,5 @@ ALTER TABLE ONLY operativo.terminos_condiciones
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GOknd0TztqmRJPtpSqmwCGHVkSKpRNSo3wvymvUeScXo93NAFbBLAasUafNUgPm
+\unrestrict wqbX9weuuvmvm2VdVTMypLgqSjjcdp56ZzSAQDmudR5ip13F1rtnQfoEZX0dC9h
 
