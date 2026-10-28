@@ -482,3 +482,4 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
+.acceso-local-anterior.json
