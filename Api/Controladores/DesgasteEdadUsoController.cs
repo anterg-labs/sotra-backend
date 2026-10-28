@@ -7,10 +7,12 @@ using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Controladores;
 
+/// <summary>Correctivas de cada activo frente a su edad y su última lectura de uso conocida.</summary>
 [ApiController]
 [Route("api/v1/reportes/analisis/desgaste-edad-uso")]
 public sealed class DesgasteEdadUsoController(DesgasteEdadUsoDAO dao, CacheDeAnalitica cache) : ControllerBase
 {
+    /// <summary>Una observación por activo con órdenes en el período, con edad, lectura de uso y correctivas.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.ReporteConsultar)]
     [ProducesResponseType<DesgasteEdadUsoDto>(StatusCodes.Status200OK)]
