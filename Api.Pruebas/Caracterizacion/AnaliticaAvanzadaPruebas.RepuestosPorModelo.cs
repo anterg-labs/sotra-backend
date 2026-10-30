@@ -20,7 +20,7 @@ public partial class AnaliticaAvanzadaPruebas
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
         {
             codigo = "RPM-" + DatosDePrueba.Sufijo(),
-            nombre = "Repuesto A12",
+            nombre = "Repuesto A12 " + DatosDePrueba.Sufijo(),
             cantidad = 20,
             cantidadMinima = 1,
         });

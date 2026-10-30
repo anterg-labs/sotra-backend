@@ -489,6 +489,10 @@ CREATE TABLE operativo.repuesto (
     id_repuesto bigint NOT NULL,
     cant_min integer,
     costo_unitario numeric(12,2),
+    categoria character varying(80),
+    modelo_compatibilidad character varying(120),
+    unidad_medida character varying(30) DEFAULT 'unidad'::character varying NOT NULL,
+    observaciones text,
     CONSTRAINT "CK_REPUESTO_CANTIDAD_NO_NEGATIVA" CHECK ((cantidad >= 0)),
     CONSTRAINT "CK_REPUESTO_CANT_MIN_NO_NEGATIVA" CHECK (((cant_min IS NULL) OR (cant_min >= 0))),
     CONSTRAINT "CK_REPUESTO_COSTO_UNITARIO" CHECK (((costo_unitario IS NULL) OR (costo_unitario >= (0)::numeric))),
@@ -1359,21 +1363,21 @@ R18	Orden sin movimiento	t	7.00	14.00	\N	\N	1
 -- Data for Name: repuesto; Type: TABLE DATA; Schema: operativo; Owner: -
 --
 
-COPY operativo.repuesto (codigo, nombre, descripcion, cantidad, estado, ubicacion, marca, id_repuesto, cant_min, costo_unitario) FROM stdin;
-FIL-ACE-215	Filtro de aceite de motor	Para excavadoras SY215C y SY135C.	18	t	Depósito A-1	SANY	1	6	\N
-FIL-AIR-215	Filtro de aire primario	Elemento primario del filtro de aire.	4	t	Depósito A-1	Donaldson	2	5	\N
-FIL-COMB-215	Filtro de combustible	Separador de agua y combustible.	12	t	Depósito A-2	Baldwin	3	4	\N
-ACE-HID-46	Aceite hidráulico ISO 46 (balde de 20 L)	\N	9	t	Depósito B-1	Shell	4	4	\N
-ACE-MOT-15W40	Aceite de motor 15W-40 (balde de 20 L)	\N	0	t	Depósito B-1	Shell	5	3	\N
-MAN-HID-12	Manguera hidráulica de 1/2 pulgada	Con terminales prensados.	7	t	Depósito C-3	Gates	6	2	\N
-DIE-BALDE-SY	Diente de balde de excavadora	\N	3	t	Depósito C-1	ESCO	7	8	\N
-BUL-RUE-M20	Bulón de rueda M20	Calidad 10.9.	60	t	Depósito C-2	\N	8	20	\N
-BAT-12V-150	Batería de 12 V y 150 Ah	\N	2	t	Depósito D-1	Moura	9	2	\N
-COR-ALT-DS	Correa de alternador	\N	10	t	Depósito A-3	Gates	10	\N	\N
-SEL-CIL-SY	Kit de sellos de cilindro hidráulico	Incluye retenes y o-rings.	5	t	Depósito C-4	SANY	11	2	\N
-LAM-CUC-400	Cuchilla para motoniveladora	\N	6	t	Depósito C-5	SANY	12	4	\N
-GRA-EP2-400	Grasa EP2 (cartucho de 400 g)	\N	48	t	Depósito B-2	Shell	13	24	\N
-LUZ-TRA-LED	Faro de trabajo LED	Descontinuado.	0	f	Depósito D-2	Hella	14	2	\N
+COPY operativo.repuesto (codigo, nombre, descripcion, cantidad, estado, ubicacion, marca, id_repuesto, cant_min, costo_unitario, categoria, modelo_compatibilidad, unidad_medida, observaciones) FROM stdin;
+FIL-ACE-215	Filtro de aceite de motor	Para excavadoras SY215C y SY135C.	18	t	Depósito A-1	SANY	1	6	\N	\N	\N	unidad	\N
+FIL-AIR-215	Filtro de aire primario	Elemento primario del filtro de aire.	4	t	Depósito A-1	Donaldson	2	5	\N	\N	\N	unidad	\N
+FIL-COMB-215	Filtro de combustible	Separador de agua y combustible.	12	t	Depósito A-2	Baldwin	3	4	\N	\N	\N	unidad	\N
+ACE-HID-46	Aceite hidráulico ISO 46 (balde de 20 L)	\N	9	t	Depósito B-1	Shell	4	4	\N	\N	\N	unidad	\N
+ACE-MOT-15W40	Aceite de motor 15W-40 (balde de 20 L)	\N	0	t	Depósito B-1	Shell	5	3	\N	\N	\N	unidad	\N
+MAN-HID-12	Manguera hidráulica de 1/2 pulgada	Con terminales prensados.	7	t	Depósito C-3	Gates	6	2	\N	\N	\N	unidad	\N
+DIE-BALDE-SY	Diente de balde de excavadora	\N	3	t	Depósito C-1	ESCO	7	8	\N	\N	\N	unidad	\N
+BUL-RUE-M20	Bulón de rueda M20	Calidad 10.9.	60	t	Depósito C-2	\N	8	20	\N	\N	\N	unidad	\N
+BAT-12V-150	Batería de 12 V y 150 Ah	\N	2	t	Depósito D-1	Moura	9	2	\N	\N	\N	unidad	\N
+COR-ALT-DS	Correa de alternador	\N	10	t	Depósito A-3	Gates	10	\N	\N	\N	\N	unidad	\N
+SEL-CIL-SY	Kit de sellos de cilindro hidráulico	Incluye retenes y o-rings.	5	t	Depósito C-4	SANY	11	2	\N	\N	\N	unidad	\N
+LAM-CUC-400	Cuchilla para motoniveladora	\N	6	t	Depósito C-5	SANY	12	4	\N	\N	\N	unidad	\N
+GRA-EP2-400	Grasa EP2 (cartucho de 400 g)	\N	48	t	Depósito B-2	Shell	13	24	\N	\N	\N	unidad	\N
+LUZ-TRA-LED	Faro de trabajo LED	Descontinuado.	0	f	Depósito D-2	Hella	14	2	\N	\N	\N	unidad	\N
 \.
 
 
@@ -2264,6 +2268,13 @@ CREATE INDEX "IX_REGISTRO_ERROR_FECHA" ON operativo.registro_error USING btree (
 
 
 --
+-- Name: IX_REPUESTO_CATEGORIA; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE INDEX "IX_REPUESTO_CATEGORIA" ON operativo.repuesto USING btree (lower((categoria)::text)) WHERE (categoria IS NOT NULL);
+
+
+--
 -- Name: IX_ROL_PERMISO_ID_PERMISO; Type: INDEX; Schema: operativo; Owner: -
 --
 
@@ -2310,6 +2321,13 @@ CREATE UNIQUE INDEX "UK_MOTIVO_ESTADO_OT_CODIGO" ON operativo.motivo_estado_ot U
 --
 
 CREATE UNIQUE INDEX "UK_OT_REPUESTO_ACTIVO" ON operativo.ot_repuesto USING btree (id_orden, id_repuesto) WHERE ((estado)::text <> 'liberado'::text);
+
+
+--
+-- Name: UK_REPUESTO_NOMBRE; Type: INDEX; Schema: operativo; Owner: -
+--
+
+CREATE UNIQUE INDEX "UK_REPUESTO_NOMBRE" ON operativo.repuesto USING btree (lower(btrim((nombre)::text)));
 
 
 --

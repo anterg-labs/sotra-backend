@@ -266,7 +266,7 @@ public class DatosParaReportesPruebas : PruebaBase
         var repuesto = await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
         {
             codigo = "REP-" + DatosDePrueba.Sufijo(),
-            nombre = "Repuesto con costo",
+            nombre = "Repuesto con costo " + DatosDePrueba.Sufijo(),
             cantidad = 5,
             cantidadMinima = 1,
             costoUnitario = 12.5m,

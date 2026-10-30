@@ -409,7 +409,7 @@ public class AnaliticaPruebas : PruebaBase
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
         {
             codigo = "AN-" + DatosDePrueba.Sufijo(),
-            nombre = "Repuesto de analítica",
+            nombre = "Repuesto de analítica " + DatosDePrueba.Sufijo(),
             cantidad = 5,
             cantidadMinima = 1,
         });

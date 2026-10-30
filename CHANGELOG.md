@@ -1,4 +1,12 @@
 # CHANGELOG
+## Version 1.0.109 (2026-10-28)
+
+- Activos: el listado y el detalle incluyen el tipo de máquina; se puede buscar por tipo, modelo y cliente, y ordenar por tipo y ubicación.
+
+## Version 1.0.108 (2026-10-28)
+
+- Repuestos: el repuesto guarda categoría o tipo, modelo o compatibilidad, unidad de medida y observaciones, se puede filtrar por categoría y su nombre no se puede repetir. La base se actualiza sola en el despliegue y, si ya hubiera nombres repetidos, el cambio se detiene indicando cuáles.
+
 ## Version 1.0.107 (2026-10-28)
 
 - Auditoría: el registro de acciones identifica también las altas y los subrecursos de una orden, y registra el código que recibe la persona (400, 404, 409 o 412) en lugar de 500 cuando la acción falla por una regla de negocio.

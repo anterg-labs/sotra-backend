@@ -10,7 +10,8 @@ public sealed record FiltroActivos(string? Buscar, long? ClienteId, long? Modelo
 
 public sealed record FiltroRepuestos(
     string? Buscar, bool? Estado, string? Ubicacion, bool? BajoStock,
-    string? EstadoStock = null, bool OrdenarPorCriticidad = false, string? OrdenarPor = null, bool Descendente = false);
+    string? EstadoStock = null, bool OrdenarPorCriticidad = false, string? OrdenarPor = null, bool Descendente = false,
+    string? Categoria = null);
 
 public sealed record FiltroMovimientosStock(
     string? Buscar, long? RepuestoId, string? Tipo, DateOnly? FechaDesde, DateOnly? FechaHasta,

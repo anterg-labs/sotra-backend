@@ -19,7 +19,7 @@ public class CancelacionPruebas : PruebaBase
         var respuestaAlta = await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
         {
             codigo = "CAN-" + DatosDePrueba.Sufijo(),
-            nombre = "Repuesto de cancelación",
+            nombre = "Repuesto de cancelación " + DatosDePrueba.Sufijo(),
             ubicacion = "Depósito A",
             cantidad = StockInicial,
             cantidadMinima = 1,

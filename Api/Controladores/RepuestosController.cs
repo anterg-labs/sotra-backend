@@ -53,7 +53,7 @@ public class RepuestosController : ControllerBase
 
         var filtro = new FiltroRepuestos(filtros.Buscar, estado, filtros.Ubicacion, filtros.BajoStock,
             filtros.EstadoStock, string.Equals(filtros.Orden, "criticidad", StringComparison.OrdinalIgnoreCase),
-            filtros.OrdenarPor, filtros.DireccionOrden == "desc");
+            filtros.OrdenarPor, filtros.DireccionOrden == "desc", filtros.Categoria);
         var (entidades, total) = await _repuestoDao.ListarPaginaAsync(filtro, filtros.Pagina, filtros.TamanoPagina, cancelacion);
         var comprometido = await _repuestoDao.ObtenerComprometidoAsync(entidades.Select(r => r.IdRepuesto).ToList(), cancelacion);
         var elementos = entidades.Select(r => RepuestoMapeador.ADto(r, comprometido.GetValueOrDefault(r.IdRepuesto))).ToList();

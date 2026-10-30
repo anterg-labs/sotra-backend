@@ -14,6 +14,14 @@ public class RepuestoDto
     public required string Marca { get; init; }
     /// <summary>Ubicación o depósito.</summary>
     public required string Ubicacion { get; init; }
+    /// <summary>Categoría o tipo de repuesto; vacío si no se cargó.</summary>
+    public required string Categoria { get; init; }
+    /// <summary>Modelo de máquina o compatibilidad; vacío si no se cargó.</summary>
+    public required string ModeloCompatibilidad { get; init; }
+    /// <summary>Unidad de medida (por ejemplo `unidad`, `litro` o `metro`).</summary>
+    public required string UnidadMedida { get; init; }
+    /// <summary>Observaciones adicionales; vacío si no se cargaron.</summary>
+    public required string Observaciones { get; init; }
     /// <summary>Cantidad (unidades, órdenes u otro conteo según el contexto).</summary>
     public int Cantidad { get; init; }
     /// <summary>Stock mínimo antes de alertar.</summary>

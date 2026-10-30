@@ -13,7 +13,7 @@ public class StockPruebas : PruebaBase
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
         {
             codigo = "STK-" + DatosDePrueba.Sufijo(),
-            nombre = "Repuesto de stock",
+            nombre = "Repuesto de stock " + DatosDePrueba.Sufijo(),
             ubicacion = "Depósito A",
             cantidad,
             cantidadMinima = minimo,
@@ -377,20 +377,25 @@ public class StockPruebas : PruebaBase
     {
         var id = await CrearRepuestoAsync(10, 2);
 
+        var nombreNuevo = "Nombre nuevo " + DatosDePrueba.Sufijo();
         var respuesta = await Cliente.PutAsJsonAsync($"/api/v1/repuestos/{id}", new
         {
             codigo = "STK-" + DatosDePrueba.Sufijo(),
-            nombre = "Nombre nuevo",
+            nombre = nombreNuevo,
             cantidad = 999,
             cantidadMinima = 4,
             descripcion = (string?)null,
             marca = (string?)null,
             ubicacion = (string?)null,
+            categoria = (string?)null,
+            modeloCompatibilidad = (string?)null,
+            unidadMedida = (string?)null,
+            observaciones = (string?)null,
         });
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         var repuesto = await respuesta.LeerJsonAsync();
-        Assert.That(repuesto.GetProperty("nombre").GetString(), Is.EqualTo("Nombre nuevo"));
+        Assert.That(repuesto.GetProperty("nombre").GetString(), Is.EqualTo(nombreNuevo));
         Assert.That(repuesto.GetProperty("cantidadMinima").GetInt32(), Is.EqualTo(4));
         Assert.That(repuesto.GetProperty("cantidad").GetInt32(), Is.EqualTo(10));
     }

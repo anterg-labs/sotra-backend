@@ -8,6 +8,8 @@ public class FiltrosRepuestosDto
     public string? Estado { get; init; }
     /// <summary>Filtra por ubicación o depósito.</summary>
     public string? Ubicacion { get; init; }
+    /// <summary>Filtra por categoría o tipo, sin distinguir mayúsculas ni tildes.</summary>
+    public string? Categoria { get; init; }
     /// <summary>Con `true`, solo los repuestos con stock por debajo del mínimo.</summary>
     public bool? BajoStock { get; init; }
     /// <summary>Estado del stock: sin stock, stock bajo o normal.</summary>
