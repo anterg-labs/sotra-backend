@@ -1,4 +1,12 @@
 # CHANGELOG
+## Version 1.0.111 (2026-10-28)
+
+- Fechas: «hoy» se calcula en el huso horario de la empresa (Montevideo). La fecha de registro de una evidencia ya no admite el día siguiente y la fecha de ingreso de usuarios y clientes no salta de día a las 21:00.
+
+## Version 1.0.110 (2026-10-28)
+
+- Errores: la paginación inválida y los fallos de acceso de Usuarios y Perfil responden en el mismo formato `ProblemDetails` con `codigo` y `mensaje` que el resto de la API.
+
 ## Version 1.0.109 (2026-10-28)
 
 - Activos: el listado y el detalle incluyen el tipo de máquina; se puede buscar por tipo, modelo y cliente, y ordenar por tipo y ubicación.

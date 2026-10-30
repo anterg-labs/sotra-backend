@@ -310,12 +310,9 @@ public class InfraestructuraPruebas
     }
 
     [Test]
-    public void PaginaDto_ErrorDePaginacionTieneCodigoEstable()
+    public void PaginaDto_MensajeDePaginacionIndicaElMaximoPermitido()
     {
-        var json = JsonSerializer.Serialize(PaginaDto<int>.ErrorDePaginacion());
-
-        Assert.That(json, Does.Contain("\"codigo\":\"PAGINACION_INVALIDA\""));
-        Assert.That(json, Does.Contain("100"));
+        Assert.That(PaginaDto<int>.MensajeDePaginacion(), Does.Contain("100"));
     }
 
     [TestCase(0, 20, 0)]

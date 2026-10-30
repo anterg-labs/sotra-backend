@@ -224,7 +224,7 @@ public class UsuariosPruebas
     [Test]
     public void AEntidad_CreaElUsuarioActivoConLaFechaDeHoy()
     {
-        var antes = DateOnly.FromDateTime(DateTime.UtcNow);
+        var antes = Api.Infraestructura.FechaDeLaEmpresa.Hoy();
 
         var entidad = UsuarioMapeador.AEntidad(CrearValido());
 

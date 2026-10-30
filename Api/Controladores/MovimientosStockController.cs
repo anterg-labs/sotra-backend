@@ -27,7 +27,7 @@ public class MovimientosStockController : ControllerBase
     {
         if (!PaginaDto<MovimientoStockDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<MovimientoStockDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (filtros.FechaDesde is not null && filtros.FechaHasta is not null

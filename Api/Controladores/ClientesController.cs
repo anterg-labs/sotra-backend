@@ -29,7 +29,7 @@ public class ClientesController : ControllerBase
     {
         if (!PaginaDto<ClienteListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<ClienteListadoDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (!ClienteDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))

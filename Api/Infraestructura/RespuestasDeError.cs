@@ -1,3 +1,4 @@
+using Api.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Infraestructura;
@@ -8,6 +9,10 @@ public static class RespuestasDeError
     public static ObjectResult OrdenInvalido(this ControllerBase controlador, IEnumerable<string> columnasPermitidas) =>
         controlador.RespuestaDeError(400, "ORDEN_INVALIDO",
             "No se puede ordenar por esa columna. Columnas permitidas: " + string.Join(", ", columnasPermitidas) + ".");
+
+    /// <summary>Error de página o tamaño de página fuera de lo permitido en un listado.</summary>
+    public static ObjectResult PaginacionInvalida(this ControllerBase controlador) =>
+        controlador.RespuestaDeError(400, "PAGINACION_INVALIDA", PaginaDto<int>.MensajeDePaginacion());
 
     /// <summary>
     /// Respuesta de error con el mismo formato que el manejo global: <c>ProblemDetails</c> con <c>codigo</c> estable,

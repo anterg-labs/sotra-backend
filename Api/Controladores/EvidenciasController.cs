@@ -85,8 +85,7 @@ public class EvidenciasController : ControllerBase
             return this.RespuestaDeError(400, "TIPO_EVIDENCIA_INVALIDO", "El tipo de evidencia debe ser foto, documento u observación.");
         }
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        if (fechaRegistro == default || fechaRegistro > hoy.AddDays(1))
+        if (fechaRegistro == default || fechaRegistro > FechaDeLaEmpresa.Hoy())
         {
             return this.RespuestaDeError(400, "FECHA_REGISTRO_INVALIDA", "Indicá una fecha de registro válida que no sea futura.");
         }

@@ -78,7 +78,10 @@ public class UsuariosPruebas : PruebaBase
 
             var reenvio = await Cliente.PostAsync($"/api/v1/usuarios/{usuario.GetProperty("id").GetInt64()}/restablecer-contrasena", null);
             Assert.That(reenvio.StatusCode, Is.EqualTo(HttpStatusCode.BadGateway));
-            Assert.That((await reenvio.LeerJsonAsync()).GetProperty("codigo").GetString(), Is.EqualTo("CORREO_NO_ENVIADO"));
+            var cuerpo = await reenvio.LeerJsonAsync();
+            Assert.That(cuerpo.GetProperty("codigo").GetString(), Is.EqualTo("CORREO_NO_ENVIADO"));
+            Assert.That(cuerpo.GetProperty("status").GetInt32(), Is.EqualTo(502), "el error sigue el formato ProblemDetails");
+            Assert.That(cuerpo.GetProperty("mensaje").GetString(), Does.Contain("correo"));
         }
         finally
         {

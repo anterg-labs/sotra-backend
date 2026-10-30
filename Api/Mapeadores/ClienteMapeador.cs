@@ -40,7 +40,7 @@ public static class ClienteMapeador
             Direccion = direccion,
             Observaciones = observaciones,
             Estado = true,
-            FechaIngreso = DateOnly.FromDateTime(DateTime.UtcNow)
+            FechaIngreso = Infraestructura.FechaDeLaEmpresa.Hoy()
         };
     }
 

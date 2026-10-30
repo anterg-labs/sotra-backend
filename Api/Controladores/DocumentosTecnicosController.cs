@@ -32,7 +32,7 @@ public class DocumentosTecnicosController : ControllerBase
     {
         if (!PaginaDto<DocumentoTecnicoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<DocumentoTecnicoDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (filtros.Tipo is not null && !TiposDeDocumento.EsValido(filtros.Tipo))
