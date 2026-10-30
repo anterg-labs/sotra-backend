@@ -12,6 +12,8 @@ public class RepuestoDAO
             new("codigo", r => r.Codigo),
             new("nombre", r => r.Nombre),
             new("marca", r => r.Marca),
+            new("categoria", r => r.Categoria),
+            new("unidadMedida", r => r.UnidadMedida),
             new("ubicacion", r => r.Ubicacion),
             new("cantidad", r => r.Cantidad),
             new("cantidadMinima", r => r.CantMin),
@@ -47,6 +49,8 @@ public class RepuestoDAO
             consulta = consulta.Where(r => EF.Functions.ILike(r.Codigo, patron)
                                            || EF.Functions.ILike(r.Nombre, patron)
                                            || (r.Marca != null && EF.Functions.ILike(r.Marca, patron))
+                                           || (r.Categoria != null && EF.Functions.ILike(r.Categoria, patron))
+                                           || (r.ModeloCompatibilidad != null && EF.Functions.ILike(r.ModeloCompatibilidad, patron))
                                            || (r.Descripcion != null && EF.Functions.ILike(r.Descripcion, patron)));
         }
 
@@ -59,6 +63,12 @@ public class RepuestoDAO
         {
             var patronUbicacion = ConsultasDeTexto.PatronContiene(filtro.Ubicacion);
             consulta = consulta.Where(r => r.Ubicacion != null && EF.Functions.ILike(r.Ubicacion, patronUbicacion));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Categoria))
+        {
+            var patronCategoria = ConsultasDeTexto.PatronContiene(filtro.Categoria);
+            consulta = consulta.Where(r => r.Categoria != null && EF.Functions.ILike(r.Categoria, patronCategoria));
         }
 
         if (filtro.BajoStock == true)

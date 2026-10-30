@@ -25,6 +25,22 @@ public class RepuestoActualizarDto
     [JsonRequired, MaxLength(120)]
     public string? Ubicacion { get; init; }
 
+    /// <summary>Categoría o tipo de repuesto. Enviar `null` o vacío la elimina.</summary>
+    [JsonRequired, MaxLength(80)]
+    public string? Categoria { get; init; }
+
+    /// <summary>Modelo de máquina o compatibilidad. Enviar `null` o vacío lo elimina.</summary>
+    [JsonRequired, MaxLength(120)]
+    public string? ModeloCompatibilidad { get; init; }
+
+    /// <summary>Unidad de medida. Enviar `null` o vacío la deja en `unidad`.</summary>
+    [JsonRequired, MaxLength(30)]
+    public string? UnidadMedida { get; init; }
+
+    /// <summary>Observaciones adicionales. Enviar `null` o vacío las elimina.</summary>
+    [JsonRequired, MaxLength(2000)]
+    public string? Observaciones { get; init; }
+
     // Se valida por compatibilidad; el stock solo cambia mediante movimientos.
     /// <summary>Cantidad (unidades, órdenes u otro conteo según el contexto).</summary>
     [Range(0, int.MaxValue)]

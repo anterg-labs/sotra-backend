@@ -694,6 +694,17 @@ public partial class SotraContext : DbContext
             entity.Property(e => e.CantMin).HasColumnName("cant_min");
             entity.Property(e => e.CostoUnitario).HasColumnName("costo_unitario");
             entity.Property(e => e.Cantidad).HasColumnName("cantidad");
+            entity.Property(e => e.Categoria)
+                .HasMaxLength(80)
+                .HasColumnName("categoria");
+            entity.Property(e => e.ModeloCompatibilidad)
+                .HasMaxLength(120)
+                .HasColumnName("modelo_compatibilidad");
+            entity.Property(e => e.UnidadMedida)
+                .HasMaxLength(30)
+                .HasDefaultValue("unidad")
+                .HasColumnName("unidad_medida");
+            entity.Property(e => e.Observaciones).HasColumnName("observaciones");
             entity.Property(e => e.Codigo)
                 .HasMaxLength(50)
                 .HasColumnName("codigo");

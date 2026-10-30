@@ -25,6 +25,14 @@ public partial class Repuesto
 
     public decimal? CostoUnitario { get; set; }
 
+    public string? Categoria { get; set; }
+
+    public string? ModeloCompatibilidad { get; set; }
+
+    public string UnidadMedida { get; set; } = "unidad";
+
+    public string? Observaciones { get; set; }
+
     public virtual ICollection<MovimientoStock> MovimientoStocks { get; set; } = new List<MovimientoStock>();
 
     public virtual ICollection<OtRepuesto> OtRepuestos { get; set; } = new List<OtRepuesto>();

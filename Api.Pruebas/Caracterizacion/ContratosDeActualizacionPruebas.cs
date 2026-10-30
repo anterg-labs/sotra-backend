@@ -115,7 +115,7 @@ public class ContratosDeActualizacionPruebas : PruebaBase
     public async Task PatchDeStockMinimoSinValorNoLoPoneEnCero()
     {
         var creado = await (await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
-        { codigo = "NUL-" + DatosDePrueba.Sufijo(), nombre = "Filtro", cantidad = 10, cantidadMinima = 4 })).LeerJsonAsync();
+        { codigo = "NUL-" + DatosDePrueba.Sufijo(), nombre = "Filtro " + DatosDePrueba.Sufijo(), cantidad = 10, cantidadMinima = 4 })).LeerJsonAsync();
         var id = creado.GetProperty("id").GetInt64();
         var respuesta = await Cliente.PatchAsJsonAsync($"/api/v1/repuestos/{id}/stock-minimo", new { });
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));

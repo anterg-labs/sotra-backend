@@ -18,7 +18,7 @@ public class ReservasDeRepuestosPruebas : PruebaBase
         var respuesta = await Cliente.PostAsJsonAsync("/api/v1/repuestos", new
         {
             codigo = "RES-" + DatosDePrueba.Sufijo(),
-            nombre = "Repuesto de reservas",
+            nombre = "Repuesto de reservas " + DatosDePrueba.Sufijo(),
             cantidad,
             cantidadMinima = minimo,
         });

@@ -2127,3 +2127,13 @@ CREATE TABLE IF NOT EXISTS operativo.visibilidad_reporte (
     visible boolean NOT NULL,
     CONSTRAINT "CK_VISIBILIDAD_REPORTE_CODIGO" CHECK (codigo ~ '^[a-z][a-z0-9_]{1,99}$')
 );
+
+-- Datos del repuesto de RF004: categoría, modelo o compatibilidad, unidad de medida y observaciones; nombre único.
+ALTER TABLE operativo.repuesto
+    ADD COLUMN IF NOT EXISTS categoria character varying(80),
+    ADD COLUMN IF NOT EXISTS modelo_compatibilidad character varying(120),
+    ADD COLUMN IF NOT EXISTS unidad_medida character varying(30) NOT NULL DEFAULT 'unidad',
+    ADD COLUMN IF NOT EXISTS observaciones text;
+CREATE INDEX IF NOT EXISTS "IX_REPUESTO_CATEGORIA" ON operativo.repuesto (lower(categoria)) WHERE categoria IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "UK_REPUESTO_NOMBRE" ON operativo.repuesto (lower(btrim(nombre)));
+

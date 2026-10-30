@@ -93,6 +93,8 @@ public class OrdenDeListadosPruebas : PruebaBase
     [TestCase("tipos-maquina", "nombre")]
     [TestCase("tipos-maquina", "estado")]
     [TestCase("repuestos", "codigo")]
+    [TestCase("repuestos", "categoria")]
+    [TestCase("repuestos", "unidadMedida")]
     [TestCase("repuestos", "nombre")]
     [TestCase("repuestos", "marca")]
     [TestCase("repuestos", "ubicacion")]
