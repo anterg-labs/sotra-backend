@@ -1,4 +1,5 @@
 using Api.Seguridad;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 
@@ -23,11 +24,13 @@ public sealed class AuditoriaDeAcciones(ILogger<AuditoriaDeAcciones> registro, I
             return;
         }
 
+        // El manejador global traduce las excepciones de negocio después de este filtro: se usa la misma tabla para
+        // no auditar como 500 un 400, 404, 409 o 412 que la persona recibirá.
         var codigoHttp = resultado.Exception switch
         {
             OperationCanceledException when contexto.HttpContext.RequestAborted.IsCancellationRequested =>
                 CodigoClienteCerroLaSolicitud,
-            not null => StatusCodes.Status500InternalServerError,
+            { } excepcion => TraduccionDeErroresDeNegocio.Traducir(excepcion)?.Estado ?? StatusCodes.Status500InternalServerError,
             _ => (resultado.Result as IStatusCodeActionResult)?.StatusCode ?? contexto.HttpContext.Response.StatusCode,
         };
 
@@ -40,9 +43,30 @@ public sealed class AuditoriaDeAcciones(ILogger<AuditoriaDeAcciones> registro, I
             "Auditoria {Accion} {Controlador} recurso {RecursoId} resultado {CodigoHttp} usuario {Usuario}",
             ObtenerAccion(contexto),
             contexto.RouteData.Values["controller"],
-            contexto.RouteData.Values.TryGetValue("id", out var id) ? id : null,
+            ObtenerRecurso(contexto, resultado.Result),
             codigoHttp,
             usuarioActual.Correo ?? "sin autenticar");
+    }
+
+    // El recurso es el `id` de la ruta, el primer parámetro `...Id` (por ejemplo `ordenTrabajoId` en los subrecursos)
+    // o, en una alta, el identificador del recurso creado.
+    private static object? ObtenerRecurso(ActionExecutingContext contexto, IActionResult? resultado)
+    {
+        var valores = contexto.RouteData.Values;
+        if (valores.TryGetValue("id", out var id))
+        {
+            return id;
+        }
+
+        var deLaRuta = valores.FirstOrDefault(par => par.Key.EndsWith("Id", StringComparison.Ordinal) && par.Value is not null);
+        if (deLaRuta.Value is not null)
+        {
+            return deLaRuta.Value;
+        }
+
+        return resultado is ObjectResult { Value: { } creado }
+            ? creado.GetType().GetProperty("Id")?.GetValue(creado)
+            : null;
     }
 
     private static string ObtenerAccion(ActionExecutingContext contexto)
