@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
+using SOTRA_BACKEND.Operaciones;
 
 namespace Api.Pruebas.Caracterizacion;
 
@@ -34,7 +35,7 @@ public class AuditoriaPruebas
     }
 
     private static async Task<List<string>> EjecutarAsync(string metodo, IActionResult resultado, string? correo = null,
-        string? idDelRecurso = "7", Exception? excepcion = null)
+        string? idDelRecurso = "7", Exception? excepcion = null, (string Clave, string Valor)? idsDeRuta = null)
     {
         var registro = new RegistroEnMemoria();
         var filtro = new AuditoriaDeAcciones(registro, new UsuarioDePrueba(correo));
@@ -46,6 +47,11 @@ public class AuditoriaPruebas
         if (idDelRecurso is not null)
         {
             rutas.Values["id"] = idDelRecurso;
+        }
+
+        if (idsDeRuta is { } extra)
+        {
+            rutas.Values[extra.Clave] = extra.Valor;
         }
 
         var contextoDeAccion = new ActionContext(contextoHttp, rutas, new ActionDescriptor());
@@ -88,6 +94,31 @@ public class AuditoriaPruebas
         var mensajes = await EjecutarAsync("DELETE", new EmptyResult(), excepcion: new InvalidOperationException("fallo"));
 
         Assert.That(mensajes[0], Does.Contain("resultado 500"));
+    }
+
+    [Test]
+    public async Task UnaExcepcionDeNegocioSeRegistraConElCodigoQueRecibiraLaPersona()
+    {
+        var mensajes = await EjecutarAsync("PATCH", new EmptyResult(),
+            excepcion: new ValidacionDeNegocioException("Estado inválido.", "ESTADO_INVALIDO"));
+
+        Assert.That(mensajes[0], Does.Contain("resultado 400"));
+    }
+
+    [Test]
+    public async Task UnSubrecursoRegistraElIdentificadorDeLaOrdenDeLaRuta()
+    {
+        var mensajes = await EjecutarAsync("POST", new CreatedResult("/x", null), idDelRecurso: null, idsDeRuta: ("ordenTrabajoId", "42"));
+
+        Assert.That(mensajes[0], Does.Contain("recurso 42"));
+    }
+
+    [Test]
+    public async Task UnaAltaRegistraElIdentificadorDelRecursoCreado()
+    {
+        var mensajes = await EjecutarAsync("POST", new CreatedResult("/x", new { Id = 99L }), idDelRecurso: null);
+
+        Assert.That(mensajes[0], Does.Contain("recurso 99"));
     }
 
     [TestCase("GET")]

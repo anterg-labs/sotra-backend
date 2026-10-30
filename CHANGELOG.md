@@ -1,4 +1,7 @@
 # CHANGELOG
+## Version 1.0.107 (2026-10-28)
+
+- Auditoría: el registro de acciones identifica también las altas y los subrecursos de una orden, y registra el código que recibe la persona (400, 404, 409 o 412) en lugar de 500 cuando la acción falla por una regla de negocio.
 
 ## Version 1.0.106 (2026-10-28)
 
