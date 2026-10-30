@@ -824,8 +824,10 @@ Cambiar el emisor invalida las sesiones anteriores: se debe iniciar una sesión 
 
 `api-estacionalidad.ts` valida el contrato antes de renderizar. `reportes/estacionalidad.tsx` carga al abrir Maquinaria y muestra un mapa de calor con texto numérico, escala global, totales, alternativa sin colores y desplazamiento horizontal accesible; la carga, el error con reintento y el vacío son independientes de otros bloques de Maquinaria. Los filtros de estado y tipo no aplican. Los conteos no se normalizan por flota o exposición y no predicen fallas. Contrato y ejemplo completo: sección 16.14 de `Flujo de datos SOTRA.md`; explicación funcional en la guía de reportes.
 
-## Datos del repuesto, tipo en el listado de activos, errores y fechas (1.0.108 a 1.0.110)
+## Datos del repuesto, tipo en el listado de activos, errores y fechas (1.0.108 a 1.0.111)
 
 - **Repuestos (1.0.108, RF004).** `repuesto` suma `categoria`, `modelo_compatibilidad`, `unidad_medida` (por defecto `unidad`) y `observaciones`; el listado filtra por `categoria` y ordena por `categoria` y `unidadMedida`; el `PUT` exige los cuatro campos nuevos (pueden ir en `null`). El nombre es único sin distinguir mayúsculas (`UK_REPUESTO_NOMBRE`, `409 NOMBRE_REPUESTO_DUPLICADO`). SQL incremental `database/cambios/2026-10-28-repuesto-categoria-unidad-observaciones.sql`: si la base ya tiene nombres repetidos, se detiene con un mensaje que los lista en lugar de renombrarlos. También está en `01-init.sql` y en `sotra-dump.sql`.
 - **Activos (1.0.109, RF003-06).** `ActivoDto` agrega `tipoMaquinaId` y `nombreTipoMaquina`; `buscar` alcanza al cliente, al modelo y al tipo, y se ordena por `nombreTipoMaquina` y `ubicacion`. Sin cambios de esquema.
 - **Errores (1.0.110).** `PaginaDto.MensajeDePaginacion()` y el helper `PaginacionInvalida()` reemplazan al objeto anónimo de los listados; Usuarios y Perfil responden con `RespuestaDeError`. Ninguna respuesta explícita queda fuera de `ProblemDetails`.
+- **Fechas (1.0.111).** `FechaDeLaEmpresa.Hoy()` da la fecha de hoy en `America/Montevideo`. La validan la fecha de registro de evidencias y la fecha de ingreso de usuarios y clientes.
+

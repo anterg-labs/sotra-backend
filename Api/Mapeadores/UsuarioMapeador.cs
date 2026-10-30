@@ -15,7 +15,7 @@ public static class UsuarioMapeador
             Mail = usuario.Correo,
             Telefono = usuario.Telefono,
             Estado = true,
-            FechaIngreso = DateOnly.FromDateTime(DateTime.UtcNow)
+            FechaIngreso = Infraestructura.FechaDeLaEmpresa.Hoy()
         };
     }
 

@@ -1,3 +1,4 @@
+using Api.Infraestructura;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -33,7 +34,7 @@ public class EvidenciasPruebas : PruebaBase
         var formulario = new MultipartFormDataContent
         {
             { new StringContent(tipo), "tipo" },
-            { new StringContent(fecha ?? DateTime.UtcNow.ToString("yyyy-MM-dd")), "fechaRegistro" },
+            { new StringContent(fecha ?? FechaDeLaEmpresa.Hoy().ToString("yyyy-MM-dd")), "fechaRegistro" },
         };
         if (observacion is not null)
         {
@@ -96,6 +97,19 @@ public class EvidenciasPruebas : PruebaBase
         Assert.That(ejecutableConNombreDeImagen.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         Assert.That(await LeerCodigoAsync(ejecutableConNombreDeImagen), Is.EqualTo("ARCHIVO_NO_PERMITIDO"));
         Assert.That(pdfComoFoto.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task LaFechaDeRegistroAceptaHoyYRechazaMananaSegunElHusoDeLaEmpresa()
+    {
+        var ordenId = await CrearOrdenAsync();
+        var hoy = FechaDeLaEmpresa.Hoy();
+
+        var deHoy = await RegistrarAsync(ordenId, "observacion", observacion: "Hoy", fecha: hoy.ToString("yyyy-MM-dd"));
+        var deManana = await RegistrarAsync(ordenId, "observacion", observacion: "Mañana", fecha: hoy.AddDays(1).ToString("yyyy-MM-dd"));
+
+        Assert.That(deHoy.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        Assert.That(await LeerCodigoAsync(deManana), Is.EqualTo("FECHA_REGISTRO_INVALIDA"));
     }
 
     [Test]
