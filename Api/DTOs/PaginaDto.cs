@@ -31,15 +31,8 @@ public class PaginaDto<T>
         return true;
     }
 
-    public static object ErrorDePaginacion()
-    {
-        return new
-        {
-            codigo = "PAGINACION_INVALIDA",
-            mensaje = "La página debe ser 1 o mayor y el tamaño de página debe estar entre 1 y "
-                      + TamanoPaginaMaximo + "."
-        };
-    }
+    public static string MensajeDePaginacion() =>
+        "La página debe ser 1 o mayor y el tamaño de página debe estar entre 1 y " + TamanoPaginaMaximo + ".";
 
     public static bool Contiene(string? texto, string textoBuscado)
     {

@@ -33,7 +33,7 @@ public class RepuestosController : ControllerBase
     {
         if (!PaginaDto<RepuestoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<RepuestoDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (!RepuestoDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))

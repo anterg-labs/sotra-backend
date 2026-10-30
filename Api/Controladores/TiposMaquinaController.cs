@@ -28,7 +28,7 @@ public class TiposMaquinaController : ControllerBase
     {
         if (!PaginaDto<TipoMaquinaDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<TipoMaquinaDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (!TipoMaquinaDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))

@@ -34,11 +34,7 @@ public class UsuariosController : ControllerBase
     // El jefe de mantenimiento crea y modifica usuarios, pero no administradores (ver AlcancePorRol).
     private ObjectResult SoloAdministrador()
     {
-        return StatusCode(StatusCodes.Status403Forbidden, new
-        {
-            codigo = "SOLO_ADMINISTRADOR",
-            mensaje = "Solo un administrador puede asignar el rol Administrador o modificar a un administrador."
-        });
+        return this.RespuestaDeError(403, "SOLO_ADMINISTRADOR", "Solo un administrador puede asignar el rol Administrador o modificar a un administrador.");
     }
 
     private async Task<bool> IncluyeRolAdministradorAsync(IEnumerable<long> idsRol, CancellationToken cancelacion)
@@ -62,7 +58,7 @@ public class UsuariosController : ControllerBase
     {
         if (!PaginaDto<UsuarioListadoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<UsuarioListadoDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (!UsuarioDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))
@@ -246,20 +242,12 @@ public class UsuariosController : ControllerBase
 
         if (usuario.IdKeycloak is not Guid idKeycloak)
         {
-            return Conflict(new
-            {
-                codigo = "USUARIO_SIN_ACCESO",
-                mensaje = "El usuario no tiene acceso al sistema: no está registrado en Keycloak."
-            });
+            return this.RespuestaDeError(409, "USUARIO_SIN_ACCESO", "El usuario no tiene acceso al sistema: no está registrado en Keycloak.");
         }
 
         if (!usuario.Estado)
         {
-            return Conflict(new
-            {
-                codigo = "USUARIO_INACTIVO",
-                mensaje = "El usuario está dado de baja. Reactivalo antes de restablecer la contraseña."
-            });
+            return this.RespuestaDeError(409, "USUARIO_INACTIVO", "El usuario está dado de baja. Reactivalo antes de restablecer la contraseña.");
         }
 
         try
@@ -270,11 +258,7 @@ public class UsuariosController : ControllerBase
         catch (ExcepcionCorreoNoEnviado excepcion)
         {
             _registro.LogError(excepcion, "No se pudo enviar el correo para modificar la contraseña de {IdKeycloak}.", idKeycloak);
-            return StatusCode(StatusCodes.Status502BadGateway, new
-            {
-                codigo = "CORREO_NO_ENVIADO",
-                mensaje = "No se pudo enviar el correo. Revisá la configuración del correo (SMTP) de Keycloak."
-            });
+            return this.RespuestaDeError(502, "CORREO_NO_ENVIADO", "No se pudo enviar el correo. Revisá la configuración del correo (SMTP) de Keycloak.");
         }
         catch (ExcepcionKeycloak excepcion)
         {
@@ -330,11 +314,7 @@ public class UsuariosController : ControllerBase
     private ObjectResult ErrorDeKeycloak(ExcepcionKeycloak excepcion)
     {
         _registro.LogError(excepcion, "Error al sincronizar el usuario con Keycloak.");
-        return StatusCode(StatusCodes.Status502BadGateway, new
-        {
-            codigo = "KEYCLOAK_NO_DISPONIBLE",
-            mensaje = "No se pudo actualizar el acceso del usuario. Intentá de nuevo más tarde."
-        });
+        return this.RespuestaDeError(502, "KEYCLOAK_NO_DISPONIBLE", "No se pudo actualizar el acceso del usuario. Intentá de nuevo más tarde.");
     }
 
     private static DatosUsuarioKeycloak DatosParaKeycloak(Usuario usuario)

@@ -28,7 +28,7 @@ public class ActivosController : ControllerBase
     {
         if (!PaginaDto<ActivoDto>.EsValida(filtros.Pagina, filtros.TamanoPagina))
         {
-            return BadRequest(PaginaDto<ActivoDto>.ErrorDePaginacion());
+            return this.PaginacionInvalida();
         }
 
         if (!ActivoDAO.ColumnasOrdenables.Contiene(filtros.OrdenarPor))

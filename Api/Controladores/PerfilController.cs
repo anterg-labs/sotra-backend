@@ -1,4 +1,5 @@
 using Api.DTOs.Usuarios;
+using Api.Infraestructura;
 using Api.Mapeadores;
 using Api.Seguridad;
 using Api.Servicios;
@@ -73,11 +74,7 @@ public class PerfilController : ControllerBase
         catch (ExcepcionKeycloak excepcion)
         {
             _registro.LogError(excepcion, "Error al actualizar el perfil en Keycloak.");
-            return StatusCode(StatusCodes.Status502BadGateway, new
-            {
-                codigo = "KEYCLOAK_NO_DISPONIBLE",
-                mensaje = "No se pudo actualizar tu perfil. Intentá de nuevo más tarde."
-            });
+            return this.RespuestaDeError(502, "KEYCLOAK_NO_DISPONIBLE", "No se pudo actualizar tu perfil. Intentá de nuevo más tarde.");
         }
     }
 
