@@ -732,15 +732,75 @@ public class OrdenTrabajoDAO
             FechaHora = DateTime.UtcNow,
             Observacion = observacion
         });
+
+        await AvisarCambioDeEstadoAsync(orden, estado, estadoAnterior, usuarioId, cancelacion);
+    }
+
+    /// <summary>
+    /// Avisos de RFG-05 que genera un cambio de estado: la solicitud de revisión llega a los jefes de mantenimiento y los
+    /// demás cambios, al técnico asignado. Quien hace el cambio no se avisa a sí mismo y la creación de la orden no avisa.
+    /// </summary>
+    private async Task AvisarCambioDeEstadoAsync(OrdenTrabajo orden, EstadoOt estado, string? estadoAnterior, long? usuarioId,
+        CancellationToken cancelacion)
+    {
+        if (estadoAnterior is null)
+        {
+            return;
+        }
+
+        if (estado.Nombre == "en_revision")
+        {
+            var jefes = await _contexto.Usuarios.AsNoTracking()
+                .Where(usuario => usuario.Estado && usuario.IdRols.Any(rol => rol.Nombre == "Jefe de mantenimiento" && rol.Activo))
+                .Select(usuario => usuario.IdUsuario)
+                .ToListAsync(cancelacion);
+            foreach (var jefe in jefes)
+            {
+                Avisar(jefe, usuarioId, orden, TiposDeNotificacion.OrdenEnRevision,
+                    $"La orden #{orden.IdOrden} está en revisión y espera su cierre.");
+            }
+
+            return;
+        }
+
+        if (orden.IdUsuarioTecnico is { } tecnico)
+        {
+            Avisar(tecnico, usuarioId, orden, TiposDeNotificacion.OrdenCambioEstado,
+                $"La orden #{orden.IdOrden} pasó a «{estado.Descripcion ?? estado.Nombre}».");
+        }
+    }
+
+    /// <summary>
+    /// Agrega un aviso para <paramref name="destino"/> en la misma transacción que el cambio. No avisa a quien lo provoca
+    /// ni repite un aviso a la misma persona por la misma orden dentro de una operación (una asignación que además cambia
+    /// el estado genera uno solo).
+    /// </summary>
+    private void Avisar(long destino, long? autor, OrdenTrabajo orden, string tipo, string mensaje)
+    {
+        if (destino == autor || _contexto.Notificaciones.Local.Any(n => n.IdUsuario == destino && n.IdOrden == orden.IdOrden))
+        {
+            return;
+        }
+
+        _contexto.Notificaciones.Add(new Notificacion
+        {
+            IdUsuario = destino,
+            IdOrden = orden.IdOrden,
+            Tipo = tipo,
+            Mensaje = mensaje,
+            CreadaEn = DateTime.UtcNow,
+        });
     }
 
     /// <summary>Guarda una asignación o un cambio de técnico; no hace nada si el técnico es el mismo.</summary>
-    private static void RegistrarCambioDeTecnico(OrdenTrabajo orden, long? tecnicoAnterior, long? tecnicoNuevo, long? usuarioId)
+    private void RegistrarCambioDeTecnico(OrdenTrabajo orden, long? tecnicoAnterior, long? tecnicoNuevo, long? usuarioId)
     {
         if (tecnicoNuevo is null || tecnicoNuevo == tecnicoAnterior)
         {
             return;
         }
+
+        Avisar(tecnicoNuevo.Value, usuarioId, orden, TiposDeNotificacion.OrdenAsignada, $"Se te asignó la orden #{orden.IdOrden}.");
 
         orden.HistorialTecnicoOts.Add(new HistorialTecnicoOt
         {

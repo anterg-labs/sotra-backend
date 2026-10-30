@@ -52,6 +52,7 @@ builder.Services.AddScoped<RolDAO>();
 builder.Services.AddScoped<TerminosDAO>();
 builder.Services.AddScoped<ActivoDAO>();
 builder.Services.AddScoped<RepuestoDAO>();
+builder.Services.AddScoped<NotificacionDAO>();
 builder.Services.AddScoped<MovimientoStockDAO>();
 builder.Services.AddScoped<OrdenTrabajoDAO>();
 builder.Services.AddScoped<AnaliticaDAO>();

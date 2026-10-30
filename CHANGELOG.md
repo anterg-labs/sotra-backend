@@ -1,4 +1,9 @@
 # CHANGELOG
+
+## Version 1.0.112 (2026-10-28)
+
+- Notificaciones: la API genera avisos dentro de la aplicación cuando se asigna una orden, cambia su estado o pasa a revisión (los jefes de mantenimiento reciben la solicitud de revisión y el técnico, los demás cambios). Cada persona consulta, cuenta y marca como leídos solo los suyos.
+
 ## Version 1.0.111 (2026-10-28)
 
 - Fechas: «hoy» se calcula en el huso horario de la empresa (Montevideo). La fecha de registro de una evidencia ya no admite el día siguiente y la fecha de ingreso de usuarios y clientes no salta de día a las 21:00.
