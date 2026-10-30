@@ -6,6 +6,9 @@ namespace Api.Seguridad;
 // Siguen los nombres de operativo.permiso cuando el permiso existe en la base.
 public static class Politicas
 {
+    /// <summary>Cualquier persona con sesión, sin importar su rol (por ejemplo, sus propias notificaciones).</summary>
+    public const string SesionIniciada = "sesion.iniciada";
+
     public const string UsuarioConsultar = "usuario.consultar";
     public const string UsuarioListar = "usuario.listar";
     public const string UsuarioCrear = "usuario.crear";
@@ -149,6 +152,18 @@ public static class PoliticasDeAcceso
                     }
                 });
             }
+
+            opciones.AddPolicy(Politicas.SesionIniciada, constructor =>
+            {
+                if (obligatoria)
+                {
+                    constructor.RequireAuthenticatedUser();
+                }
+                else
+                {
+                    constructor.RequireAssertion(_ => true);
+                }
+            });
 
             // Un endpoint sin [Authorize] ni [AllowAnonymous] exige sesión: así un
             // endpoint nuevo nunca queda abierto por olvido.

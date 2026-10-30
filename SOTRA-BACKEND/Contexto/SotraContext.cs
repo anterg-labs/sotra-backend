@@ -57,6 +57,8 @@ public partial class SotraContext : DbContext
 
     public virtual DbSet<OrdenTrabajo> OrdenTrabajos { get; set; }
 
+    public virtual DbSet<Notificacion> Notificaciones { get; set; }
+
     public virtual DbSet<OtRepuesto> OtRepuestos { get; set; }
 
     public virtual DbSet<Permiso> Permisos { get; set; }
@@ -631,6 +633,21 @@ public partial class SotraContext : DbContext
             entity.HasOne(d => d.IdCausaFallaNavigation).WithMany(p => p.OrdenTrabajos)
                 .HasForeignKey(d => d.IdCausaFalla)
                 .HasConstraintName("FK_ORDEN_TRABAJO_CAUSA_FALLA");
+        });
+
+        modelBuilder.Entity<Notificacion>(entity =>
+        {
+            entity.HasKey(e => e.IdNotificacion).HasName("PK_NOTIFICACION");
+
+            entity.ToTable("notificacion", EsquemaOperativo);
+
+            entity.Property(e => e.IdNotificacion).ValueGeneratedOnAdd().HasColumnName("id_notificacion");
+            entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
+            entity.Property(e => e.IdOrden).HasColumnName("id_orden");
+            entity.Property(e => e.Tipo).HasMaxLength(30).HasColumnName("tipo");
+            entity.Property(e => e.Mensaje).HasMaxLength(300).HasColumnName("mensaje");
+            entity.Property(e => e.CreadaEn).HasDefaultValueSql("now()").HasColumnName("creada_en");
+            entity.Property(e => e.LeidaEn).HasColumnName("leida_en");
         });
 
         modelBuilder.Entity<OtRepuesto>(entity =>
