@@ -16,6 +16,10 @@ public class ActivoDto
     public long ModeloMaquinaId { get; init; }
     /// <summary>Nombre del modelo de máquina.</summary>
     public string? NombreModeloMaquina { get; init; }
+    /// <summary>Identificador del tipo de máquina del modelo.</summary>
+    public long? TipoMaquinaId { get; init; }
+    /// <summary>Nombre del tipo de máquina del modelo.</summary>
+    public string? NombreTipoMaquina { get; init; }
     /// <summary>Año de fabricación.</summary>
     public short? AnioFabricacion { get; init; }
     /// <summary>Nombre.</summary>

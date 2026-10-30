@@ -13,6 +13,8 @@ public class ActivoDAO
             new("numSerie", a => a.NumSerie),
             new("nombreCliente", a => a.IdClienteNavigation.RazonSocial),
             new("nombreModeloMaquina", a => a.IdModeloMaquinaNavigation.Nombre),
+            new("nombreTipoMaquina", a => a.IdModeloMaquinaNavigation.IdTipoMaquinaNavigation.Nombre),
+            new("ubicacion", a => a.Ubicacion),
             new("estado", a => a.Estado),
         ]);
 
@@ -40,7 +42,7 @@ public class ActivoDAO
     {
         var consulta = _contexto.Activos.AsNoTracking()
             .Include(activo => activo.IdClienteNavigation)
-            .Include(activo => activo.IdModeloMaquinaNavigation)
+            .Include(activo => activo.IdModeloMaquinaNavigation).ThenInclude(modelo => modelo.IdTipoMaquinaNavigation)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filtro.Buscar))
@@ -49,7 +51,10 @@ public class ActivoDAO
             consulta = consulta.Where(a => EF.Functions.ILike(a.NumSerie, patron)
                                            || (a.Nombre != null && EF.Functions.ILike(a.Nombre, patron))
                                            || (a.Ubicacion != null && EF.Functions.ILike(a.Ubicacion, patron))
-                                           || (a.Descripcion != null && EF.Functions.ILike(a.Descripcion, patron)));
+                                           || (a.Descripcion != null && EF.Functions.ILike(a.Descripcion, patron))
+                                           || EF.Functions.ILike(a.IdClienteNavigation.RazonSocial, patron)
+                                           || EF.Functions.ILike(a.IdModeloMaquinaNavigation.Nombre, patron)
+                                           || EF.Functions.ILike(a.IdModeloMaquinaNavigation.IdTipoMaquinaNavigation.Nombre, patron));
         }
 
         if (filtro.ClienteId is { } clienteId)
@@ -75,7 +80,7 @@ public class ActivoDAO
     {
         return await _contexto.Activos
             .Include(activo => activo.IdClienteNavigation)
-            .Include(activo => activo.IdModeloMaquinaNavigation)
+            .Include(activo => activo.IdModeloMaquinaNavigation).ThenInclude(modelo => modelo.IdTipoMaquinaNavigation)
             .FirstOrDefaultAsync(activo => activo.IdActivo == id, cancelacion);
     }
 

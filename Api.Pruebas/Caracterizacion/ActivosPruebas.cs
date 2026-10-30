@@ -19,10 +19,30 @@ public class ActivosPruebas : PruebaBase
         Assert.That(propiedades, Is.EquivalentTo(new[]
         {
             "id", "clienteId", "nombreCliente", "numSerie", "descripcion", "modeloMaquinaId", "nombreModeloMaquina",
-            "anioFabricacion", "nombre", "ubicacion", "unidadUso", "estado",
+            "tipoMaquinaId", "nombreTipoMaquina", "anioFabricacion", "nombre", "ubicacion", "unidadUso", "estado",
         }));
         Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreCliente").GetString(), Is.Not.Empty);
         Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreModeloMaquina").GetString(), Is.Not.Empty);
+        Assert.That(pagina.GetProperty("elementos")[0].GetProperty("nombreTipoMaquina").GetString(), Is.Not.Empty);
+    }
+
+    [Test]
+    public async Task ListarActivosBuscaPorTipoDeMaquinaYModelo()
+    {
+        var tipo = await DatosDePrueba.CrearTipoMaquinaAsync(Cliente, "Grúa " + DatosDePrueba.Sufijo());
+        var modelo = await DatosDePrueba.CrearModeloMaquinaAsync(Cliente, tipo.GetProperty("id").GetInt64());
+        var cliente = await DatosDePrueba.CrearClienteAsync(Cliente);
+        var numSerie = "SERIE-" + DatosDePrueba.Sufijo();
+        await Cliente.PostAsJsonAsync("/api/v1/activos",
+            DatosDePrueba.ActivoNuevo(cliente.GetProperty("id").GetInt64(), modelo.GetProperty("id").GetInt64(), numSerie));
+
+        var porTipo = await (await Cliente.GetAsync("/api/v1/activos?buscar=" + Uri.EscapeDataString(tipo.GetProperty("nombre").GetString()!))).LeerJsonAsync();
+        var porModelo = await (await Cliente.GetAsync("/api/v1/activos?buscar=" + Uri.EscapeDataString(modelo.GetProperty("nombre").GetString()!))).LeerJsonAsync();
+
+        Assert.That(porTipo.GetProperty("totalElementos").GetInt32(), Is.EqualTo(1));
+        Assert.That(porTipo.GetProperty("elementos")[0].GetProperty("nombreTipoMaquina").GetString(), Is.EqualTo(tipo.GetProperty("nombre").GetString()));
+        Assert.That(porTipo.GetProperty("elementos")[0].GetProperty("tipoMaquinaId").GetInt64(), Is.EqualTo(tipo.GetProperty("id").GetInt64()));
+        Assert.That(porModelo.GetProperty("totalElementos").GetInt32(), Is.EqualTo(1));
     }
 
     [Test]

@@ -65,6 +65,8 @@ public static class ActivoMapeador
             Descripcion = activo.Descripcion,
             ModeloMaquinaId = activo.IdModeloMaquina,
             NombreModeloMaquina = activo.IdModeloMaquinaNavigation?.Nombre,
+            TipoMaquinaId = activo.IdModeloMaquinaNavigation?.IdTipoMaquina,
+            NombreTipoMaquina = activo.IdModeloMaquinaNavigation?.IdTipoMaquinaNavigation?.Nombre,
             AnioFabricacion = activo.AnioFabricacion,
             Nombre = activo.Nombre,
             Ubicacion = activo.Ubicacion,

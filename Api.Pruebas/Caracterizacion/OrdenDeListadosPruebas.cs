@@ -85,6 +85,8 @@ public class OrdenDeListadosPruebas : PruebaBase
     [TestCase("activos", "numSerie")]
     [TestCase("activos", "nombreCliente")]
     [TestCase("activos", "nombreModeloMaquina")]
+    [TestCase("activos", "nombreTipoMaquina")]
+    [TestCase("activos", "ubicacion")]
     [TestCase("activos", "estado")]
     [TestCase("modelos-maquina", "nombre")]
     [TestCase("modelos-maquina", "nombreTipoMaquina")]
