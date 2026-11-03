@@ -110,7 +110,9 @@ services:
     restart: "no"
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.4
+    # Versión y digest fijos: el tag se vuelve a publicar con parches del sistema y Keycloak
+    # migra su esquema al arrancar, sin vuelta atrás. Se cambian a mano, después de escanear.
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
     container_name: sotra-keycloak
     command: start-dev --import-realm
     volumes:

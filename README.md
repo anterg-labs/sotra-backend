@@ -142,7 +142,7 @@ curl http://localhost:8081/api/v1/roles
 
 ## Keycloak (autenticación)
 
-`compose.yml` levanta Keycloak 26.7.4 en el contenedor `sotra-keycloak`, publicado en el puerto `KC_PORT` (9080). Por ahora corre en modo `start-dev` (HTTP y `localhost`); para producción hay que pasarlo a `start` con el dominio real y HTTPS. Guarda sus datos en la misma base que el backend, dentro del esquema `keycloak` y con un usuario propio (`KC_DB_USERNAME`, por defecto `keycloak_user`), que no tiene acceso a `operativo` ni a `vectorial`.
+`compose.yml` levanta Keycloak 26.8.1 en el contenedor `sotra-keycloak`, publicado en el puerto `KC_PORT` (9080). La imagen se fija con versión y digest: Keycloak migra su esquema al arrancar y no se puede volver a una versión anterior sobre una base ya migrada, así que antes de cambiarla hay que respaldar la base y escanear la imagen nueva. Por ahora corre en modo `start-dev` (HTTP y `localhost`); para producción hay que pasarlo a `start` con el dominio real y HTTPS. Guarda sus datos en la misma base que el backend, dentro del esquema `keycloak` y con un usuario propio (`KC_DB_USERNAME`, por defecto `keycloak_user`), que no tiene acceso a `operativo` ni a `vectorial`.
 
 La configuración del realm `sotra` está versionada en `keycloak/realm-sotra.json`: clientes, roles, el client scope de audiencia, la política de contraseñas y la protección contra fuerza bruta. Keycloak arranca con `--import-realm` y lo importa solamente si el realm todavía no existe; si ya existe, no lo modifica. El archivo es una exportación parcial: no incluye usuarios (salvo la cuenta de servicio de `sotra-backend-admin`), ni claves de firma, y los secretos de los clientes aparecen como `**********`.
 
