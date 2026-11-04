@@ -101,7 +101,8 @@ CREATE TABLE vectorial.fragmentos (
     pagina integer NOT NULL,
     texto text NOT NULL,
     embedding public.vector(1024),
-    texto_busqueda tsvector GENERATED ALWAYS AS (to_tsvector('spanish'::regconfig, texto)) STORED
+    contexto text DEFAULT ''::text NOT NULL,
+    texto_busqueda tsvector GENERATED ALWAYS AS (to_tsvector('spanish'::regconfig, ((contexto || ' '::text) || texto))) STORED
 );
 
 

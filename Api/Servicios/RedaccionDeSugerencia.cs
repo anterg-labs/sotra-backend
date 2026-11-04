@@ -160,19 +160,25 @@ public static class RedaccionDeSugerencia
             }
         }
 
-        if (opciones.Count > 1)
+        // Solo se aclara si queda alguna opción con otro título: las de igual título (la misma sección en otra página
+        // o en otro manual) no le dan a la persona nada para elegir.
+        var otrasOpciones = new List<SeccionDocumento>();
+        foreach (var opcion in opciones)
+        {
+            if (opcion.Titulo != elegida.Titulo)
+            {
+                otrasOpciones.Add(opcion);
+            }
+        }
+
+        if (otrasOpciones.Count > 0)
         {
             respuesta += "\nAclaración:\n";
             respuesta += "La consulta puede referirse a más de un procedimiento del manual. ";
             respuesta += "Esta respuesta corresponde a \"" + TextoDelManual.CrearTituloLegible(elegida.Titulo) + "\". ";
             respuesta += "También se encontraron:\n";
-            foreach (var opcion in opciones)
+            foreach (var opcion in otrasOpciones)
             {
-                if (opcion.Titulo == elegida.Titulo)
-                {
-                    continue;
-                }
-
                 respuesta += "- " + TextoDelManual.CrearTituloLegible(opcion.Titulo) + " (página " + opcion.Pagina + ")\n";
             }
 

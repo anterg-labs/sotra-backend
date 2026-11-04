@@ -165,6 +165,77 @@ public class ServiciosDelManualPruebas
         Assert.That(TextoDelManual.EsIndice("Afloje el tapón... y espere. Drene el aceite."), Is.False);
     }
 
+    [Test]
+    public void EsIndice_ReconoceLosPuntosSeparadosPorEspacios()
+    {
+        // Así extrae PdfPig la tabla de contenidos del manual SY335 de SANY America.
+        var indice = "TABLE OF CONTENTS Fuel Level . . . . . . . . . . . .5-20 Sheet Metal . . . . . . . . . . .5-33 "
+            + "50 Hours of Maintenance. . . . . . . . . . . .5-35";
+
+        Assert.That(TextoDelManual.EsIndice(indice), Is.True);
+        Assert.That(TextoDelManual.EsIndice("Revise el nivel. . . Luego cierre la tapa. Arranque el motor."), Is.False);
+    }
+
+    // CabeceraDeFragmentos
+
+    [Test]
+    public void CabeceraDeFragmentos_IncluyeDocumentoYMaquinaSinLaExtension()
+    {
+        var fragmentos = new List<FragmentoDocumento> { new(1, "Texto sin títulos del manual.") };
+
+        var cabecera = CabeceraDeFragmentos.Armar("Manual SY335.pdf", "Excavadora hidráulica SANY SY335", fragmentos)[0];
+
+        Assert.That(cabecera.Completa, Is.EqualTo("Documento: Manual SY335. Máquina: Excavadora hidráulica SANY SY335."));
+        // El embedding no lleva el documento ni la máquina (ver CabeceraDeFragmentos.Armar).
+        Assert.That(cabecera.DeSeccion, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void CabeceraDeFragmentos_SinMaquinaSoloNombraElDocumento()
+    {
+        var fragmentos = new List<FragmentoDocumento> { new(1, "Texto.") };
+
+        Assert.That(CabeceraDeFragmentos.Armar("Seguridad laboral.pdf", null, fragmentos)[0].Completa,
+            Is.EqualTo("Documento: Seguridad laboral."));
+    }
+
+    [Test]
+    public void CabeceraDeFragmentos_UnTituloRepetidoEnMuchosFragmentosEsUnEncabezadoYNoUnaSeccion()
+    {
+        var fragmentos = new List<FragmentoDocumento>
+        {
+            new(10, "§4.2 Engine oil - change§ 1. Drain the engine oil completely."),
+        };
+        for (var pagina = 11; pagina < 17; pagina++)
+        {
+            fragmentos.Add(new FragmentoDocumento(pagina, "§SANY LATIN AMERICA§ Continue with the next step of the procedure."));
+        }
+
+        var cabeceras = CabeceraDeFragmentos.Armar("Manual.pdf", null, fragmentos);
+
+        // El pie de página no reemplaza a la sección en curso.
+        Assert.That(cabeceras[6].DeSeccion, Is.EqualTo("Sección: 4.2 Engine oil - change."));
+    }
+
+    [Test]
+    public void CabeceraDeFragmentos_UnFragmentoQueEmpiezaAMitadDeSeccionLlevaSuTitulo()
+    {
+        var fragmentos = new List<FragmentoDocumento>
+        {
+            new(333, "Texto anterior. §5.8.6 Every 500 service hours§ 1. Lower work equipment to ground."),
+            new(333, "2. Add grease through the fittings shown by arrows."),
+            new(334, "§5.8.7 Every 1000 service hours§ 1. Replace the hydraulic oil filter."),
+        };
+
+        var cabeceras = CabeceraDeFragmentos.Armar("Manual.pdf", null, fragmentos);
+
+        Assert.That(cabeceras[0].Completa, Is.EqualTo("Documento: Manual."));
+        Assert.That(cabeceras[1].Completa, Is.EqualTo("Documento: Manual. Sección: 5.8.6 Every 500 service hours."));
+        Assert.That(cabeceras[1].DeSeccion, Is.EqualTo("Sección: 5.8.6 Every 500 service hours."));
+        // Empieza con su propio título: la sección anterior no le corresponde.
+        Assert.That(cabeceras[2].Completa, Is.EqualTo("Documento: Manual."));
+    }
+
     // Valores medidos con consultas en español contra los manuales SANY en inglés.
     [TestCase(1.59f, 0.332, true, TestName = "EsSeccionConfiable_RerankerPositivo")]
     [TestCase(0.27f, null, true, TestName = "EsSeccionConfiable_RerankerPositivoSinDistancia")]
@@ -174,6 +245,10 @@ public class ServiciosDelManualPruebas
     [TestCase(-1.09f, null, false, TestName = "EsSeccionConfiable_EntreIdiomasSoloPorPalabras")]
     [TestCase(-2.59f, 0.435, false, TestName = "EsSeccionConfiable_ConsultaSinRespuesta")]
     [TestCase(-2.89f, 0.39, false, TestName = "EsSeccionConfiable_RerankerMuyBajoAunqueCercana")]
+    // Valores medidos con mmarco-mMiniLMv2.
+    [TestCase(2.43f, 0.43, true, TestName = "EsSeccionConfiable_RerankerAltoAunqueLejana")]
+    [TestCase(0.33f, 0.436, true, TestName = "EsSeccionConfiable_RerankerBajoCercana")]
+    [TestCase(0.39f, 0.488, false, TestName = "EsSeccionConfiable_RerankerBajoLejana")]
     public void ServicioSugerencias_EsSeccionConfiable(float puntaje, double? distancia, bool esperado)
     {
         Assert.That(ServicioSugerencias.EsSeccionConfiable(puntaje, distancia), Is.EqualTo(esperado));
@@ -973,6 +1048,30 @@ public class ServiciosDelManualPruebas
         Assert.That(respuesta, Does.StartWith("Servicio de mantenimiento de las 500 horas\nResumen.\n"));
         Assert.That(respuesta, Does.Not.Contain("Park the machine"));
         Assert.That(respuesta, Does.EndWith("sección \"500 Hours of service\"."));
+    }
+
+    [Test]
+    public void Redaccion_ArmarRespuesta_OpcionesConElMismoTituloNoAgreganAclaracion()
+    {
+        // La misma sección en dos manuales cargados (o en dos páginas) no deja nada para elegir.
+        var elegida = Seccion("500 HOURS OF SERVICE", "c", id: 1, pagina: 258);
+        var repetida = Seccion("500 HOURS OF SERVICE", "c", id: 2, pagina: 258, documento: "copia.pdf");
+
+        var respuesta = RedaccionDeSugerencia.ArmarRespuesta("Resumen.", [], elegida, [elegida, repetida]);
+
+        Assert.That(respuesta, Does.Not.Contain("Aclaración"));
+    }
+
+    [Test]
+    public void Redaccion_ArmarRespuesta_ListaSoloLasOpcionesConOtroTitulo()
+    {
+        var elegida = Seccion("500 HOURS OF SERVICE", "c", id: 1, pagina: 258);
+        var repetida = Seccion("500 HOURS OF SERVICE", "c", id: 2, pagina: 259);
+        var otra = Seccion("1000 HOURS OF SERVICE", "c", id: 3, pagina: 262);
+
+        var respuesta = RedaccionDeSugerencia.ArmarRespuesta("Resumen.", [], elegida, [elegida, repetida, otra]);
+
+        Assert.That(respuesta, Does.Contain("También se encontraron:\n- 1000 Hours of service (página 262)\nIndique"));
     }
 
     [TestCase("Título: Cambio del filtro de combustible\nSe debe drenar el agua.",

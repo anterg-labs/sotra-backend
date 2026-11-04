@@ -8,9 +8,11 @@ namespace Api.Servicios;
 
 public class ServicioDocumentosTecnicos : IAsyncDisposable
 {
-    // pdf-v5: quita encabezados, pies y etiquetas de figura repetidos. Los documentos procesados con una versión
+    // pdf-v5: quita encabezados, pies y etiquetas de figura repetidos. pdf-v6: guarda con cada fragmento una cabecera
+    // con el documento, la máquina y la sección (CabeceraDeFragmentos); la sección entra también en el embedding. Los
+    // documentos procesados con una versión
     // anterior se actualizan con POST /documentos-tecnicos/{id}/reprocesar, que los vuelve a poner en la cola.
-    private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v5:1400:200";
+    private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v6:1400:200";
     private const int FragmentosPorPedidoDeEmbeddings = 8;
 
     private const string ColumnasDeDocumento = """
@@ -297,12 +299,16 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             }
         }
 
+        var (tituloDelDocumento, maquina) = await ObtenerDatosDeLaCabeceraAsync(id, cancellationToken);
+
         List<FragmentoDocumento> fragmentos;
+        List<CabeceraDeFragmento> cabeceras;
         List<float[]> vectores;
         try
         {
             fragmentos = ExtraerFragmentos(archivo);
-            vectores = CrearVectores(fragmentos, cancellationToken);
+            cabeceras = CabeceraDeFragmentos.Armar(tituloDelDocumento, maquina, fragmentos);
+            vectores = CrearVectores(fragmentos, cabeceras, cancellationToken);
         }
         catch (InvalidDataException excepcion)
         {
@@ -326,7 +332,7 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         await using var conexion = await _baseDatos.OpenConnectionAsync(cancellationToken);
         await using var transaccion = await conexion.BeginTransactionAsync(cancellationToken);
         var documentoVectorialNuevo = await InsertarFragmentosAsync(conexion, transaccion,
-            nombreArchivo, huella, fragmentos, vectores, cancellationToken);
+            nombreArchivo, huella, fragmentos, cabeceras, vectores, cancellationToken);
 
         await using (var actualizar = new NpgsqlCommand("""
             UPDATE vectorial.documento_tecnico
@@ -361,6 +367,33 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         }
 
         await transaccion.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Título del documento y máquina a la que corresponde (tipo y modelo, del documento o de su activo) para la
+    /// cabecera de los fragmentos.
+    /// </summary>
+    private async Task<(string Titulo, string? Maquina)> ObtenerDatosDeLaCabeceraAsync(long id,
+        CancellationToken cancellationToken)
+    {
+        await using var comando = _baseDatos.CreateCommand("""
+            SELECT COALESCE(documento.titulo, documento.nombre_archivo), concat_ws(' ', tipo.nombre, modelo.nombre)
+            FROM vectorial.documento_tecnico AS documento
+            LEFT JOIN operativo.activo AS activo ON activo.id_activo = documento.activo_id
+            LEFT JOIN operativo.modelo_maquina AS modelo
+                ON modelo.id_modelo_maquina = COALESCE(documento.modelo_maquina_id, activo.id_modelo_maquina)
+            LEFT JOIN operativo.tipo_maquina AS tipo ON tipo.id_tipo_maquina = modelo.id_tipo_maquina
+            WHERE documento.id = $1
+            """);
+        comando.Parameters.AddWithValue(id);
+        await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
+        if (!await lector.ReadAsync(cancellationToken))
+        {
+            return ("", null);
+        }
+
+        var maquina = lector.GetString(1);
+        return (lector.GetString(0), maquina.Length == 0 ? null : maquina);
     }
 
     private async Task RegistrarErrorAsync(long id, string codigo, CancellationToken cancellationToken)
@@ -469,7 +502,8 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     }
 
     // Los embeddings se calculan en la API por lotes; entre lote y lote se respeta la cancelación (el apagado de la API).
-    private List<float[]> CrearVectores(List<FragmentoDocumento> fragmentos, CancellationToken cancellationToken)
+    private List<float[]> CrearVectores(List<FragmentoDocumento> fragmentos, List<CabeceraDeFragmento> cabeceras,
+        CancellationToken cancellationToken)
     {
         var vectores = new List<float[]>();
         for (var inicio = 0; inicio < fragmentos.Count; inicio += FragmentosPorPedidoDeEmbeddings)
@@ -479,7 +513,10 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             var fin = Math.Min(inicio + FragmentosPorPedidoDeEmbeddings, fragmentos.Count);
             for (var posicion = inicio; posicion < fin; posicion++)
             {
-                textosDelLote.Add(fragmentos[posicion].Texto);
+                var seccion = cabeceras[posicion].DeSeccion;
+                textosDelLote.Add(seccion.Length > 0
+                    ? seccion + "\n" + fragmentos[posicion].Texto
+                    : fragmentos[posicion].Texto);
             }
 
             vectores.AddRange(_embeddings.Crear(textosDelLote));
@@ -490,7 +527,7 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
 
     private static async Task<long> InsertarFragmentosAsync(NpgsqlConnection conexion,
         NpgsqlTransaction transaccion, string nombre, string huella,
-        List<FragmentoDocumento> fragmentos, List<float[]> vectores,
+        List<FragmentoDocumento> fragmentos, List<CabeceraDeFragmento> cabeceras, List<float[]> vectores,
         CancellationToken cancellationToken)
     {
         await using var documento = new NpgsqlCommand("""
@@ -506,14 +543,15 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         {
             var fragmento = fragmentos[posicion];
             await using var comando = new NpgsqlCommand("""
-                INSERT INTO vectorial.fragmentos(documento_id, posicion, pagina, texto, embedding)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO vectorial.fragmentos(documento_id, posicion, pagina, texto, embedding, contexto)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 """, conexion, transaccion);
             comando.Parameters.AddWithValue(documentoId);
             comando.Parameters.AddWithValue(posicion);
             comando.Parameters.AddWithValue(fragmento.Pagina);
             comando.Parameters.AddWithValue(fragmento.Texto);
             comando.Parameters.AddWithValue(new Vector(vectores[posicion]));
+            comando.Parameters.AddWithValue(cabeceras[posicion].Completa);
             await comando.ExecuteNonQueryAsync(cancellationToken);
         }
 

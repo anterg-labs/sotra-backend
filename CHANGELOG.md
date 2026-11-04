@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Version 1.0.114 (2026-11-04)
+
+- IA: el reranker pasa de `bge-reranker-v2-m3` (544 MB) a `mmarco-mMiniLMv2-L12-H384-v1` multilingüe en ONNX cuantizado (113 MB). Ordena las secciones unas 7 veces más rápido y usa la mitad de memoria. `compose.yml` lo descarga en `/modelos/reranker` con revisión fija.
+- IA: una sección con puntaje del reranker entre 0 y 1 ya no se acepta si está lejos de la consulta por significado (distancia coseno mayor a 0,45). Antes "Mantenimiento de 600 horas a la JOHN DEERE 450C CL" citaba la garantía del propietario; ahora responde `422 SIN_CONTEXTO_TECNICO`.
+- IA: cada fragmento de un manual lleva una cabecera de contexto con el documento, la máquina asociada y la sección en la que empieza (columna `vectorial.fragmentos.contexto`, versión de procesamiento `pdf-v6`). La cabecera entra en la búsqueda por palabras, así un fragmento sin título propio se encuentra por su manual, su máquina y su sección; el embedding lleva solo la sección, para que la distancia siga midiendo el contenido. Los títulos repetidos en 5 fragmentos o más (encabezados y pies de página) no se toman como sección. El cambio de base (`database/cambios/2026-11-04-fragmentos-contexto.sql`) lo aplica el despliegue; los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
+- IA: la búsqueda descarta también los índices con puntos separados por espacios (". . . . .5-20", como la tabla de contenidos del manual SY335), que antes podían citarse como respuesta.
+- IA: la aclaración de opciones ya no aparece vacía cuando las otras secciones encontradas tienen el mismo título que la elegida (por ejemplo, la misma sección en un manual cargado dos veces).
+
 ## Version 1.0.112 (2026-10-28)
 
 - Notificaciones: la API genera avisos dentro de la aplicación cuando se asigna una orden, cambia su estado o pasa a revisión (los jefes de mantenimiento reciben la solicitud de revisión y el técnico, los demás cambios). Cada persona consulta, cuenta y marca como leídos solo los suyos.

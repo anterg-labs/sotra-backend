@@ -15,6 +15,7 @@ public class ServicioSugerencias : IAsyncDisposable
     private const float MargenDePuntajeParaSeccionesRelevantes = 3;
     private const int MaximoDeSeccionesRelevantes = 8;
     private const float PuntajeMinimoEntreIdiomas = -2.0f;
+    private const float PuntajeQueNoNecesitaDistancia = 1.0f;
     private const double DistanciaMaximaEntreIdiomas = 0.40;
     private const string PedidoParaElReranker =
         "Procedimiento, advertencia o especificación para realizar esta tarea de mantenimiento: ";
@@ -282,17 +283,24 @@ public class ServicioSugerencias : IAsyncDisposable
     }
 
     /// <summary>
-    /// Decide si la mejor sección responde la consulta. Con el puntaje del reranker en 0 o más, sí. Cuando la
-    /// consulta está en español y el manual en inglés el reranker da puntajes más bajos aunque la sección sea la
-    /// correcta: entonces se acepta si el puntaje no es muy bajo y el fragmento está cerca de la consulta por
-    /// significado. Calibrado con consultas reales contra los manuales SANY: las que no tenían respuesta quedaron
-    /// todas por debajo de -2,5 en el reranker.
+    /// Decide si la mejor sección responde la consulta. Con el puntaje del reranker en 1 o más, sí. Entre 0 y 1 se
+    /// acepta salvo que el fragmento esté lejos de la consulta por significado: así se descartan secciones que solo
+    /// comparten palabras, como la garantía de John Deere ante "Mantenimiento de 600 horas" (0,39 a 0,488 de
+    /// distancia). Sin distancia (fragmento sin embedding) se acepta. Cuando la consulta está en español y el
+    /// manual en inglés el reranker da puntajes más bajos aunque la sección sea la correcta: entonces se acepta si
+    /// el puntaje no es muy bajo y el fragmento está cerca. Calibrado con consultas reales contra los manuales:
+    /// las que no tenían respuesta quedaron todas por debajo de -1,8 en el reranker o lejos por significado.
     /// </summary>
     internal static bool EsSeccionConfiable(float puntajeDelReranker, double? distanciaDelFragmento)
     {
-        if (puntajeDelReranker >= 0)
+        if (puntajeDelReranker >= PuntajeQueNoNecesitaDistancia)
         {
             return true;
+        }
+
+        if (puntajeDelReranker >= 0)
+        {
+            return distanciaDelFragmento is null || distanciaDelFragmento <= DistanciaMaximaPermitida;
         }
 
         return puntajeDelReranker >= PuntajeMinimoEntreIdiomas

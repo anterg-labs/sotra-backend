@@ -53,8 +53,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       SOTRA_ERROR_SPOOL_DIR: /var/lib/sotra/errores
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
-      RERANKER_MODELO_RUTA: /modelos/model_quantized.onnx
-      RERANKER_TOKENIZADOR_RUTA: /modelos/tokenizer.json
+      RERANKER_MODELO_RUTA: /modelos/reranker/model_quint8_avx2.onnx
+      RERANKER_TOKENIZADOR_RUTA: /modelos/reranker/tokenizer.json
       EMBEDDINGS_MODELO_RUTA: /modelos/embeddings/model_quantized.onnx
       EMBEDDINGS_TOKENIZADOR_RUTA: /modelos/embeddings/tokenizer.json
       IA_API_URL: ${IA_API_URL:-}
@@ -83,8 +83,8 @@ services:
       modelos-ia:
         condition: service_completed_successfully
 
-  # Descarga a un volumen los modelos de IA que corren dentro de la API (reranker y embeddings bge-m3, ONNX
-  # cuantizados). Solo baja lo que falta: la primera vez son unos 1,1 GB; después termina al instante.
+  # Descarga a un volumen los modelos de IA que corren dentro de la API (reranker mmarco-mMiniLMv2 y embeddings
+  # bge-m3, ONNX cuantizados). Solo baja lo que falta: la primera vez son unos 700 MB; después termina al instante.
   # El resumen de las sugerencias no necesita modelos locales: lo redacta el proveedor de IA_API_*.
   modelos-ia:
     image: curlimages/curl:8.21.0
@@ -95,13 +95,12 @@ services:
     command:
       - |
         set -e
-        reranker=https://huggingface.co/woxpas-ai/bge-reranker-v2-m3-onnx/resolve/c44ebc43de724ae8816668bb44d2e728e17faa18
-        tokenizador_reranker=https://huggingface.co/BAAI/bge-reranker-v2-m3/resolve/953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e
+        reranker=https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1/resolve/1427fd652930e4ba29e8149678df786c240d8825
         embeddings=https://huggingface.co/Xenova/bge-m3/resolve/4de13258303883538bd53b696b452bf8099f0858
         bajar() { [ -s "$$2" ] || { curl -fsSL --retry 3 -o "$$2.parcial" "$$1" && mv "$$2.parcial" "$$2"; }; }
-        mkdir -p /modelos/embeddings
-        bajar "$$reranker/onnx/model_quantized.onnx" /modelos/model_quantized.onnx
-        bajar "$$tokenizador_reranker/tokenizer.json" /modelos/tokenizer.json
+        mkdir -p /modelos/reranker /modelos/embeddings
+        bajar "$$reranker/onnx/model_quint8_avx2.onnx" /modelos/reranker/model_quint8_avx2.onnx
+        bajar "$$reranker/tokenizer.json" /modelos/reranker/tokenizer.json
         bajar "$$embeddings/onnx/model_quantized.onnx" /modelos/embeddings/model_quantized.onnx
         bajar "$$embeddings/tokenizer.json" /modelos/embeddings/tokenizer.json
         echo "Modelos de IA listos"
