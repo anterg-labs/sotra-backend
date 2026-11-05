@@ -66,6 +66,7 @@ public class ServicioSugerencias : IAsyncDisposable
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
 
+        consulta = IntervaloDeHoras.NormalizarMiles(consulta);
         var (fragmentos, distancias) = await RecuperarFragmentosAsync(consulta, activoId, cancellationToken);
         if (fragmentos.Count == 0)
         {
@@ -235,7 +236,8 @@ public class ServicioSugerencias : IAsyncDisposable
         Vector vectorDeLaConsulta, CancellationToken cancellationToken, Dictionary<long, double>? distancias = null)
     {
         await using var comando = _baseDatos.CreateCommand("""
-            SELECT fragmentos.id, fragmentos.pagina, fragmentos.texto, documentos.nombre, fragmentos.embedding <=> $2
+            SELECT fragmentos.id, fragmentos.pagina, fragmentos.texto, documentos.nombre, fragmentos.embedding <=> $2,
+                   fragmentos.contexto
             FROM vectorial.fragmentos AS fragmentos
             JOIN vectorial.documentos AS documentos ON documentos.id = fragmentos.documento_id
             WHERE fragmentos.id = ANY($1)
@@ -254,7 +256,10 @@ public class ServicioSugerencias : IAsyncDisposable
             var pagina = lector.GetInt32(1);
             var texto = lector.GetString(2);
             var documento = lector.GetString(3);
-            fragmentos.Add(new FuenteDocumento(id, pagina, texto, documento));
+            fragmentos.Add(new FuenteDocumento(id, pagina, texto, documento)
+            {
+                SeccionEnCurso = CabeceraDeFragmentos.ObtenerSeccion(lector.GetString(5))
+            });
             if (distancias is not null && !lector.IsDBNull(4))
             {
                 distancias[id] = lector.GetDouble(4);
@@ -290,9 +295,17 @@ public class ServicioSugerencias : IAsyncDisposable
     /// manual en inglés el reranker da puntajes más bajos aunque la sección sea la correcta: entonces se acepta si
     /// el puntaje no es muy bajo y el fragmento está cerca. Calibrado con consultas reales contra los manuales:
     /// las que no tenían respuesta quedaron todas por debajo de -1,8 en el reranker o lejos por significado.
+    /// Si la sección nombra el intervalo de horas pedido, alcanza con el puntaje mínimo: el número ya la respalda, y un
+    /// título como "250 Hours of service" puede quedar lejos de "Mantenimiento de 250 horas" aunque sea la correcta.
     /// </summary>
-    internal static bool EsSeccionConfiable(float puntajeDelReranker, double? distanciaDelFragmento)
+    internal static bool EsSeccionConfiable(float puntajeDelReranker, double? distanciaDelFragmento,
+        bool coincideElIntervalo = false)
     {
+        if (coincideElIntervalo)
+        {
+            return puntajeDelReranker >= PuntajeMinimoEntreIdiomas;
+        }
+
         if (puntajeDelReranker >= PuntajeQueNoNecesitaDistancia)
         {
             return true;
@@ -307,9 +320,16 @@ public class ServicioSugerencias : IAsyncDisposable
             && distanciaDelFragmento is not null && distanciaDelFragmento <= DistanciaMaximaEntreIdiomas;
     }
 
-    private List<SeccionDocumento> OrdenarPorRelevancia(string consulta, List<SeccionDocumento> secciones,
+    private List<SeccionDocumento> OrdenarPorRelevancia(string consulta, List<SeccionDocumento> seccionesCandidatas,
         Dictionary<long, double> distancias)
     {
+        var intervalosPedidos = IntervaloDeHoras.Extraer(consulta);
+        var secciones = IntervaloDeHoras.QuitarOtrosIntervalos(seccionesCandidatas, intervalosPedidos);
+        if (secciones.Count == 0)
+        {
+            return new List<SeccionDocumento>();
+        }
+
         var textosParaOrdenar = new List<FuenteDocumento>();
         for (var posicion = 0; posicion < secciones.Count; posicion++)
         {
@@ -318,7 +338,11 @@ public class ServicioSugerencias : IAsyncDisposable
             textosParaOrdenar.Add(new FuenteDocumento(posicion, seccion.Pagina, textoDeLaSeccion, seccion.Documento));
         }
 
-        var resultados = _reranker.Ordenar(PedidoParaElReranker + consulta, textosParaOrdenar);
+        // Primero las secciones que nombran el intervalo pedido; dentro de cada grupo se respeta el orden del reranker.
+        var resultados = _reranker.Ordenar(PedidoParaElReranker + consulta, textosParaOrdenar)
+            .OrderByDescending(resultado =>
+                IntervaloDeHoras.Coincide(secciones[(int)resultado.Fuente.Id], intervalosPedidos))
+            .ToList();
         var relevantes = new List<SeccionDocumento>();
         if (resultados.Count == 0)
         {
@@ -332,7 +356,8 @@ public class ServicioSugerencias : IAsyncDisposable
         {
             var seccion = secciones[(int)resultados[posicion].Fuente.Id];
             double? distancia = distancias.TryGetValue(seccion.FragmentoId, out var valor) ? valor : null;
-            if (EsSeccionConfiable(resultados[posicion].Puntaje, distancia))
+            if (EsSeccionConfiable(resultados[posicion].Puntaje, distancia,
+                    IntervaloDeHoras.Coincide(seccion, intervalosPedidos)))
             {
                 primeraConfiable = posicion;
                 break;
@@ -348,9 +373,15 @@ public class ServicioSugerencias : IAsyncDisposable
         for (var posicion = primeraConfiable; posicion < resultados.Count; posicion++)
         {
             var resultado = resultados[posicion];
-            if (resultado.Puntaje < puntajeMinimo || relevantes.Count == MaximoDeSeccionesRelevantes)
+            if (relevantes.Count == MaximoDeSeccionesRelevantes)
             {
                 break;
+            }
+
+            // No se corta en el primero bajo: al ir primero las que nombran el intervalo, los puntajes no quedan en orden.
+            if (resultado.Puntaje < puntajeMinimo)
+            {
+                continue;
             }
 
             var posicionDeLaSeccion = (int)resultado.Fuente.Id;

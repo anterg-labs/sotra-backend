@@ -8,6 +8,7 @@ namespace Api.Servicios;
 public static class CabeceraDeFragmentos
 {
     private const string ExtensionPdf = ".pdf";
+    private const string RotuloDeSeccion = "Sección: ";
 
     // Un "título" que aparece en tantos fragmentos es un encabezado o pie de página ("SANY LATIN AMERICA"), no una
     // sección del manual.
@@ -61,7 +62,7 @@ public static class CabeceraDeFragmentos
             var empiezaSinTitulo = secciones.Count == 0 || !EsTituloDeSeccion(secciones[0].Titulo);
             if (empiezaSinTitulo && seccionEnCurso.Length > 0)
             {
-                deSeccion = "Sección: " + TextoDelManual.CrearTituloLegible(seccionEnCurso) + ".";
+                deSeccion = RotuloDeSeccion + TextoDelManual.CrearTituloLegible(seccionEnCurso) + ".";
             }
 
             var completa = deSeccion.Length > 0 ? inicio + " " + deSeccion : inicio;
@@ -79,6 +80,13 @@ public static class CabeceraDeFragmentos
         }
 
         return cabeceras;
+    }
+
+    /// <summary>Título de la sección que nombra una cabecera guardada, o vacío si no nombra ninguna.</summary>
+    public static string ObtenerSeccion(string cabecera)
+    {
+        var inicio = cabecera.IndexOf(RotuloDeSeccion, StringComparison.Ordinal);
+        return inicio == -1 ? "" : cabecera.Substring(inicio + RotuloDeSeccion.Length).TrimEnd('.');
     }
 
     private static string QuitarExtension(string documento)

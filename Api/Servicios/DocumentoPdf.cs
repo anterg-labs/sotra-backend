@@ -83,7 +83,9 @@ public static class DocumentoPdf
         var textosLimpios = QuitarEncabezadosYPies(textosDePagina);
         for (var indice = 0; indice < textosLimpios.Count; indice++)
         {
-            var texto = Normalizar(MarcarTitulosNumerados(textosLimpios[indice]));
+            // Los miles se unen antes de marcar los títulos: "1,000 HOURS OF SERVICE" no se reconoce como título numerado.
+            var conMilesUnidos = IntervaloDeHoras.NormalizarMiles(textosLimpios[indice]);
+            var texto = Normalizar(MarcarTitulosNumerados(conMilesUnidos));
             foreach (var fragmento in Dividir(texto))
             {
                 fragmentos.Add(new FragmentoDocumento(numerosDePagina[indice], fragmento));
@@ -441,6 +443,9 @@ public class FuenteDocumento
     public string Texto { get; set; }
     public string Documento { get; set; }
 
+    /// <summary>Título de la sección en la que empieza el fragmento, si empieza a mitad de una (de su cabecera).</summary>
+    public string SeccionEnCurso { get; set; } = "";
+
     public FuenteDocumento(long id, int pagina, string texto, string documento)
     {
         Id = id;
@@ -471,6 +476,9 @@ public class SeccionDocumento
     public string Contexto { get; set; }
     public string Cuerpo { get; set; }
     public bool LlegaAlFinal { get; set; }
+
+    /// <summary>En un trozo sin título, la sección del manual a la que pertenece.</summary>
+    public string SeccionEnCurso { get; set; } = "";
 
     public SeccionDocumento(long fragmentoId, int pagina, string documento, string titulo, string contexto, string cuerpo, bool llegaAlFinal)
     {

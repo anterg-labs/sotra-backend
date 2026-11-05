@@ -254,6 +254,93 @@ public class ServiciosDelManualPruebas
         Assert.That(ServicioSugerencias.EsSeccionConfiable(puntaje, distancia), Is.EqualTo(esperado));
     }
 
+    // "250 Hours of service" ante "Mantenimiento de 250 horas": 0,24 con distancia 0,473.
+    [TestCase(0.24f, 0.473, true, TestName = "EsSeccionConfiable_ConElIntervaloPedidoNoImportaLaDistancia")]
+    [TestCase(-1.5f, 0.6, true, TestName = "EsSeccionConfiable_ConElIntervaloPedidoAlcanzaElPuntajeMinimo")]
+    [TestCase(-2.5f, 0.3, false, TestName = "EsSeccionConfiable_ConElIntervaloPedidoYPuntajeMuyBajo")]
+    public void ServicioSugerencias_EsSeccionConfiable_ConIntervalo(float puntaje, double? distancia, bool esperado)
+    {
+        Assert.That(ServicioSugerencias.EsSeccionConfiable(puntaje, distancia, coincideElIntervalo: true),
+            Is.EqualTo(esperado));
+    }
+
+    // IntervaloDeHoras
+
+    [TestCase("1,000 HOURS OF SERVICE", "1000 HOURS OF SERVICE", TestName = "NormalizarMiles_ConComa")]
+    [TestCase("Cada 2.000 horas", "Cada 2000 horas", TestName = "NormalizarMiles_ConPunto")]
+    [TestCase("1,500 kg de carga", "1,500 kg de carga", TestName = "NormalizarMiles_NoTocaOtrosValores")]
+    [TestCase("5.8.6 Every 500 service hours", "5.8.6 Every 500 service hours", TestName = "NormalizarMiles_NoTocaNumeracion")]
+    public void IntervaloDeHoras_NormalizarMiles(string texto, string esperado)
+    {
+        Assert.That(IntervaloDeHoras.NormalizarMiles(texto), Is.EqualTo(esperado));
+    }
+
+    [TestCase("Mantenimiento de 500 horas", new[] { 500 }, TestName = "Extraer_Horas")]
+    [TestCase("1,000 HOURS OF SERVICE", new[] { 1000 }, TestName = "Extraer_ConMiles")]
+    [TestCase("5.8.6 Every 500 service hours", new[] { 500 }, TestName = "Extraer_ServiceHours")]
+    [TestCase("Service cada 250hs", new[] { 250 }, TestName = "Extraer_AbreviadoPegado")]
+    [TestCase("Cambio de aceite", new int[0], TestName = "Extraer_SinIntervalo")]
+    [TestCase("Hasta 500 kg y 12 hojas", new int[0], TestName = "Extraer_NoConfundeOtrasUnidades")]
+    public void IntervaloDeHoras_Extraer(string texto, int[] esperados)
+    {
+        Assert.That(IntervaloDeHoras.Extraer(texto), Is.EquivalentTo(esperados));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_QuitaLasSeccionesDeOtroIntervaloYConservaLasSinNumero()
+    {
+        var de500 = Seccion("500 HOURS OF SERVICE", "c", id: 1);
+        var de50 = Seccion("50 HOURS OF MAINTENANCE", "c", id: 2);
+        var sinNumero = Seccion("INTERVALOS DE MANTENIMIENTO", "c", id: 3);
+        var conContexto = Seccion("LUBRICACION", "c", contexto: "Mantenimiento cada 1000 horas.", id: 4);
+
+        var conservadas = IntervaloDeHoras.QuitarOtrosIntervalos([de500, de50, sinNumero, conContexto], [500]);
+
+        Assert.That(conservadas, Is.EqualTo(new[] { de500, sinNumero }));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_SinIntervaloPedidoConservaTodas()
+    {
+        var secciones = new List<SeccionDocumento> { Seccion("50 HOURS OF MAINTENANCE", "c") };
+
+        Assert.That(IntervaloDeHoras.QuitarOtrosIntervalos(secciones, []), Is.EqualTo(secciones));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_SinTituloMiraElPrincipioDelCuerpo()
+    {
+        var seccion = Seccion("", "Mantenimiento—Cada 500 horas. Revise el nivel de aceite.");
+
+        Assert.That(IntervaloDeHoras.Coincide(seccion, [500]), Is.True);
+        Assert.That(IntervaloDeHoras.Coincide(seccion, [50]), Is.False);
+    }
+
+    [Test]
+    public void IntervaloDeHoras_UnTrozoSinTituloHeredaElIntervaloDeSuSeccion()
+    {
+        var fuente = new FuenteDocumento(1, 246, "Check: Air Conditioner Compressor (see page 5-65).", "m.pdf")
+        {
+            SeccionEnCurso = CabeceraDeFragmentos.ObtenerSeccion(
+                "Documento: Manual. Máquina: Excavadora. Sección: 250 Hours of service.")
+        };
+        var trozo = TextoDelManual.DividirEnSecciones(fuente)[0];
+
+        Assert.That(IntervaloDeHoras.QuitarOtrosIntervalos([trozo], [1000]), Is.Empty);
+        Assert.That(IntervaloDeHoras.Coincide(trozo, [250]), Is.True);
+    }
+
+    [Test]
+    public void DividirEnSecciones_ConservaElNumeroDeUnIntervaloConMilesUnidos()
+    {
+        var conMilesUnidos = IntervaloDeHoras.NormalizarMiles("1,000 HOURS OF SERVICE\n1. Park the machine on a level surface.");
+        var texto = DocumentoPdf.Normalizar(DocumentoPdf.MarcarTitulosNumerados(conMilesUnidos));
+
+        var secciones = TextoDelManual.DividirEnSecciones(new FuenteDocumento(1, 274, texto, "m.pdf"));
+
+        Assert.That(secciones[0].Titulo, Is.EqualTo("1000 HOURS OF SERVICE"));
+    }
+
     [Test]
     public void Extraer_ArchivoQueNoEsPdfLanzaExcepcion()
     {

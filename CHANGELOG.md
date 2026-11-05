@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Version 1.0.115 (2026-11-04)
+
+- IA: las sugerencias respetan el intervalo de horas pedido. Si la consulta nombra uno ("Mantenimiento de 500 horas"), se descartan las secciones de otro intervalo, también en "otra sugerencia" (antes 500 podía dar 50), y la sección que lo nombra va primero y se acepta con el puntaje mínimo. Antes, "Mantenimiento de 250 horas" en la SY335 respondía `422` por la distancia.
+- IA: los intervalos con separador de miles ("1,000 HOURS OF SERVICE") conservan el número en el título y en la búsqueda (procesamiento `pdf-v7`). Antes no se encontraban las 1000 ni las 2000 horas de la SY335. Los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
+
 ## Version 1.0.114 (2026-11-04)
 
 - IA: el reranker pasa de `bge-reranker-v2-m3` (544 MB) a `mmarco-mMiniLMv2-L12-H384-v1` multilingüe en ONNX cuantizado (113 MB). Ordena las secciones unas 7 veces más rápido y usa la mitad de memoria. `compose.yml` lo descarga en `/modelos/reranker` con revisión fija.

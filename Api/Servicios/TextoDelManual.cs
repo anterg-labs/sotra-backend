@@ -98,7 +98,8 @@ public static class TextoDelManual
         {
             var noHayTitulos = titulos.Count == 0;
             secciones.Add(new SeccionDocumento(fuente.Id, fuente.Pagina, fuente.Documento,
-                "", "", textoAntesDelPrimerTitulo, noHayTitulos));
+                "", "", textoAntesDelPrimerTitulo, noHayTitulos)
+            { SeccionEnCurso = fuente.SeccionEnCurso });
         }
 
         var contexto = "";
