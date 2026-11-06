@@ -4,6 +4,15 @@ using Pgvector;
 
 namespace Api.Servicios;
 
+/// <summary>Etapas de una sugerencia que se le informan a la persona mientras espera.</summary>
+public static class EtapasDeSugerencia
+{
+    public const string Buscando = "buscando";
+    public const string Eligiendo = "eligiendo";
+    public const string Ampliando = "ampliando";
+    public const string Redactando = "redactando";
+}
+
 public class ServicioSugerencias : IAsyncDisposable
 {
     private const int ResultadosPorTipoDeBusqueda = 30;
@@ -66,22 +75,28 @@ public class ServicioSugerencias : IAsyncDisposable
     /// Busca la sección del manual que corresponde a la consulta y la resume. Devuelve <c>null</c> si la documentación
     /// no tiene información suficiente. El modo indica si el resumen es del proveedor de IA o el texto del manual.
     /// Con <paramref name="activoId"/> busca solo en la documentación de esa máquina y en la general.
+    /// <paramref name="alAvanzar"/> recibe cada <see cref="EtapasDeSugerencia"/> justo antes de empezarla.
     /// </summary>
     public async Task<SugerenciaRedactada?> BuscarAsync(string consulta, int numero, long? activoId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<string, Task>? alAvanzar = null)
     {
+        alAvanzar ??= _ => Task.CompletedTask;
+        await alAvanzar(EtapasDeSugerencia.Buscando);
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
 
         consulta = IntervaloDeHoras.NormalizarMiles(consulta);
-        var relevantes = await BuscarSeccionesRelevantesAsync(consulta, null, activoId, cancellationToken);
+        var relevantes = await BuscarSeccionesRelevantesAsync(consulta, null, activoId, cancellationToken,
+            () => alAvanzar(EtapasDeSugerencia.Eligiendo));
         if (relevantes.Count == 0)
         {
             // Una consulta corta en español suele no alcanzar un manual en inglés. Solo aquí se traduce: lo que ya se
             // encuentra sigue igual, sin otra llamada al proveedor ni más demora.
+            await alAvanzar(EtapasDeSugerencia.Ampliando);
             var traduccion = await _traductor.TraducirAsync(consulta, cancellationToken);
             if (traduccion is not null)
             {
-                relevantes = await BuscarSeccionesRelevantesAsync(consulta, traduccion, activoId, cancellationToken);
+                relevantes = await BuscarSeccionesRelevantesAsync(consulta, traduccion, activoId, cancellationToken,
+                    () => Task.CompletedTask);
             }
         }
 
@@ -101,6 +116,7 @@ public class ServicioSugerencias : IAsyncDisposable
             textoParaResumir = elegida.Cuerpo;
         }
 
+        await alAvanzar(EtapasDeSugerencia.Redactando);
         var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken);
         if (resumen.Modo == ModosDeSugerencia.SinInformacion)
         {
@@ -113,9 +129,10 @@ public class ServicioSugerencias : IAsyncDisposable
     }
 
     private async Task<List<SeccionDocumento>> BuscarSeccionesRelevantesAsync(string consulta, string? traduccion,
-        long? activoId, CancellationToken cancellationToken)
+        long? activoId, CancellationToken cancellationToken, Func<Task> alEmpezarAElegir)
     {
         var (fragmentos, distancias) = await RecuperarFragmentosAsync(consulta, traduccion, activoId, cancellationToken);
+        await alEmpezarAElegir();
         var secciones = SeccionesCandidatas.Armar(fragmentos);
         return secciones.Count == 0
             ? new List<SeccionDocumento>()

@@ -266,7 +266,7 @@ Cada endpoint declara una política con `[Authorize(Policy = Politicas.X)]`. Las
 | `modelo.consultar`, `tipo_maquina.consultar` | `GET /modelos-maquina`, `GET /tipos-maquina` | administrador, jefe_mantenimiento, tecnico |
 | `modelo.crear`, `modelo.editar`, `tipo_maquina.gestionar` | `POST`, `PUT`, `PATCH` de modelos y tipos | administrador, jefe_mantenimiento |
 | `ot.consultar` | `GET /ordenes-trabajo`, `GET` de evidencias y su archivo | todos |
-| `ot.crear` | `POST /ordenes-trabajo`, `POST /ordenes-trabajo/sugerencia` | administrador, jefe_mantenimiento |
+| `ot.crear` | `POST /ordenes-trabajo`, `POST /ordenes-trabajo/sugerencia`, `POST /ordenes-trabajo/sugerencia/etapas` | administrador, jefe_mantenimiento |
 | `ot.editar` | `PUT /ordenes-trabajo/{id}` | administrador, jefe_mantenimiento |
 | `ot.asignar_tecnico` | `PATCH /ordenes-trabajo/{id}/tecnico` | administrador, jefe_mantenimiento |
 | `ot.gestionar_repuestos` | `PUT /ordenes-trabajo/{id}/repuestos` | administrador, jefe_mantenimiento, panolero |
@@ -602,6 +602,8 @@ Acepta los mismos filtros que `/indicadores` y además `prioridad` (`baja`, `med
 Al agregar un paquete, hay que reconstruir la imagen del backend (`docker compose up -d --build backend`) para restaurarlo.
 
 ### Sugerencias (`POST /api/v1/ordenes-trabajo/sugerencia`)
+
+`POST /api/v1/ordenes-trabajo/sugerencia/etapas` hace lo mismo e informa el avance mientras trabaja. Responde NDJSON con estado 200: una línea `{"etapa":...}` al empezar cada etapa (`buscando`, `eligiendo`, `ampliando` si hace falta el segundo intento, `redactando`) y una última con `{"sugerencia":...,"modo":...}` o `{"error":{"estado":...,"codigo":...,"mensaje":...}}`. Envía `X-Accel-Buffering: no` para que Nginx no acumule las líneas. Solo la descripción vacía, los permisos y el límite de solicitudes responden con su propio estado HTTP; la auditoría registra 200 aunque la sugerencia termine en error, y el resultado real queda en `sotra.sugerencias_ia.duracion`.
 
 El código está en `Api/Servicios/`, un archivo por responsabilidad:
 

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.119 (2026-11-06)
+
+- Órdenes: nueva ruta `POST /api/v1/ordenes-trabajo/sugerencia/etapas`, que informa el avance de la sugerencia mientras se genera (NDJSON: una línea por etapa y una última con la sugerencia o el error). La ruta `POST /api/v1/ordenes-trabajo/sugerencia` no cambia.
+
 ## Version 1.0.118 (2026-11-06)
 
 - IA: se puede elegir Claude como proveedor con `IA_API_PROVEEDOR=anthropic` y `ANTHROPIC_API_KEY`, con el SDK oficial y `claude-haiku-5-5` por defecto. Traduce las consultas y redacta los resúmenes; la búsqueda no cambia. Sin esa variable se sigue usando el proveedor de `IA_API_URL` (Groq por defecto).
