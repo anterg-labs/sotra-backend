@@ -9,8 +9,8 @@ namespace Api.Servicios;
 /// </summary>
 public static class IntervaloDeHoras
 {
-    // Caracteres del principio de una sección sin título en los que se busca el intervalo: el manual John Deere abre
-    // con "Mantenimiento—Cada 500 horas" sin un título reconocible.
+    // Caracteres del principio de una sección sin título en los que se busca "cada N horas": el manual John Deere abre
+    // con "Mantenimiento—Cada 10 horas" sin un título reconocible.
     private const int CaracteresDelCuerpoSinTitulo = 80;
 
     private const string PalabraDeHoras = "(?:(?:service|de\\s+servicio)\\s+)?(?:hours?|horas?|hrs?|hs|h)\\b";
@@ -21,6 +21,11 @@ public static class IntervaloDeHoras
 
     private static readonly Regex PatronIntervalo = new(
         "(?<![\\d.,])(\\d{1,5})\\s*" + PalabraDeHoras, RegexOptions.IgnoreCase);
+
+    // En el texto sin título un número de horas solo no indica un intervalo: una tabla puede decir "100 hours greasing
+    // 500 hours greasing". Hace falta "cada" o "every".
+    private static readonly Regex PatronCadaHoras = new(
+        "\\b(?:cada|every)\\s+\\d{1,5}\\s*" + PalabraDeHoras, RegexOptions.IgnoreCase);
 
     /// <summary>Convierte "1,000 hours" y "1.000 horas" en "1000 hours" y "1000 horas".</summary>
     public static string NormalizarMiles(string texto)
@@ -78,7 +83,8 @@ public static class IntervaloDeHoras
             // Un trozo sin título pertenece a la sección en curso: la continuación de "250 Hours of service" no
             // responde a quien pidió 1000 horas.
             var largo = Math.Min(CaracteresDelCuerpoSinTitulo, seccion.Cuerpo.Length);
-            etiqueta += " " + seccion.SeccionEnCurso + " " + seccion.Cuerpo.Substring(0, largo);
+            var principio = PatronCadaHoras.Match(seccion.Cuerpo.Substring(0, largo));
+            etiqueta += " " + seccion.SeccionEnCurso + " " + principio.Value;
         }
 
         return etiqueta;

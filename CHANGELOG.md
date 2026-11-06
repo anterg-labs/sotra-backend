@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.116 (2026-11-04)
+
+- IA: un fragmento sin título ya no se da por respuesta de un intervalo solo porque nombra esas horas. Antes, "Mantenimiento de 500 horas" en una SY215C citaba una tabla de holguras con el encabezado "100 hours greasing 500 hours greasing"; ahora hace falta "cada N horas" o que su sección sea de ese intervalo.
+
 ## Version 1.0.115 (2026-11-04)
 
 - IA: las sugerencias respetan el intervalo de horas pedido. Si la consulta nombra uno ("Mantenimiento de 500 horas"), se descartan las secciones de otro intervalo, también en "otra sugerencia" (antes 500 podía dar 50), y la sección que lo nombra va primero y se acepta con el puntaje mínimo. Antes, "Mantenimiento de 250 horas" en la SY335 respondía `422` por la distancia.

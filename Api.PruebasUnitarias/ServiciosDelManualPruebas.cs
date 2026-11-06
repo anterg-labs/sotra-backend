@@ -317,6 +317,16 @@ public class ServiciosDelManualPruebas
     }
 
     [Test]
+    public void IntervaloDeHoras_UnaTablaSinTituloQueNombraHorasNoCoincide()
+    {
+        // Tabla de holguras del manual de servicio SY215C9 (p. 219): nombra horas, pero no es ese mantenimiento.
+        var tabla = Seccion("", "100 hours greasing 500 hours greasing Unit: mm No. Check item Criteria Remedy");
+
+        Assert.That(IntervaloDeHoras.Coincide(tabla, [500]), Is.False);
+        Assert.That(IntervaloDeHoras.QuitarOtrosIntervalos([tabla], [250]), Is.EqualTo(new[] { tabla }));
+    }
+
+    [Test]
     public void IntervaloDeHoras_UnTrozoSinTituloHeredaElIntervaloDeSuSeccion()
     {
         var fuente = new FuenteDocumento(1, 246, "Check: Air Conditioner Compressor (see page 5-65).", "m.pdf")
