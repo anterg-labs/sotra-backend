@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Version 1.0.117 (2026-11-05)
+
+- IA: si la consulta no encuentra una sección confiable, se traduce al inglés con el proveedor de IA y se busca de nuevo con las dos versiones. Así una consulta corta en español llega a un manual en inglés ("Revisar el nivel de refrigerante" o "Cambio de filtro de aceite" en la SY335 antes respondían `422`). Lo que ya se encontraba sigue igual, sin otra llamada al proveedor. La traducción solo sirve para buscar, puntúa solo las secciones en inglés y se descarta si cambia los números de la consulta; si el proveedor falla o tarda más de 5 segundos, la respuesta queda como con la consulta original.
+- IA: la búsqueda por palabras ignora palabras sin valor en inglés ("the", "and", "for"...), que hacían coincidir fragmentos sin relación.
+
 ## Version 1.0.116 (2026-11-04)
 
 - IA: un fragmento sin título ya no se da por respuesta de un intervalo solo porque nombra esas horas. Antes, "Mantenimiento de 500 horas" en una SY215C citaba una tabla de holguras con el encabezado "100 hours greasing 500 hours greasing"; ahora hace falta "cada N horas" o que su sección sea de ese intervalo.
