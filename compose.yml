@@ -57,6 +57,8 @@ services:
       RERANKER_TOKENIZADOR_RUTA: /modelos/reranker/tokenizer.json
       EMBEDDINGS_MODELO_RUTA: /modelos/embeddings/model_quantized.onnx
       EMBEDDINGS_TOKENIZADOR_RUTA: /modelos/embeddings/tokenizer.json
+      IA_API_PROVEEDOR: ${IA_API_PROVEEDOR:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       IA_API_URL: ${IA_API_URL:-}
       IA_API_MODELO: ${IA_API_MODELO:-}
       IA_API_CLAVE: ${IA_API_CLAVE:-}

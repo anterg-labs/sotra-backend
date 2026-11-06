@@ -34,12 +34,13 @@ public static class ConfiguracionDeGeneradorDeTexto
             QueueLimit = 0,
         });
 
-        servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorApi>(cliente =>
-            {
-                var url = GeneradorDeTextoPorApi.LeerVariable("IA_API_URL", GeneradorDeTextoPorApi.UrlPorDefecto);
-                cliente.BaseAddress = new Uri(url.TrimEnd('/') + "/");
-                cliente.Timeout = TimeSpan.FromSeconds(SegundosMaximosEnTotal + 5);
-            })
+        var usaClaude = string.Equals(Environment.GetEnvironmentVariable("IA_API_PROVEEDOR"),
+            GeneradorDeTextoPorClaude.Proveedor, StringComparison.OrdinalIgnoreCase);
+        var cliente = usaClaude
+            ? servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorClaude>(ConfigurarTiempo)
+            : servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorApi>(ConfigurarUrlYTiempo);
+
+        cliente
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
             {
                 ConnectTimeout = TimeSpan.FromSeconds(SegundosMaximosParaConectar)
@@ -58,6 +59,18 @@ public static class ConfiguracionDeGeneradorDeTexto
             });
 
         return servicios;
+    }
+
+    private static void ConfigurarTiempo(HttpClient cliente)
+    {
+        cliente.Timeout = TimeSpan.FromSeconds(SegundosMaximosEnTotal + 5);
+    }
+
+    private static void ConfigurarUrlYTiempo(HttpClient cliente)
+    {
+        var url = GeneradorDeTextoPorApi.LeerVariable("IA_API_URL", GeneradorDeTextoPorApi.UrlPorDefecto);
+        cliente.BaseAddress = new Uri(url.TrimEnd('/') + "/");
+        ConfigurarTiempo(cliente);
     }
 
     public static int LeerLlamadasPorMinuto()

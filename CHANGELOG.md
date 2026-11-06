@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.118 (2026-11-06)
+
+- IA: se puede elegir Claude como proveedor con `IA_API_PROVEEDOR=anthropic` y `ANTHROPIC_API_KEY`, con el SDK oficial y `claude-haiku-5-5` por defecto. Traduce las consultas y redacta los resúmenes; la búsqueda no cambia. Sin esa variable se sigue usando el proveedor de `IA_API_URL` (Groq por defecto).
+
 ## Version 1.0.117 (2026-11-05)
 
 - IA: si la consulta no encuentra una sección confiable, se traduce al inglés con el proveedor de IA y se busca de nuevo con las dos versiones. Así una consulta corta en español llega a un manual en inglés ("Revisar el nivel de refrigerante" o "Cambio de filtro de aceite" en la SY335 antes respondían `422`). Lo que ya se encontraba sigue igual, sin otra llamada al proveedor. La traducción solo sirve para buscar, puntúa solo las secciones en inglés y se descarta si cambia los números de la consulta; si el proveedor falla o tarda más de 5 segundos, la respuesta queda como con la consulta original.
