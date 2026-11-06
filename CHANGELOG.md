@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Version 1.0.120 (2026-11-06)
+
+- IA: se unen los acentos que algunos PDF guardan como un carácter aparte ("presio´n" pasa a "presión", procesamiento `pdf-v8`). Se veían mal en las advertencias y hacían que la búsqueda por palabras no encontrara esos términos. Los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
+- IA: las advertencias ya no empiezan con los signos del rótulo ("- : Evitar..." pasa a "- Evitar...").
+- IA: si el proveedor lee la sección elegida y responde que no trata la tarea, se prueba la siguiente sección relevante, hasta 3 en total, en lugar de responder `422` enseguida. Esas consultas gastan una llamada más por cada intento.
+
 ## Version 1.0.119 (2026-11-06)
 
 - Órdenes: nueva ruta `POST /api/v1/ordenes-trabajo/sugerencia/etapas`, que informa el avance de la sugerencia mientras se genera (NDJSON: una línea por etapa y una última con la sugerencia o el error). La ruta `POST /api/v1/ordenes-trabajo/sugerencia` no cambia.

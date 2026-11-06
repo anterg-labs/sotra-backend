@@ -23,6 +23,7 @@ public class ServicioSugerencias : IAsyncDisposable
     private const string OperadorOEnBusquedaTextual = " | ";
     private const float MargenDePuntajeParaSeccionesRelevantes = 3;
     private const int MaximoDeSeccionesRelevantes = 8;
+    private const int MaximoDeSeccionesARedactar = 3;
     private const float PuntajeMinimoEntreIdiomas = -2.0f;
     private const float PuntajeQueNoNecesitaDistancia = 1.0f;
     private const double DistanciaMaximaEntreIdiomas = 0.40;
@@ -105,27 +106,35 @@ public class ServicioSugerencias : IAsyncDisposable
             return null;
         }
 
-        var opciones = SeccionesCandidatas.BuscarOpcionesEquivalentes(consulta, relevantes);
-        var elegida = ElegirSeccion(relevantes, opciones, numero);
-        elegida = await CompletarConFragmentoSiguienteAsync(elegida, cancellationToken);
-
-        var advertencias = AdvertenciasDelManual.Extraer(elegida.Cuerpo);
-        var textoParaResumir = AdvertenciasDelManual.Quitar(elegida.Cuerpo);
-        if (textoParaResumir.Length < SeccionesCandidatas.LargoMinimoDeSeccion)
-        {
-            textoParaResumir = elegida.Cuerpo;
-        }
-
         await alAvanzar(EtapasDeSugerencia.Redactando);
-        var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken);
-        if (resumen.Modo == ModosDeSugerencia.SinInformacion)
+
+        // El reranker puede poner primero una sección que comparte palabras sin tratar la tarea. Si el modelo la lee y
+        // dice que no la trata, se prueba la siguiente en lugar de responder que no hay información.
+        for (var intento = 0; intento < MaximoDeSeccionesARedactar && relevantes.Count > 0; intento++)
         {
-            return null;
+            var opciones = SeccionesCandidatas.BuscarOpcionesEquivalentes(consulta, relevantes);
+            var candidata = ElegirSeccion(relevantes, opciones, numero);
+            var elegida = await CompletarConFragmentoSiguienteAsync(candidata, cancellationToken);
+
+            var advertencias = AdvertenciasDelManual.Extraer(elegida.Cuerpo);
+            var textoParaResumir = AdvertenciasDelManual.Quitar(elegida.Cuerpo);
+            if (textoParaResumir.Length < SeccionesCandidatas.LargoMinimoDeSeccion)
+            {
+                textoParaResumir = elegida.Cuerpo;
+            }
+
+            var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken);
+            if (resumen.Modo != ModosDeSugerencia.SinInformacion)
+            {
+                var respuesta = RedaccionDeSugerencia.ArmarRespuesta(resumen.Texto, advertencias, elegida, opciones,
+                    resumen.Titulo);
+                return new SugerenciaRedactada(respuesta, resumen.Modo);
+            }
+
+            relevantes = relevantes.Where(seccion => !ReferenceEquals(seccion, candidata)).ToList();
         }
 
-        var respuesta = RedaccionDeSugerencia.ArmarRespuesta(resumen.Texto, advertencias, elegida, opciones,
-            resumen.Titulo);
-        return new SugerenciaRedactada(respuesta, resumen.Modo);
+        return null;
     }
 
     private async Task<List<SeccionDocumento>> BuscarSeccionesRelevantesAsync(string consulta, string? traduccion,

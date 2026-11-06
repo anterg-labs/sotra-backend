@@ -21,6 +21,7 @@ public static class DocumentoPdf
 
     private static readonly Regex PatronCaracteresDeControl = new("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]");
     private static readonly Regex PatronEspacios = new("\\s+");
+    private static readonly Regex PatronAcentoSuelto = new("(\\p{L})\\s?([\u0301\u0303\u0308])");
 
     // Números de página ("5-74", "4-29", "123"): se igualan para que el encabezado de cada página dé la misma clave.
     private static readonly Regex PatronNumeroDePagina = new("\\d+\\s*[-–]\\s*\\d+|^\\d+$");
@@ -419,8 +420,20 @@ public static class DocumentoPdf
     {
         var normalizado = PatronCaracteresDeControl.Replace(texto, "");
         normalizado = normalizado.Normalize(NormalizationForm.FormKC);
+        normalizado = UnirAcentosSueltos(normalizado);
         normalizado = normalizado.Replace(GuionInvisible, "");
         return PatronEspacios.Replace(normalizado, " ").Trim();
+    }
+
+    /// <summary>
+    /// Algunos PDF guardan el acento como un carácter aparte después de la letra ("presio´n", "an˜o", "vı´a"). FormKC lo
+    /// convierte en un espacio más el acento combinado, que se ve mal y hace que la búsqueda no encuentre la palabra.
+    /// </summary>
+    private static string UnirAcentosSueltos(string texto)
+    {
+        return PatronAcentoSuelto.Replace(texto, "$1$2")
+            .Replace("\u0131\u0301", "i\u0301")
+            .Normalize(NormalizationForm.FormC);
     }
 }
 

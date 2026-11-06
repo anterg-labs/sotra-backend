@@ -10,9 +10,10 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
 {
     // pdf-v5: quita encabezados, pies y etiquetas de figura repetidos. pdf-v6: guarda con cada fragmento una cabecera
     // con el documento, la máquina y la sección (CabeceraDeFragmentos); la sección entra también en el embedding.
-    // pdf-v7: une los miles de los intervalos de horas ("1,000 hours" pasa a "1000 hours"). Los documentos procesados con
+    // pdf-v7: une los miles de los intervalos de horas ("1,000 hours" pasa a "1000 hours").
+    // pdf-v8: une los acentos sueltos de algunos PDF ("presio´n" pasa a "presión"). Los documentos procesados con
     // una versión anterior se actualizan con POST /documentos-tecnicos/{id}/reprocesar, que los vuelve a poner en la cola.
-    private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v7:1400:200";
+    private const string VersionDelProcesamiento = "bge-m3:1024:pdf-v8:1400:200";
     private const int FragmentosPorPedidoDeEmbeddings = 8;
 
     private const string ColumnasDeDocumento = """

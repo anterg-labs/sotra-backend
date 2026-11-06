@@ -4,6 +4,29 @@ namespace Api.PruebasUnitarias;
 
 public class ServiciosDelManualPruebas
 {
+    [TestCase("Revisio\u00B4n de la presio\u00B4n", "Revisión de la presión", TestName = "UneElAcentoSueltoQueDejaElPdf")]
+    [TestCase("Revisio \u0301n", "Revisión", TestName = "UneElAcentoConEspacioIntermedio")]
+    [TestCase("Usar los peldan\u02DCos", "Usar los peldaños", TestName = "UneLaTilde")]
+    [TestCase("ancho de v\u0131\u00B4a y Caracter\u0131 \u0301sticas", "ancho de vía y Características", TestName = "UneElAcentoSobreLaIFinal")]
+    [TestCase("Revisión de presión", "Revisión de presión", TestName = "NoCambiaUnTextoBienEscrito")]
+    public void NormalizarUneLosAcentosSueltos(string texto, string esperado)
+    {
+        Assert.That(DocumentoPdf.Normalizar(texto), Is.EqualTo(esperado));
+    }
+
+    [Test]
+    public void NormalizarNoUneElAcentoQueNoSigueAUnaLetra()
+    {
+        Assert.That(DocumentoPdf.Normalizar("Valor 5\u00B4 de ajuste"), Does.Contain("5 \u0301"));
+    }
+
+    [TestCase("IMPORTANTE: Evitar mezclar refrigerantes de marcas diferentes.", TestName = "QuitaLosDosPuntosDelRotulo")]
+    [TestCase("ADVERTENCIA - Evitar mezclar refrigerantes de marcas diferentes.", TestName = "QuitaElGuionDelRotulo")]
+    public void LaAdvertenciaNoEmpiezaConLosSignosDelRotulo(string cuerpo)
+    {
+        Assert.That(AdvertenciasDelManual.Extraer(cuerpo), Is.EqualTo(new[] { "Evitar mezclar refrigerantes de marcas diferentes." }));
+    }
+
     private static SeccionDocumento Seccion(string titulo, string cuerpo, string contexto = "", long id = 1,
         int pagina = 1, string documento = "manual.pdf", bool llegaAlFinal = false) =>
         new(id, pagina, documento, titulo, contexto, cuerpo, llegaAlFinal);
