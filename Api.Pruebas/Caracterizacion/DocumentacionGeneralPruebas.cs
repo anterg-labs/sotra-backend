@@ -205,7 +205,7 @@ public class DocumentacionGeneralPruebas : PruebaBase
     {
         var palabra = "zorrinoxyz" + DatosDePrueba.Sufijo().Replace("-", "").ToLowerInvariant();
         await using var baseDatos = Api.Servicios.BaseVectorial.CrearConexion();
-        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!);
+        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!, null!);
 
         var documentoVectorialId = Convert.ToInt64(await new Npgsql.NpgsqlCommand(
             "INSERT INTO vectorial.documentos (nombre, huella, version_proceso) VALUES ('prueba', 'h', 'v') RETURNING id",
@@ -292,7 +292,7 @@ public class DocumentacionGeneralPruebas : PruebaBase
         var activoDelMismoModeloId = await CrearActivoAsync(clienteId, modeloId);
         var activoDeOtroModeloId = await CrearActivoAsync(clienteId, otroModeloId);
         await using var baseDatos = Api.Servicios.BaseVectorial.CrearConexion();
-        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!);
+        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!, null!);
 
         var delActivo = await CrearDocumentoConFragmentoAsync(baseDatos, texto, activoId, null);
         var deOtroActivoDelModelo = await CrearDocumentoConFragmentoAsync(baseDatos, texto, activoDelMismoModeloId, null);
@@ -314,7 +314,7 @@ public class DocumentacionGeneralPruebas : PruebaBase
     public async Task UnFragmentoLejanoSoloPasaSiCoincidePorPalabras()
     {
         await using var baseDatos = Api.Servicios.BaseVectorial.CrearConexion();
-        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!);
+        await using var servicio = new Api.Servicios.ServicioSugerencias(null!, null!, null!, null!);
         var documentoVectorialId = Convert.ToInt64(await new Npgsql.NpgsqlCommand(
             "INSERT INTO vectorial.documentos (nombre, huella, version_proceso) VALUES ('lejano', 'h', 'v') RETURNING id",
             await baseDatos.OpenConnectionAsync()).ExecuteScalarAsync());

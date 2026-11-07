@@ -8,6 +8,7 @@ public static class AdvertenciasDelManual
     private const int LargoMaximoDeAdvertencia = 350;
     private const int LargoMinimoDeVinetaDeAdvertencia = 60;
 
+    private static readonly char[] SignosAlInicioDeAdvertencia = [':', '-', '–', '—', '.', ' '];
     private static readonly Regex PatronEspacios = new("\\s+");
 
     private static readonly Regex PatronAdvertencia = new(
@@ -27,7 +28,8 @@ public static class AdvertenciasDelManual
         {
             foreach (var parte in textoAdvertencia.Split('•'))
             {
-                var textoLimpio = TextoDelManual.QuitarMarcasInternas(parte);
+                // "IMPORTANTE: Evitar..." deja los dos puntos del rótulo al principio del texto.
+                var textoLimpio = TextoDelManual.QuitarMarcasInternas(parte).TrimStart(SignosAlInicioDeAdvertencia);
                 var advertencia = TextoDelManual.RecortarEnOracion(textoLimpio, LargoMaximoDeAdvertencia);
                 var esReferenciaCruzada = PatronPaginaDeReferenciaCruzada.IsMatch(advertencia);
                 var yaEstaAgregada = advertencias.Contains(advertencia);

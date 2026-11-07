@@ -55,8 +55,9 @@ public static class TextoDelManual
         MarcaDeTituloNumerado + "(\\d{1,2}\\.(?:\\d{1,2}\\.?)*\\s+[^" + MarcaDeTituloNumerado + ".]{2,100}"
         + "|(?:\\d{1,4}\\s+)?\\p{Lu}[^" + MarcaDeTituloNumerado + ".:;!?]{1,80})" + MarcaDeTituloNumerado);
 
-    // Línea de puntos de un índice ("6.6 Engine Oil Pressure - Measure......6-17").
-    private static readonly Regex PatronLineaDePuntos = new("\\.{5,}");
+    // Línea de puntos de un índice, seguidos ("6.6 Engine Oil Pressure - Measure......6-17") o separados por espacios
+    // ("Fuel Level . . . . . . .5-20", como en el manual SY335 de SANY America).
+    private static readonly Regex PatronLineaDePuntos = new("(?:\\. ?){5,}");
     private const int LineasDePuntosDeUnIndice = 3;
 
     /// <summary>
@@ -97,7 +98,8 @@ public static class TextoDelManual
         {
             var noHayTitulos = titulos.Count == 0;
             secciones.Add(new SeccionDocumento(fuente.Id, fuente.Pagina, fuente.Documento,
-                "", "", textoAntesDelPrimerTitulo, noHayTitulos));
+                "", "", textoAntesDelPrimerTitulo, noHayTitulos)
+            { SeccionEnCurso = fuente.SeccionEnCurso });
         }
 
         var contexto = "";

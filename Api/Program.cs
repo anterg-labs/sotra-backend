@@ -77,6 +77,7 @@ builder.Services.AddSingleton<CacheDeAnalitica>();
 builder.Services.AddScoped<EvidenciaOtDAO>();
 builder.Services.AgregarGeneradorDeTexto();
 builder.Services.AddScoped<RedactorDeSugerencias>();
+builder.Services.AddScoped<TraductorDeConsultas>();
 builder.Services.AddSingleton<ServicioEmbeddings>();
 builder.Services.AddSingleton<ServicioReranker>();
 builder.Services.AddScoped<ServicioDocumentosTecnicos>();

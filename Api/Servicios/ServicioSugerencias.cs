@@ -4,6 +4,15 @@ using Pgvector;
 
 namespace Api.Servicios;
 
+/// <summary>Etapas de una sugerencia que se le informan a la persona mientras espera.</summary>
+public static class EtapasDeSugerencia
+{
+    public const string Buscando = "buscando";
+    public const string Eligiendo = "eligiendo";
+    public const string Ampliando = "ampliando";
+    public const string Redactando = "redactando";
+}
+
 public class ServicioSugerencias : IAsyncDisposable
 {
     private const int ResultadosPorTipoDeBusqueda = 30;
@@ -14,7 +23,9 @@ public class ServicioSugerencias : IAsyncDisposable
     private const string OperadorOEnBusquedaTextual = " | ";
     private const float MargenDePuntajeParaSeccionesRelevantes = 3;
     private const int MaximoDeSeccionesRelevantes = 8;
+    private const int MaximoDeSeccionesARedactar = 3;
     private const float PuntajeMinimoEntreIdiomas = -2.0f;
+    private const float PuntajeQueNoNecesitaDistancia = 1.0f;
     private const double DistanciaMaximaEntreIdiomas = 0.40;
     private const string PedidoParaElReranker =
         "Procedimiento, advertencia o especificación para realizar esta tarea de mantenimiento: ";
@@ -41,17 +52,23 @@ public class ServicioSugerencias : IAsyncDisposable
 
     private static readonly Regex PatronPalabraDeBusqueda = new("[a-záéíóúñ0-9]+");
 
+    // La búsqueda por palabras usa el diccionario español, que no quita estas palabras de una consulta en inglés.
+    private static readonly HashSet<string> PalabrasSinValorEnIngles =
+        ["the", "and", "for", "with", "from", "this", "that", "into", "per"];
+
     private readonly ServicioEmbeddings _embeddings;
     private readonly ServicioReranker _reranker;
     private readonly RedactorDeSugerencias _redactor;
+    private readonly TraductorDeConsultas _traductor;
     private readonly NpgsqlDataSource _baseDatos;
 
     public ServicioSugerencias(ServicioEmbeddings embeddings, ServicioReranker reranker,
-        RedactorDeSugerencias redactor)
+        RedactorDeSugerencias redactor, TraductorDeConsultas traductor)
     {
         _embeddings = embeddings;
         _reranker = reranker;
         _redactor = redactor;
+        _traductor = traductor;
         _baseDatos = BaseVectorial.CrearConexion();
     }
 
@@ -59,66 +76,106 @@ public class ServicioSugerencias : IAsyncDisposable
     /// Busca la sección del manual que corresponde a la consulta y la resume. Devuelve <c>null</c> si la documentación
     /// no tiene información suficiente. El modo indica si el resumen es del proveedor de IA o el texto del manual.
     /// Con <paramref name="activoId"/> busca solo en la documentación de esa máquina y en la general.
+    /// <paramref name="alAvanzar"/> recibe cada <see cref="EtapasDeSugerencia"/> justo antes de empezarla.
     /// </summary>
     public async Task<SugerenciaRedactada?> BuscarAsync(string consulta, int numero, long? activoId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<string, Task>? alAvanzar = null)
     {
+        alAvanzar ??= _ => Task.CompletedTask;
+        await alAvanzar(EtapasDeSugerencia.Buscando);
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
 
-        var (fragmentos, distancias) = await RecuperarFragmentosAsync(consulta, activoId, cancellationToken);
-        if (fragmentos.Count == 0)
+        consulta = IntervaloDeHoras.NormalizarMiles(consulta);
+        var relevantes = await BuscarSeccionesRelevantesAsync(consulta, null, activoId, cancellationToken,
+            () => alAvanzar(EtapasDeSugerencia.Eligiendo));
+        if (relevantes.Count == 0)
         {
-            return null;
+            // Una consulta corta en español suele no alcanzar un manual en inglés. Solo aquí se traduce: lo que ya se
+            // encuentra sigue igual, sin otra llamada al proveedor ni más demora.
+            await alAvanzar(EtapasDeSugerencia.Ampliando);
+            var traduccion = await _traductor.TraducirAsync(consulta, cancellationToken);
+            if (traduccion is not null)
+            {
+                relevantes = await BuscarSeccionesRelevantesAsync(consulta, traduccion, activoId, cancellationToken,
+                    () => Task.CompletedTask);
+            }
         }
 
-        var secciones = SeccionesCandidatas.Armar(fragmentos);
-        if (secciones.Count == 0)
-        {
-            return null;
-        }
-
-        var relevantes = OrdenarPorRelevancia(consulta, secciones, distancias);
         if (relevantes.Count == 0)
         {
             return null;
         }
 
-        var opciones = SeccionesCandidatas.BuscarOpcionesEquivalentes(consulta, relevantes);
-        var elegida = ElegirSeccion(relevantes, opciones, numero);
-        elegida = await CompletarConFragmentoSiguienteAsync(elegida, cancellationToken);
+        await alAvanzar(EtapasDeSugerencia.Redactando);
 
-        var advertencias = AdvertenciasDelManual.Extraer(elegida.Cuerpo);
-        var textoParaResumir = AdvertenciasDelManual.Quitar(elegida.Cuerpo);
-        if (textoParaResumir.Length < SeccionesCandidatas.LargoMinimoDeSeccion)
+        // El reranker puede poner primero una sección que comparte palabras sin tratar la tarea. Si el modelo la lee y
+        // dice que no la trata, se prueba la siguiente en lugar de responder que no hay información.
+        for (var intento = 0; intento < MaximoDeSeccionesARedactar && relevantes.Count > 0; intento++)
         {
-            textoParaResumir = elegida.Cuerpo;
+            var opciones = SeccionesCandidatas.BuscarOpcionesEquivalentes(consulta, relevantes);
+            var candidata = ElegirSeccion(relevantes, opciones, numero);
+            var elegida = await CompletarConFragmentoSiguienteAsync(candidata, cancellationToken);
+
+            var advertencias = AdvertenciasDelManual.Extraer(elegida.Cuerpo);
+            var textoParaResumir = AdvertenciasDelManual.Quitar(elegida.Cuerpo);
+            if (textoParaResumir.Length < SeccionesCandidatas.LargoMinimoDeSeccion)
+            {
+                textoParaResumir = elegida.Cuerpo;
+            }
+
+            var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken);
+            if (resumen.Modo != ModosDeSugerencia.SinInformacion)
+            {
+                var respuesta = RedaccionDeSugerencia.ArmarRespuesta(resumen.Texto, advertencias, elegida, opciones,
+                    resumen.Titulo);
+                return new SugerenciaRedactada(respuesta, resumen.Modo);
+            }
+
+            relevantes = relevantes.Where(seccion => !ReferenceEquals(seccion, candidata)).ToList();
         }
 
-        var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken);
-        if (resumen.Modo == ModosDeSugerencia.SinInformacion)
-        {
-            return null;
-        }
+        return null;
+    }
 
-        var respuesta = RedaccionDeSugerencia.ArmarRespuesta(resumen.Texto, advertencias, elegida, opciones,
-            resumen.Titulo);
-        return new SugerenciaRedactada(respuesta, resumen.Modo);
+    private async Task<List<SeccionDocumento>> BuscarSeccionesRelevantesAsync(string consulta, string? traduccion,
+        long? activoId, CancellationToken cancellationToken, Func<Task> alEmpezarAElegir)
+    {
+        var (fragmentos, distancias) = await RecuperarFragmentosAsync(consulta, traduccion, activoId, cancellationToken);
+        await alEmpezarAElegir();
+        var secciones = SeccionesCandidatas.Armar(fragmentos);
+        return secciones.Count == 0
+            ? new List<SeccionDocumento>()
+            : OrdenarPorRelevancia(consulta, traduccion, secciones, distancias);
     }
 
     /// <summary>
     /// Devuelve los fragmentos candidatos y la distancia a la consulta de los que llegaron por parecido; la usa
-    /// <see cref="EsSeccionConfiable"/> cuando el reranker duda.
+    /// <see cref="EsSeccionConfiable"/> cuando el reranker duda. Con traducción se busca con las dos consultas y se
+    /// fusionan los cuatro rankings: un fragmento vale por la consulta que más se le acerca.
     /// </summary>
     private async Task<(List<FuenteDocumento> Fragmentos, Dictionary<long, double> Distancias)> RecuperarFragmentosAsync(
-        string consulta, long? activoId, CancellationToken cancellationToken)
+        string consulta, string? traduccion, long? activoId, CancellationToken cancellationToken)
     {
-        var vectores = _embeddings.Crear([consulta]);
+        var vectores = _embeddings.Crear(traduccion is null ? [consulta] : [consulta, traduccion]);
         var vectorDeLaConsulta = new Vector(vectores[0]);
+        Vector? vectorDeLaTraduccion = traduccion is null ? null : new Vector(vectores[1]);
 
         var distancias = new Dictionary<long, double>();
-        var idsPorParecido = await BuscarIdsPorParecidoAsync(vectorDeLaConsulta, activoId, distancias, cancellationToken);
+        var rankings = new List<List<long>>
+        {
+            await BuscarIdsPorParecidoAsync(vectorDeLaConsulta, activoId, distancias, cancellationToken)
+        };
         var idsPorPalabras = await BuscarIdsPorPalabrasAsync(consulta, activoId, cancellationToken);
-        var puntajes = CombinarRankings(idsPorParecido, idsPorPalabras);
+        rankings.Add(idsPorPalabras);
+        if (traduccion is not null)
+        {
+            rankings.Add(await BuscarIdsPorParecidoAsync(vectorDeLaTraduccion!, activoId, distancias, cancellationToken));
+            var idsPorPalabrasTraducidas = await BuscarIdsPorPalabrasAsync(traduccion, activoId, cancellationToken);
+            rankings.Add(idsPorPalabrasTraducidas);
+            idsPorPalabras = idsPorPalabras.Union(idsPorPalabrasTraducidas).ToList();
+        }
+
+        var puntajes = CombinarRankings(rankings);
 
         var idsCandidatos = new List<long>();
         foreach (var id in puntajes.Keys)
@@ -127,7 +184,7 @@ public class ServicioSugerencias : IAsyncDisposable
         }
 
         var candidatos = await LeerFragmentosCercanosAsync(idsCandidatos, idsPorPalabras, vectorDeLaConsulta,
-            cancellationToken, distancias);
+            cancellationToken, distancias, vectorDeLaTraduccion);
         candidatos.Sort((primero, segundo) => CompararPorPuntaje(primero, segundo, puntajes));
 
         var fragmentos = new List<FuenteDocumento>();
@@ -169,7 +226,8 @@ public class ServicioSugerencias : IAsyncDisposable
         {
             var id = lector.GetInt64(0);
             ids.Add(id);
-            distancias[id] = lector.GetDouble(1);
+            var distancia = lector.GetDouble(1);
+            distancias[id] = distancias.TryGetValue(id, out var anterior) ? Math.Min(anterior, distancia) : distancia;
         }
 
         return ids;
@@ -200,11 +258,14 @@ public class ServicioSugerencias : IAsyncDisposable
         return ids;
     }
 
-    private static Dictionary<long, double> CombinarRankings(List<long> idsPorParecido, List<long> idsPorPalabras)
+    private static Dictionary<long, double> CombinarRankings(List<List<long>> rankings)
     {
         var puntajes = new Dictionary<long, double>();
-        SumarPuntajesDelRanking(puntajes, idsPorParecido);
-        SumarPuntajesDelRanking(puntajes, idsPorPalabras);
+        foreach (var ranking in rankings)
+        {
+            SumarPuntajesDelRanking(puntajes, ranking);
+        }
+
         return puntajes;
     }
 
@@ -231,19 +292,23 @@ public class ServicioSugerencias : IAsyncDisposable
     /// procedimientos queda lejos de cualquier consulta. El reranker decide después si de verdad responde.
     /// </summary>
     internal async Task<List<FuenteDocumento>> LeerFragmentosCercanosAsync(List<long> ids, List<long> idsPorPalabras,
-        Vector vectorDeLaConsulta, CancellationToken cancellationToken, Dictionary<long, double>? distancias = null)
+        Vector vectorDeLaConsulta, CancellationToken cancellationToken, Dictionary<long, double>? distancias = null,
+        Vector? vectorDeLaTraduccion = null)
     {
         await using var comando = _baseDatos.CreateCommand("""
-            SELECT fragmentos.id, fragmentos.pagina, fragmentos.texto, documentos.nombre, fragmentos.embedding <=> $2
+            SELECT fragmentos.id, fragmentos.pagina, fragmentos.texto, documentos.nombre,
+                   LEAST(fragmentos.embedding <=> $2, fragmentos.embedding <=> $5),
+                   fragmentos.contexto
             FROM vectorial.fragmentos AS fragmentos
             JOIN vectorial.documentos AS documentos ON documentos.id = fragmentos.documento_id
             WHERE fragmentos.id = ANY($1)
-              AND (fragmentos.embedding <=> $2 <= $3 OR fragmentos.id = ANY($4))
+              AND (LEAST(fragmentos.embedding <=> $2, fragmentos.embedding <=> $5) <= $3 OR fragmentos.id = ANY($4))
             """);
         comando.Parameters.AddWithValue(ids.ToArray());
         comando.Parameters.AddWithValue(vectorDeLaConsulta);
         comando.Parameters.AddWithValue(DistanciaMaximaPermitida);
         comando.Parameters.AddWithValue(idsPorPalabras.ToArray());
+        comando.Parameters.AddWithValue(vectorDeLaTraduccion ?? vectorDeLaConsulta);
 
         var fragmentos = new List<FuenteDocumento>();
         await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
@@ -253,7 +318,10 @@ public class ServicioSugerencias : IAsyncDisposable
             var pagina = lector.GetInt32(1);
             var texto = lector.GetString(2);
             var documento = lector.GetString(3);
-            fragmentos.Add(new FuenteDocumento(id, pagina, texto, documento));
+            fragmentos.Add(new FuenteDocumento(id, pagina, texto, documento)
+            {
+                SeccionEnCurso = CabeceraDeFragmentos.ObtenerSeccion(lector.GetString(5))
+            });
             if (distancias is not null && !lector.IsDBNull(4))
             {
                 distancias[id] = lector.GetDouble(4);
@@ -282,26 +350,48 @@ public class ServicioSugerencias : IAsyncDisposable
     }
 
     /// <summary>
-    /// Decide si la mejor sección responde la consulta. Con el puntaje del reranker en 0 o más, sí. Cuando la
-    /// consulta está en español y el manual en inglés el reranker da puntajes más bajos aunque la sección sea la
-    /// correcta: entonces se acepta si el puntaje no es muy bajo y el fragmento está cerca de la consulta por
-    /// significado. Calibrado con consultas reales contra los manuales SANY: las que no tenían respuesta quedaron
-    /// todas por debajo de -2,5 en el reranker.
+    /// Decide si la mejor sección responde la consulta. Con el puntaje del reranker en 1 o más, sí. Entre 0 y 1 se
+    /// acepta salvo que el fragmento esté lejos de la consulta por significado: así se descartan secciones que solo
+    /// comparten palabras, como la garantía de John Deere ante "Mantenimiento de 600 horas" (0,39 a 0,488 de
+    /// distancia). Sin distancia (fragmento sin embedding) se acepta. Cuando la consulta está en español y el
+    /// manual en inglés el reranker da puntajes más bajos aunque la sección sea la correcta: entonces se acepta si
+    /// el puntaje no es muy bajo y el fragmento está cerca. Calibrado con consultas reales contra los manuales:
+    /// las que no tenían respuesta quedaron todas por debajo de -1,8 en el reranker o lejos por significado.
+    /// Si la sección nombra el intervalo de horas pedido, alcanza con el puntaje mínimo: el número ya la respalda, y un
+    /// título como "250 Hours of service" puede quedar lejos de "Mantenimiento de 250 horas" aunque sea la correcta.
     /// </summary>
-    internal static bool EsSeccionConfiable(float puntajeDelReranker, double? distanciaDelFragmento)
+    internal static bool EsSeccionConfiable(float puntajeDelReranker, double? distanciaDelFragmento,
+        bool coincideElIntervalo = false)
     {
-        if (puntajeDelReranker >= 0)
+        if (coincideElIntervalo)
+        {
+            return puntajeDelReranker >= PuntajeMinimoEntreIdiomas;
+        }
+
+        if (puntajeDelReranker >= PuntajeQueNoNecesitaDistancia)
         {
             return true;
+        }
+
+        if (puntajeDelReranker >= 0)
+        {
+            return distanciaDelFragmento is null || distanciaDelFragmento <= DistanciaMaximaPermitida;
         }
 
         return puntajeDelReranker >= PuntajeMinimoEntreIdiomas
             && distanciaDelFragmento is not null && distanciaDelFragmento <= DistanciaMaximaEntreIdiomas;
     }
 
-    private List<SeccionDocumento> OrdenarPorRelevancia(string consulta, List<SeccionDocumento> secciones,
-        Dictionary<long, double> distancias)
+    private List<SeccionDocumento> OrdenarPorRelevancia(string consulta, string? traduccion,
+        List<SeccionDocumento> seccionesCandidatas, Dictionary<long, double> distancias)
     {
+        var intervalosPedidos = IntervaloDeHoras.Extraer(consulta);
+        var secciones = IntervaloDeHoras.QuitarOtrosIntervalos(seccionesCandidatas, intervalosPedidos);
+        if (secciones.Count == 0)
+        {
+            return new List<SeccionDocumento>();
+        }
+
         var textosParaOrdenar = new List<FuenteDocumento>();
         for (var posicion = 0; posicion < secciones.Count; posicion++)
         {
@@ -310,7 +400,11 @@ public class ServicioSugerencias : IAsyncDisposable
             textosParaOrdenar.Add(new FuenteDocumento(posicion, seccion.Pagina, textoDeLaSeccion, seccion.Documento));
         }
 
-        var resultados = _reranker.Ordenar(PedidoParaElReranker + consulta, textosParaOrdenar);
+        // Primero las secciones que nombran el intervalo pedido; dentro de cada grupo se respeta el orden del reranker.
+        var resultados = PuntuarConLasDosConsultas(consulta, traduccion, textosParaOrdenar)
+            .OrderByDescending(resultado =>
+                IntervaloDeHoras.Coincide(secciones[(int)resultado.Fuente.Id], intervalosPedidos))
+            .ToList();
         var relevantes = new List<SeccionDocumento>();
         if (resultados.Count == 0)
         {
@@ -324,7 +418,8 @@ public class ServicioSugerencias : IAsyncDisposable
         {
             var seccion = secciones[(int)resultados[posicion].Fuente.Id];
             double? distancia = distancias.TryGetValue(seccion.FragmentoId, out var valor) ? valor : null;
-            if (EsSeccionConfiable(resultados[posicion].Puntaje, distancia))
+            if (EsSeccionConfiable(resultados[posicion].Puntaje, distancia,
+                    IntervaloDeHoras.Coincide(seccion, intervalosPedidos)))
             {
                 primeraConfiable = posicion;
                 break;
@@ -340,9 +435,15 @@ public class ServicioSugerencias : IAsyncDisposable
         for (var posicion = primeraConfiable; posicion < resultados.Count; posicion++)
         {
             var resultado = resultados[posicion];
-            if (resultado.Puntaje < puntajeMinimo || relevantes.Count == MaximoDeSeccionesRelevantes)
+            if (relevantes.Count == MaximoDeSeccionesRelevantes)
             {
                 break;
+            }
+
+            // No se corta en el primero bajo: al ir primero las que nombran el intervalo, los puntajes no quedan en orden.
+            if (resultado.Puntaje < puntajeMinimo)
+            {
+                continue;
             }
 
             var posicionDeLaSeccion = (int)resultado.Fuente.Id;
@@ -350,6 +451,34 @@ public class ServicioSugerencias : IAsyncDisposable
         }
 
         return relevantes;
+    }
+
+    /// <summary>
+    /// La consulta original puntúa todas las secciones; la traducción, solo las escritas en inglés. Cada sección se
+    /// queda con su mejor puntaje. La traducción va sin el pedido que acompaña a la original: con él, una sección larga
+    /// que apenas nombra la tarea ("500 hours of service") le ganaba a la que la explica ("Air intake system").
+    /// </summary>
+    private List<FuentePuntuada> PuntuarConLasDosConsultas(string consulta, string? traduccion,
+        List<FuenteDocumento> textosParaOrdenar)
+    {
+        var resultados = _reranker.Ordenar(PedidoParaElReranker + consulta, textosParaOrdenar);
+        if (traduccion is null)
+        {
+            return resultados;
+        }
+
+        var textosEnIngles = textosParaOrdenar.Where(texto => TraductorDeConsultas.EstaEnIngles(texto.Texto)).ToList();
+        if (textosEnIngles.Count == 0)
+        {
+            return resultados;
+        }
+
+        var traducidos = _reranker.Ordenar(traduccion, textosEnIngles);
+        return resultados.Concat(traducidos)
+            .GroupBy(resultado => resultado.Fuente.Id)
+            .Select(grupo => grupo.MaxBy(resultado => resultado.Puntaje)!)
+            .OrderByDescending(resultado => resultado.Puntaje)
+            .ToList();
     }
 
     private static SeccionDocumento ElegirSeccion(List<SeccionDocumento> relevantes,
@@ -400,13 +529,13 @@ public class ServicioSugerencias : IAsyncDisposable
         return SeccionesCandidatas.CompletarConFragmentoSiguiente(seccion, seccionesSiguientes);
     }
 
-    private static string CrearBusquedaTextual(string consulta)
+    internal static string CrearBusquedaTextual(string consulta)
     {
         var palabras = new List<string>();
         foreach (Match coincidencia in PatronPalabraDeBusqueda.Matches(consulta.ToLowerInvariant()))
         {
             var palabra = coincidencia.Value;
-            if (palabra.Length >= 3 && !palabras.Contains(palabra))
+            if (palabra.Length >= 3 && !PalabrasSinValorEnIngles.Contains(palabra) && !palabras.Contains(palabra))
             {
                 palabras.Add(palabra);
             }

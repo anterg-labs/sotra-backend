@@ -4,6 +4,29 @@ namespace Api.PruebasUnitarias;
 
 public class ServiciosDelManualPruebas
 {
+    [TestCase("Revisio\u00B4n de la presio\u00B4n", "Revisión de la presión", TestName = "UneElAcentoSueltoQueDejaElPdf")]
+    [TestCase("Revisio \u0301n", "Revisión", TestName = "UneElAcentoConEspacioIntermedio")]
+    [TestCase("Usar los peldan\u02DCos", "Usar los peldaños", TestName = "UneLaTilde")]
+    [TestCase("ancho de v\u0131\u00B4a y Caracter\u0131 \u0301sticas", "ancho de vía y Características", TestName = "UneElAcentoSobreLaIFinal")]
+    [TestCase("Revisión de presión", "Revisión de presión", TestName = "NoCambiaUnTextoBienEscrito")]
+    public void NormalizarUneLosAcentosSueltos(string texto, string esperado)
+    {
+        Assert.That(DocumentoPdf.Normalizar(texto), Is.EqualTo(esperado));
+    }
+
+    [Test]
+    public void NormalizarNoUneElAcentoQueNoSigueAUnaLetra()
+    {
+        Assert.That(DocumentoPdf.Normalizar("Valor 5\u00B4 de ajuste"), Does.Contain("5 \u0301"));
+    }
+
+    [TestCase("IMPORTANTE: Evitar mezclar refrigerantes de marcas diferentes.", TestName = "QuitaLosDosPuntosDelRotulo")]
+    [TestCase("ADVERTENCIA - Evitar mezclar refrigerantes de marcas diferentes.", TestName = "QuitaElGuionDelRotulo")]
+    public void LaAdvertenciaNoEmpiezaConLosSignosDelRotulo(string cuerpo)
+    {
+        Assert.That(AdvertenciasDelManual.Extraer(cuerpo), Is.EqualTo(new[] { "Evitar mezclar refrigerantes de marcas diferentes." }));
+    }
+
     private static SeccionDocumento Seccion(string titulo, string cuerpo, string contexto = "", long id = 1,
         int pagina = 1, string documento = "manual.pdf", bool llegaAlFinal = false) =>
         new(id, pagina, documento, titulo, contexto, cuerpo, llegaAlFinal);
@@ -165,6 +188,77 @@ public class ServiciosDelManualPruebas
         Assert.That(TextoDelManual.EsIndice("Afloje el tapón... y espere. Drene el aceite."), Is.False);
     }
 
+    [Test]
+    public void EsIndice_ReconoceLosPuntosSeparadosPorEspacios()
+    {
+        // Así extrae PdfPig la tabla de contenidos del manual SY335 de SANY America.
+        var indice = "TABLE OF CONTENTS Fuel Level . . . . . . . . . . . .5-20 Sheet Metal . . . . . . . . . . .5-33 "
+            + "50 Hours of Maintenance. . . . . . . . . . . .5-35";
+
+        Assert.That(TextoDelManual.EsIndice(indice), Is.True);
+        Assert.That(TextoDelManual.EsIndice("Revise el nivel. . . Luego cierre la tapa. Arranque el motor."), Is.False);
+    }
+
+    // CabeceraDeFragmentos
+
+    [Test]
+    public void CabeceraDeFragmentos_IncluyeDocumentoYMaquinaSinLaExtension()
+    {
+        var fragmentos = new List<FragmentoDocumento> { new(1, "Texto sin títulos del manual.") };
+
+        var cabecera = CabeceraDeFragmentos.Armar("Manual SY335.pdf", "Excavadora hidráulica SANY SY335", fragmentos)[0];
+
+        Assert.That(cabecera.Completa, Is.EqualTo("Documento: Manual SY335. Máquina: Excavadora hidráulica SANY SY335."));
+        // El embedding no lleva el documento ni la máquina (ver CabeceraDeFragmentos.Armar).
+        Assert.That(cabecera.DeSeccion, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void CabeceraDeFragmentos_SinMaquinaSoloNombraElDocumento()
+    {
+        var fragmentos = new List<FragmentoDocumento> { new(1, "Texto.") };
+
+        Assert.That(CabeceraDeFragmentos.Armar("Seguridad laboral.pdf", null, fragmentos)[0].Completa,
+            Is.EqualTo("Documento: Seguridad laboral."));
+    }
+
+    [Test]
+    public void CabeceraDeFragmentos_UnTituloRepetidoEnMuchosFragmentosEsUnEncabezadoYNoUnaSeccion()
+    {
+        var fragmentos = new List<FragmentoDocumento>
+        {
+            new(10, "§4.2 Engine oil - change§ 1. Drain the engine oil completely."),
+        };
+        for (var pagina = 11; pagina < 17; pagina++)
+        {
+            fragmentos.Add(new FragmentoDocumento(pagina, "§SANY LATIN AMERICA§ Continue with the next step of the procedure."));
+        }
+
+        var cabeceras = CabeceraDeFragmentos.Armar("Manual.pdf", null, fragmentos);
+
+        // El pie de página no reemplaza a la sección en curso.
+        Assert.That(cabeceras[6].DeSeccion, Is.EqualTo("Sección: 4.2 Engine oil - change."));
+    }
+
+    [Test]
+    public void CabeceraDeFragmentos_UnFragmentoQueEmpiezaAMitadDeSeccionLlevaSuTitulo()
+    {
+        var fragmentos = new List<FragmentoDocumento>
+        {
+            new(333, "Texto anterior. §5.8.6 Every 500 service hours§ 1. Lower work equipment to ground."),
+            new(333, "2. Add grease through the fittings shown by arrows."),
+            new(334, "§5.8.7 Every 1000 service hours§ 1. Replace the hydraulic oil filter."),
+        };
+
+        var cabeceras = CabeceraDeFragmentos.Armar("Manual.pdf", null, fragmentos);
+
+        Assert.That(cabeceras[0].Completa, Is.EqualTo("Documento: Manual."));
+        Assert.That(cabeceras[1].Completa, Is.EqualTo("Documento: Manual. Sección: 5.8.6 Every 500 service hours."));
+        Assert.That(cabeceras[1].DeSeccion, Is.EqualTo("Sección: 5.8.6 Every 500 service hours."));
+        // Empieza con su propio título: la sección anterior no le corresponde.
+        Assert.That(cabeceras[2].Completa, Is.EqualTo("Documento: Manual."));
+    }
+
     // Valores medidos con consultas en español contra los manuales SANY en inglés.
     [TestCase(1.59f, 0.332, true, TestName = "EsSeccionConfiable_RerankerPositivo")]
     [TestCase(0.27f, null, true, TestName = "EsSeccionConfiable_RerankerPositivoSinDistancia")]
@@ -174,9 +268,110 @@ public class ServiciosDelManualPruebas
     [TestCase(-1.09f, null, false, TestName = "EsSeccionConfiable_EntreIdiomasSoloPorPalabras")]
     [TestCase(-2.59f, 0.435, false, TestName = "EsSeccionConfiable_ConsultaSinRespuesta")]
     [TestCase(-2.89f, 0.39, false, TestName = "EsSeccionConfiable_RerankerMuyBajoAunqueCercana")]
+    // Valores medidos con mmarco-mMiniLMv2.
+    [TestCase(2.43f, 0.43, true, TestName = "EsSeccionConfiable_RerankerAltoAunqueLejana")]
+    [TestCase(0.33f, 0.436, true, TestName = "EsSeccionConfiable_RerankerBajoCercana")]
+    [TestCase(0.39f, 0.488, false, TestName = "EsSeccionConfiable_RerankerBajoLejana")]
     public void ServicioSugerencias_EsSeccionConfiable(float puntaje, double? distancia, bool esperado)
     {
         Assert.That(ServicioSugerencias.EsSeccionConfiable(puntaje, distancia), Is.EqualTo(esperado));
+    }
+
+    // "250 Hours of service" ante "Mantenimiento de 250 horas": 0,24 con distancia 0,473.
+    [TestCase(0.24f, 0.473, true, TestName = "EsSeccionConfiable_ConElIntervaloPedidoNoImportaLaDistancia")]
+    [TestCase(-1.5f, 0.6, true, TestName = "EsSeccionConfiable_ConElIntervaloPedidoAlcanzaElPuntajeMinimo")]
+    [TestCase(-2.5f, 0.3, false, TestName = "EsSeccionConfiable_ConElIntervaloPedidoYPuntajeMuyBajo")]
+    public void ServicioSugerencias_EsSeccionConfiable_ConIntervalo(float puntaje, double? distancia, bool esperado)
+    {
+        Assert.That(ServicioSugerencias.EsSeccionConfiable(puntaje, distancia, coincideElIntervalo: true),
+            Is.EqualTo(esperado));
+    }
+
+    // IntervaloDeHoras
+
+    [TestCase("1,000 HOURS OF SERVICE", "1000 HOURS OF SERVICE", TestName = "NormalizarMiles_ConComa")]
+    [TestCase("Cada 2.000 horas", "Cada 2000 horas", TestName = "NormalizarMiles_ConPunto")]
+    [TestCase("1,500 kg de carga", "1,500 kg de carga", TestName = "NormalizarMiles_NoTocaOtrosValores")]
+    [TestCase("5.8.6 Every 500 service hours", "5.8.6 Every 500 service hours", TestName = "NormalizarMiles_NoTocaNumeracion")]
+    public void IntervaloDeHoras_NormalizarMiles(string texto, string esperado)
+    {
+        Assert.That(IntervaloDeHoras.NormalizarMiles(texto), Is.EqualTo(esperado));
+    }
+
+    [TestCase("Mantenimiento de 500 horas", new[] { 500 }, TestName = "Extraer_Horas")]
+    [TestCase("1,000 HOURS OF SERVICE", new[] { 1000 }, TestName = "Extraer_ConMiles")]
+    [TestCase("5.8.6 Every 500 service hours", new[] { 500 }, TestName = "Extraer_ServiceHours")]
+    [TestCase("Service cada 250hs", new[] { 250 }, TestName = "Extraer_AbreviadoPegado")]
+    [TestCase("Cambio de aceite", new int[0], TestName = "Extraer_SinIntervalo")]
+    [TestCase("Hasta 500 kg y 12 hojas", new int[0], TestName = "Extraer_NoConfundeOtrasUnidades")]
+    public void IntervaloDeHoras_Extraer(string texto, int[] esperados)
+    {
+        Assert.That(IntervaloDeHoras.Extraer(texto), Is.EquivalentTo(esperados));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_QuitaLasSeccionesDeOtroIntervaloYConservaLasSinNumero()
+    {
+        var de500 = Seccion("500 HOURS OF SERVICE", "c", id: 1);
+        var de50 = Seccion("50 HOURS OF MAINTENANCE", "c", id: 2);
+        var sinNumero = Seccion("INTERVALOS DE MANTENIMIENTO", "c", id: 3);
+        var conContexto = Seccion("LUBRICACION", "c", contexto: "Mantenimiento cada 1000 horas.", id: 4);
+
+        var conservadas = IntervaloDeHoras.QuitarOtrosIntervalos([de500, de50, sinNumero, conContexto], [500]);
+
+        Assert.That(conservadas, Is.EqualTo(new[] { de500, sinNumero }));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_SinIntervaloPedidoConservaTodas()
+    {
+        var secciones = new List<SeccionDocumento> { Seccion("50 HOURS OF MAINTENANCE", "c") };
+
+        Assert.That(IntervaloDeHoras.QuitarOtrosIntervalos(secciones, []), Is.EqualTo(secciones));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_SinTituloMiraElPrincipioDelCuerpo()
+    {
+        var seccion = Seccion("", "Mantenimiento—Cada 500 horas. Revise el nivel de aceite.");
+
+        Assert.That(IntervaloDeHoras.Coincide(seccion, [500]), Is.True);
+        Assert.That(IntervaloDeHoras.Coincide(seccion, [50]), Is.False);
+    }
+
+    [Test]
+    public void IntervaloDeHoras_UnaTablaSinTituloQueNombraHorasNoCoincide()
+    {
+        // Tabla de holguras del manual de servicio SY215C9 (p. 219): nombra horas, pero no es ese mantenimiento.
+        var tabla = Seccion("", "100 hours greasing 500 hours greasing Unit: mm No. Check item Criteria Remedy");
+
+        Assert.That(IntervaloDeHoras.Coincide(tabla, [500]), Is.False);
+        Assert.That(IntervaloDeHoras.QuitarOtrosIntervalos([tabla], [250]), Is.EqualTo(new[] { tabla }));
+    }
+
+    [Test]
+    public void IntervaloDeHoras_UnTrozoSinTituloHeredaElIntervaloDeSuSeccion()
+    {
+        var fuente = new FuenteDocumento(1, 246, "Check: Air Conditioner Compressor (see page 5-65).", "m.pdf")
+        {
+            SeccionEnCurso = CabeceraDeFragmentos.ObtenerSeccion(
+                "Documento: Manual. Máquina: Excavadora. Sección: 250 Hours of service.")
+        };
+        var trozo = TextoDelManual.DividirEnSecciones(fuente)[0];
+
+        Assert.That(IntervaloDeHoras.QuitarOtrosIntervalos([trozo], [1000]), Is.Empty);
+        Assert.That(IntervaloDeHoras.Coincide(trozo, [250]), Is.True);
+    }
+
+    [Test]
+    public void DividirEnSecciones_ConservaElNumeroDeUnIntervaloConMilesUnidos()
+    {
+        var conMilesUnidos = IntervaloDeHoras.NormalizarMiles("1,000 HOURS OF SERVICE\n1. Park the machine on a level surface.");
+        var texto = DocumentoPdf.Normalizar(DocumentoPdf.MarcarTitulosNumerados(conMilesUnidos));
+
+        var secciones = TextoDelManual.DividirEnSecciones(new FuenteDocumento(1, 274, texto, "m.pdf"));
+
+        Assert.That(secciones[0].Titulo, Is.EqualTo("1000 HOURS OF SERVICE"));
     }
 
     [Test]
@@ -973,6 +1168,30 @@ public class ServiciosDelManualPruebas
         Assert.That(respuesta, Does.StartWith("Servicio de mantenimiento de las 500 horas\nResumen.\n"));
         Assert.That(respuesta, Does.Not.Contain("Park the machine"));
         Assert.That(respuesta, Does.EndWith("sección \"500 Hours of service\"."));
+    }
+
+    [Test]
+    public void Redaccion_ArmarRespuesta_OpcionesConElMismoTituloNoAgreganAclaracion()
+    {
+        // La misma sección en dos manuales cargados (o en dos páginas) no deja nada para elegir.
+        var elegida = Seccion("500 HOURS OF SERVICE", "c", id: 1, pagina: 258);
+        var repetida = Seccion("500 HOURS OF SERVICE", "c", id: 2, pagina: 258, documento: "copia.pdf");
+
+        var respuesta = RedaccionDeSugerencia.ArmarRespuesta("Resumen.", [], elegida, [elegida, repetida]);
+
+        Assert.That(respuesta, Does.Not.Contain("Aclaración"));
+    }
+
+    [Test]
+    public void Redaccion_ArmarRespuesta_ListaSoloLasOpcionesConOtroTitulo()
+    {
+        var elegida = Seccion("500 HOURS OF SERVICE", "c", id: 1, pagina: 258);
+        var repetida = Seccion("500 HOURS OF SERVICE", "c", id: 2, pagina: 259);
+        var otra = Seccion("1000 HOURS OF SERVICE", "c", id: 3, pagina: 262);
+
+        var respuesta = RedaccionDeSugerencia.ArmarRespuesta("Resumen.", [], elegida, [elegida, repetida, otra]);
+
+        Assert.That(respuesta, Does.Contain("También se encontraron:\n- 1000 Hours of service (página 262)\nIndique"));
     }
 
     [TestCase("Título: Cambio del filtro de combustible\nSe debe drenar el agua.",

@@ -334,38 +334,106 @@ public class OrdenesTrabajoController : ControllerBase
             return this.RespuestaDeError(400, "DESCRIPCION_OBLIGATORIA", "La descripción de la tarea es obligatoria.");
         }
 
+        var resultado = await GenerarSugerenciaAsync(solicitud, null, cancellationToken);
+        if (resultado.Sugerencia is not null)
+        {
+            return Ok(new { sugerencia = resultado.Sugerencia.Texto, modo = resultado.Sugerencia.Modo });
+        }
+
+        return resultado.Estado == StatusCodeClienteCerroLaSolicitud
+            ? StatusCode(StatusCodeClienteCerroLaSolicitud)
+            : this.RespuestaDeError(resultado.Estado, resultado.Codigo!, resultado.Mensaje!);
+    }
+
+    /// <summary>
+    /// Igual que <see cref="SolicitarSugerencia"/>, pero informa el avance mientras trabaja. Responde NDJSON: una línea
+    /// <c>{"etapa":...}</c> por cada etapa y una última con <c>{"sugerencia":...,"modo":...}</c> o
+    /// <c>{"error":{"estado":...,"codigo":...,"mensaje":...}}</c>, porque el estado HTTP ya se envió con la primera línea.
+    /// </summary>
+    [HttpPost("sugerencia/etapas")]
+    [Authorize(Policy = Politicas.OtCrear)]
+    [EnableRateLimiting(PoliticasDeLimite.Sugerencias)]
+    public async Task<IActionResult> SolicitarSugerenciaConEtapas(SolicitudSugerenciaDto solicitud,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(solicitud.Descripcion))
+        {
+            return this.RespuestaDeError(400, "DESCRIPCION_OBLIGATORIA", "La descripción de la tarea es obligatoria.");
+        }
+
+        Response.ContentType = "application/x-ndjson; charset=utf-8";
+        Response.Headers.CacheControl = "no-cache";
+        // Sin esto, Nginx acumula las líneas y las etapas llegan todas juntas al final.
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        try
+        {
+            var resultado = await GenerarSugerenciaAsync(solicitud,
+                etapa => EscribirLineaAsync(new { etapa }, cancellationToken), cancellationToken);
+            if (resultado.Sugerencia is not null)
+            {
+                await EscribirLineaAsync(new { sugerencia = resultado.Sugerencia.Texto, modo = resultado.Sugerencia.Modo }, cancellationToken);
+            }
+            else if (resultado.Estado != StatusCodeClienteCerroLaSolicitud)
+            {
+                await EscribirLineaAsync(new { error = new { estado = resultado.Estado, codigo = resultado.Codigo, mensaje = resultado.Mensaje } }, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // La persona se fue: no hay a quién responderle.
+        }
+        catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is { } traducida)
+        {
+            await EscribirLineaAsync(new { error = new { estado = traducida.Estado, codigo = traducida.Codigo, mensaje = traducida.Mensaje } }, cancellationToken);
+        }
+
+        return new EmptyResult();
+    }
+
+    private async Task EscribirLineaAsync(object linea, CancellationToken cancellationToken)
+    {
+        await Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(linea) + "\n", cancellationToken);
+        await Response.Body.FlushAsync(cancellationToken);
+    }
+
+    private sealed record ResultadoDeSugerencia(SugerenciaRedactada? Sugerencia, int Estado = 200, string? Codigo = null, string? Mensaje = null);
+
+    private async Task<ResultadoDeSugerencia> GenerarSugerenciaAsync(SolicitudSugerenciaDto solicitud,
+        Func<string, Task>? alAvanzar, CancellationToken cancellationToken)
+    {
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
         var resultadoDeLaSugerencia = "error";
         try
         {
             var sugerencia = await _servicioSugerencias.BuscarAsync(
-                solicitud.Descripcion, solicitud.Numero, solicitud.ActivoId, cancellationToken);
+                solicitud.Descripcion, solicitud.Numero, solicitud.ActivoId, cancellationToken, alAvanzar);
             if (sugerencia is null)
             {
                 resultadoDeLaSugerencia = "sin_contexto";
-                return this.RespuestaDeError(422, "SIN_CONTEXTO_TECNICO", "No hay información suficiente en la documentación técnica para esa tarea.");
+                return new ResultadoDeSugerencia(null, 422, "SIN_CONTEXTO_TECNICO", "No hay información suficiente en la documentación técnica para esa tarea.");
             }
 
             await _ordenTrabajoDao.RegistrarSugerenciaGeneradaAsync(solicitud.Sesion, solicitud.Descripcion.Trim(),
                 solicitud.Numero, sugerencia.Texto, sugerencia.Modo, cancellationToken);
             resultadoDeLaSugerencia = sugerencia.Modo == ModosDeSugerencia.Ia ? "ok" : sugerencia.Modo;
-            return Ok(new { sugerencia = sugerencia.Texto, modo = sugerencia.Modo });
+            return new ResultadoDeSugerencia(sugerencia);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return StatusCode(StatusCodeClienteCerroLaSolicitud);
+            return new ResultadoDeSugerencia(null, StatusCodeClienteCerroLaSolicitud);
         }
         catch (ModeloLocalNoDisponibleException excepcion)
         {
             // Sin los modelos locales no se puede buscar en la documentación: es un problema de instalación.
             resultadoDeLaSugerencia = "no_disponible";
             _logger.LogError(excepcion, "Faltan los modelos de IA locales al pedir una sugerencia");
-            return this.RespuestaDeError(502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
+            return new ResultadoDeSugerencia(null, 502, "SERVICIO_IA_NO_DISPONIBLE", "El servicio de IA no está disponible en este momento. Intentá de nuevo más tarde.");
         }
         catch (Exception excepcion) when (TraduccionDeErroresDeNegocio.Traducir(excepcion) is null)
         {
             _logger.LogError(excepcion, "Falló la generación de una sugerencia técnica");
-            return this.RespuestaDeError(502, "SUGERENCIA_FALLIDA", "No se pudo obtener la sugerencia técnica.");
+            return new ResultadoDeSugerencia(null, 502, "SUGERENCIA_FALLIDA", "No se pudo obtener la sugerencia técnica.");
         }
         finally
         {

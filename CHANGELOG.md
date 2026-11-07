@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## Version 1.0.120 (2026-11-06)
+
+- IA: se unen los acentos que algunos PDF guardan como un carácter aparte ("presio´n" pasa a "presión", procesamiento `pdf-v8`). Se veían mal en las advertencias y hacían que la búsqueda por palabras no encontrara esos términos. Los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
+- IA: las advertencias ya no empiezan con los signos del rótulo ("- : Evitar..." pasa a "- Evitar...").
+- IA: si el proveedor lee la sección elegida y responde que no trata la tarea, se prueba la siguiente sección relevante, hasta 3 en total, en lugar de responder `422` enseguida. Esas consultas gastan una llamada más por cada intento.
+
+## Version 1.0.119 (2026-11-06)
+
+- Órdenes: nueva ruta `POST /api/v1/ordenes-trabajo/sugerencia/etapas`, que informa el avance de la sugerencia mientras se genera (NDJSON: una línea por etapa y una última con la sugerencia o el error). La ruta `POST /api/v1/ordenes-trabajo/sugerencia` no cambia.
+
+## Version 1.0.118 (2026-11-06)
+
+- IA: se puede elegir Claude como proveedor con `IA_API_PROVEEDOR=anthropic` y `ANTHROPIC_API_KEY`, con el SDK oficial y `claude-haiku-5-5` por defecto. Traduce las consultas y redacta los resúmenes; la búsqueda no cambia. Sin esa variable se sigue usando el proveedor de `IA_API_URL` (Groq por defecto).
+
+## Version 1.0.117 (2026-11-05)
+
+- IA: si la consulta no encuentra una sección confiable, se traduce al inglés con el proveedor de IA y se busca de nuevo con las dos versiones. Así una consulta corta en español llega a un manual en inglés ("Revisar el nivel de refrigerante" o "Cambio de filtro de aceite" en la SY335 antes respondían `422`). Lo que ya se encontraba sigue igual, sin otra llamada al proveedor. La traducción solo sirve para buscar, puntúa solo las secciones en inglés y se descarta si cambia los números de la consulta; si el proveedor falla o tarda más de 5 segundos, la respuesta queda como con la consulta original.
+- IA: la búsqueda por palabras ignora palabras sin valor en inglés ("the", "and", "for"...), que hacían coincidir fragmentos sin relación.
+
+## Version 1.0.116 (2026-11-04)
+
+- IA: un fragmento sin título ya no se da por respuesta de un intervalo solo porque nombra esas horas. Antes, "Mantenimiento de 500 horas" en una SY215C citaba una tabla de holguras con el encabezado "100 hours greasing 500 hours greasing"; ahora hace falta "cada N horas" o que su sección sea de ese intervalo.
+
+## Version 1.0.115 (2026-11-04)
+
+- IA: las sugerencias respetan el intervalo de horas pedido. Si la consulta nombra uno ("Mantenimiento de 500 horas"), se descartan las secciones de otro intervalo, también en "otra sugerencia" (antes 500 podía dar 50), y la sección que lo nombra va primero y se acepta con el puntaje mínimo. Antes, "Mantenimiento de 250 horas" en la SY335 respondía `422` por la distancia.
+- IA: los intervalos con separador de miles ("1,000 HOURS OF SERVICE") conservan el número en el título y en la búsqueda (procesamiento `pdf-v7`). Antes no se encontraban las 1000 ni las 2000 horas de la SY335. Los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
+
+## Version 1.0.114 (2026-11-04)
+
+- IA: el reranker pasa de `bge-reranker-v2-m3` (544 MB) a `mmarco-mMiniLMv2-L12-H384-v1` multilingüe en ONNX cuantizado (113 MB). Ordena las secciones unas 7 veces más rápido y usa la mitad de memoria. `compose.yml` lo descarga en `/modelos/reranker` con revisión fija.
+- IA: una sección con puntaje del reranker entre 0 y 1 ya no se acepta si está lejos de la consulta por significado (distancia coseno mayor a 0,45). Antes "Mantenimiento de 600 horas a la JOHN DEERE 450C CL" citaba la garantía del propietario; ahora responde `422 SIN_CONTEXTO_TECNICO`.
+- IA: cada fragmento de un manual lleva una cabecera de contexto con el documento, la máquina asociada y la sección en la que empieza (columna `vectorial.fragmentos.contexto`, versión de procesamiento `pdf-v6`). La cabecera entra en la búsqueda por palabras, así un fragmento sin título propio se encuentra por su manual, su máquina y su sección; el embedding lleva solo la sección, para que la distancia siga midiendo el contenido. Los títulos repetidos en 5 fragmentos o más (encabezados y pies de página) no se toman como sección. El cambio de base (`database/cambios/2026-11-04-fragmentos-contexto.sql`) lo aplica el despliegue; los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
+- IA: la búsqueda descarta también los índices con puntos separados por espacios (". . . . .5-20", como la tabla de contenidos del manual SY335), que antes podían citarse como respuesta.
+- IA: la aclaración de opciones ya no aparece vacía cuando las otras secciones encontradas tienen el mismo título que la elegida (por ejemplo, la misma sección en un manual cargado dos veces).
+
 ## Version 1.0.112 (2026-10-28)
 
 - Notificaciones: la API genera avisos dentro de la aplicación cuando se asigna una orden, cambia su estado o pasa a revisión (los jefes de mantenimiento reciben la solicitud de revisión y el técnico, los demás cambios). Cada persona consulta, cuenta y marca como leídos solo los suyos.

@@ -47,9 +47,12 @@ public static class BaseVectorial
                 pagina INTEGER NOT NULL,
                 texto TEXT NOT NULL,
                 embedding VECTOR(1024) NOT NULL,
-                texto_busqueda TSVECTOR GENERATED ALWAYS AS (to_tsvector('spanish', texto)) STORED,
+                contexto TEXT NOT NULL DEFAULT '',
+                texto_busqueda TSVECTOR GENERATED ALWAYS AS (to_tsvector('spanish', contexto || ' ' || texto)) STORED,
                 UNIQUE(documento_id, posicion)
             );
+            ALTER TABLE vectorial.fragmentos
+                ADD COLUMN IF NOT EXISTS contexto TEXT NOT NULL DEFAULT '';
             CREATE INDEX IF NOT EXISTS fragmentos_documento_idx
                 ON vectorial.fragmentos(documento_id);
             CREATE INDEX IF NOT EXISTS fragmentos_texto_idx
