@@ -54,10 +54,11 @@ Los archivos de `database/init/` deben tener saltos de línea LF; `.gitattribute
 | `OPENAPI_PUBLICAR` | Opcional. Con `true` publica el documento OpenAPI y Swagger también fuera de desarrollo (por ejemplo en staging). **No usar en producción.** |
 | `FRONTEND_ORIGIN` | Origen permitido por CORS. |
 | `RERANKER_*_RUTA`, `EMBEDDINGS_*_RUTA` | Solo para `dotnet run` fuera de Docker: rutas a una copia local de los modelos. En Docker no se configuran (ver "Modelos de IA y base de datos local"). |
-| `IA_API_PROVEEDOR`, `ANTHROPIC_API_KEY` | Con `IA_API_PROVEEDOR=anthropic`, traduce y redacta Claude con el SDK oficial y la clave de `ANTHROPIC_API_KEY`; `IA_API_MODELO` vacío usa `claude-haiku-5-5` (si venía de otro proveedor, hay que cambiarlo). Vacío: proveedor compatible con OpenAI, con las variables de abajo. |
-| `IA_API_URL`, `IA_API_MODELO` | Proveedor que redacta los resúmenes, con API compatible con OpenAI. Vacíos: Groq (`https://api.groq.com/openai/v1/`) con `openai/gpt-oss-20b`. |
-| `IA_API_CLAVE` | Clave del proveedor (console.groq.com). Nunca se sube al repositorio. Sin clave, las sugerencias muestran el texto del manual sin resumir, con aviso. |
-| `IA_API_ESFUERZO` | Se envía como `reasoning_effort` (`low` para GPT-OSS). Vacío para proveedores que no lo aceptan. |
+| `ANTHROPIC_API_KEY` | Clave de Anthropic (console.anthropic.com). Traduce y redacta Claude con el SDK oficial y `claude-haiku-5-5`, el proveedor por defecto. Nunca se sube al repositorio. Sin clave, las sugerencias muestran el texto del manual sin resumir, con aviso. |
+| `IA_API_PROVEEDOR` | Vacío: Claude. Con `compatible`, un proveedor compatible con OpenAI, con las variables de abajo. |
+| `IA_API_URL`, `IA_API_MODELO` | `IA_API_MODELO` es el modelo del proveedor elegido (si se cambia de proveedor, hay que cambiarlo). Con el proveedor compatible, vacíos usan Groq (`https://api.groq.com/openai/v1/`) con `openai/gpt-oss-20b`. |
+| `IA_API_CLAVE` | Clave del proveedor compatible (console.groq.com). Nunca se sube al repositorio. |
+| `IA_API_ESFUERZO` | Esfuerzo del modelo (`low`). En el proveedor compatible se envía como `reasoning_effort`; vacío si no lo acepta. |
 | `IA_API_LLAMADAS_POR_MINUTO` | Llamadas por minuto al proveedor para toda la API (por defecto `10`), en ventana deslizante. La que se pasa no espera ni llama al proveedor: la sugerencia sale con el texto del manual y `modo = sin_ia`. El reintento de un fallo pasajero no cuenta como otra llamada. |
 | `KC_*` | Keycloak (ver "Keycloak"). |
 | `AUTH_OBLIGATORIA` | `true` exige token de Keycloak en los endpoints protegidos; `false` los deja abiertos mientras el frontend integra el login. |
@@ -620,7 +621,8 @@ El código está en `Api/Servicios/`, un archivo por responsabilidad:
 | `SeccionesCandidatas.cs` | Unir secciones partidas, quitar repetidas y detectar opciones ambiguas. |
 | `RedaccionDeSugerencia.cs` | Instrucciones para el modelo, guardia de números y formato final de la respuesta. |
 | `RedactorDeSugerencias.cs` | Pide el resumen al proveedor y decide el modo (`ia`, `sin_ia` o `descartada`). |
-| `GeneradorDeTextoPorApi.cs` | Llamada al proveedor externo (Groq por defecto) con el formato de chat de OpenAI. |
+| `GeneradorDeTextoPorClaude.cs` | Llamada a Claude, el proveedor por defecto, con el SDK oficial de Anthropic. |
+| `GeneradorDeTextoPorApi.cs` | Alternativa con `IA_API_PROVEEDOR=compatible`: proveedor externo (Groq por defecto) con el formato de chat de OpenAI. |
 | `ServicioEmbeddings.cs` / `ServicioReranker.cs` | Embeddings `bge-m3` y reranker, los dos con ONNX dentro de la API. |
 | `TraductorDeConsultas.cs` | Traduce la consulta al inglés con el proveedor de IA cuando la original no encuentra una sección confiable. |
 
@@ -638,7 +640,7 @@ Pasos:
    **Segundo intento con la consulta traducida:** si ninguna sección es confiable, `TraductorDeConsultas` traduce la consulta al inglés y se repiten la búsqueda y el reranking con las dos versiones: cuatro rankings en RRF, la menor distancia de cada fragmento y, en cada sección escrita en inglés, el mejor puntaje de las dos consultas. La traducción no puntúa las secciones en español (`EstaEnIngles`), porque el reranker les da puntajes altos sin que respondan, y va sin el pedido que acompaña a la consulta original. Solo se usa para buscar: el intervalo de horas, el resumen y el control de números siguen con la consulta original. Se descarta si cambia los números de la consulta y queda 24 horas en memoria, así "otra sugerencia" no gasta otra llamada. Si el proveedor falla o tarda más de 5 segundos, responde lo mismo que la consulta original (`422`). Esas consultas gastan hasta dos llamadas de `IA_API_LLAMADAS_POR_MINUTO` (traducción y resumen); las que encuentran sección al primer intento, una sola.
 5. **Ambigüedad:** si otras secciones relevantes (a menos de 3 puntos de la mejor) contienen en su título las mismas palabras de la consulta que la mejor, la consulta no alcanza para distinguirlas y se listan como opciones en "Aclaración". La comparación usa raíces de palabras sin tildes, sin reglas ni palabras propias de un documento. Las opciones con el mismo título que la elegida (la misma sección en otra página o en otro manual) no se listan; si no queda ninguna, no se muestra la aclaración.
 6. **Advertencias:** se copian literalmente del manual (bloques `ADVERTENCIA`, `PRECAUCIÓN`, `PELIGRO`, `AVISO`, `IMPORTANTE`), sin pasar por el modelo. Una advertencia termina en el siguiente paso numerado, en otra palabra de aviso o en un subtítulo en minúsculas del PDF (por ejemplo "Comprobación 4 …" o "Sustitución • …"); lo que sigue vuelve al cuerpo de la sección. Si una advertencia es larga, se corta al final de una oración.
-7. **Resumen:** si al quitar las advertencias queda menos de `LargoMinimoDeSeccion` caracteres, se resume la sección completa, para que la respuesta nunca quede vacía. El proveedor externo (por defecto Groq con `openai/gpt-oss-20b`, temperatura 0) resume la sección elegida en 2 a 4 oraciones, con instrucciones de no agregar nada y de conservar las obligaciones como obligaciones. La respuesta trae `modo`:
+7. **Resumen:** si al quitar las advertencias queda menos de `LargoMinimoDeSeccion` caracteres, se resume la sección completa, para que la respuesta nunca quede vacía. El proveedor externo (por defecto Claude con `claude-haiku-5-5`, sin razonamiento) resume la sección elegida en 2 a 4 oraciones, con instrucciones de no agregar nada y de conservar las obligaciones como obligaciones. La respuesta trae `modo`:
    - `ia`: el resumen pasó el control de números.
    - `descartada`: el resumen tenía un número que no está en el manual; se usa un extracto limpio del manual, sin aviso.
    - `sin_ia`: el proveedor no respondió, rechazó el pedido o no hay clave; se usa el extracto y el frontend avisa que el asistente no está disponible.
@@ -666,7 +668,8 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 | `SeccionesCandidatas` | `LargoMinimoDeSeccion` | 80 | Secciones más cortas (índices, listas de títulos) se descartan. |
 | `RedaccionDeSugerencia` | `LargoMaximoDeTextoParaElModelo` | 3000 | Caracteres del manual que recibe el modelo como máximo. |
 | `RedaccionDeSugerencia` | `LargoMinimoDeResumen` / `LargoMaximoDeResumen` | 20 / 1200 | Un resumen fuera de ese largo se descarta. |
-| `GeneradorDeTextoPorApi` | `UrlPorDefecto` / `ModeloPorDefecto` | Groq / `openai/gpt-oss-20b` | Proveedor y modelo cuando `IA_API_URL` e `IA_API_MODELO` están vacíos. |
+| `GeneradorDeTextoPorClaude` | `ModeloPorDefecto` | `claude-haiku-5-5` | Modelo del proveedor por defecto cuando `IA_API_MODELO` está vacío. |
+| `GeneradorDeTextoPorApi` | `UrlPorDefecto` / `ModeloPorDefecto` | Groq / `openai/gpt-oss-20b` | Con `IA_API_PROVEEDOR=compatible`, proveedor y modelo cuando `IA_API_URL` e `IA_API_MODELO` están vacíos. |
 | `GeneradorDeTextoPorApi` | `TokensMaximosDeRespuesta` | 1024 | Tokens de salida; holgado porque, en los modelos que razonan, el razonamiento también cuenta. |
 | `ConfiguracionDeGeneradorDeTexto` | `SegundosMaximosPorIntento` / `SegundosMaximosEnTotal` | 15 / 20 | Pasado ese tiempo se usa el texto del manual sin resumir (`modo = sin_ia`). |
 | `ServicioEmbeddings` | `DimensionesDelEmbedding` | 1024 | Largo del vector de `bge-m3`; debe coincidir con `VECTOR(1024)` de la tabla. |
@@ -677,7 +680,7 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 
 `numero` (1, 2, 3…) recorre las opciones: con una consulta ambigua, cada nueva solicitud devuelve la siguiente opción.
 
-Requisitos: la clave del proveedor en `IA_API_CLAVE`; los modelos ONNX los descarga `compose.yml`. No hace falta GPU: el resumen lo hace el proveedor externo y la búsqueda corre en CPU. Los dos modelos locales ocupan alrededor de 1,2 GB de RAM y se cargan con la primera sugerencia. Los documentos procesados antes de esta versión tienen embeddings de Ollama y fragmentos sin los títulos numerados marcados (`version_proceso` anterior a `pdf-v4`): hay que volver a subirlos. Los procesados con `pdf-v4` a `pdf-v7` siguen funcionando, pero sin cabecera de contexto (antes de `pdf-v6`) o sin unir los miles de los intervalos de horas (`pdf-v7`: "1,000 hours" se guarda como "1000 hours") o sin unir los acentos que algunos PDF guardan aparte (`pdf-v8`: "presio´n" se guarda como "presión"): conviene reprocesarlos (`POST /api/v1/documentos-tecnicos/{id}/reprocesar`), que usa el PDF guardado.
+Requisitos: la clave del proveedor en `ANTHROPIC_API_KEY`; los modelos ONNX los descarga `compose.yml`. No hace falta GPU: el resumen lo hace el proveedor externo y la búsqueda corre en CPU. Los dos modelos locales ocupan alrededor de 1,2 GB de RAM y se cargan con la primera sugerencia. Los documentos procesados antes de esta versión tienen embeddings de Ollama y fragmentos sin los títulos numerados marcados (`version_proceso` anterior a `pdf-v4`): hay que volver a subirlos. Los procesados con `pdf-v4` a `pdf-v7` siguen funcionando, pero sin cabecera de contexto (antes de `pdf-v6`) o sin unir los miles de los intervalos de horas (`pdf-v7`: "1,000 hours" se guarda como "1000 hours") o sin unir los acentos que algunos PDF guardan aparte (`pdf-v8`: "presio´n" se guarda como "presión"): conviene reprocesarlos (`POST /api/v1/documentos-tecnicos/{id}/reprocesar`), que usa el PDF guardado.
 
 ## Acceso a datos asíncrono y cancelación
 
@@ -733,7 +736,7 @@ Si `POST /api/v1/ordenes-trabajo/sugerencia` responde `502`, mirar el campo `cod
 - `SUGERENCIA_FALLIDA`: otro error en la búsqueda, el reranker o la generación; el log del backend trae la excepción (`LogError`) con el identificador de correlación.
 - `422 SIN_CONTEXTO_TECNICO`: el servicio funciona, pero ningún documento técnico procesado cubre la tarea.
 
-Si las sugerencias salen siempre con `modo = sin_ia`, revisar `IA_API_CLAVE` y el log: una clave inválida o un modelo inexistente quedan como error.
+Si las sugerencias salen siempre con `modo = sin_ia`, revisar `ANTHROPIC_API_KEY` (o `IA_API_CLAVE` con el proveedor compatible) y el log: una clave inválida o un modelo inexistente quedan como error.
 
 Las pruebas de integración corren sin modelos locales ni clave del proveedor: comprueban el `502` sin descargar modelos ni llamar a servicios externos.
 

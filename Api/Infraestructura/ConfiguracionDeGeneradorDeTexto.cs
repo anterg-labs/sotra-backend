@@ -34,11 +34,11 @@ public static class ConfiguracionDeGeneradorDeTexto
             QueueLimit = 0,
         });
 
-        var usaClaude = string.Equals(Environment.GetEnvironmentVariable("IA_API_PROVEEDOR"),
-            GeneradorDeTextoPorClaude.Proveedor, StringComparison.OrdinalIgnoreCase);
-        var cliente = usaClaude
-            ? servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorClaude>(ConfigurarTiempo)
-            : servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorApi>(ConfigurarUrlYTiempo);
+        var usaCompatible = string.Equals(Environment.GetEnvironmentVariable("IA_API_PROVEEDOR"),
+            GeneradorDeTextoPorApi.Proveedor, StringComparison.OrdinalIgnoreCase);
+        var cliente = usaCompatible
+            ? servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorApi>(ConfigurarUrlYTiempo)
+            : servicios.AddHttpClient<IGeneradorDeTexto, GeneradorDeTextoPorClaude>(ConfigurarTiempo);
 
         cliente
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler

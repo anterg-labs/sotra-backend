@@ -10,7 +10,7 @@ public class GeneradorDeTextoPorApiPruebas
 {
     private const string RespuestaDeChat = """{"choices":[{"message":{"role":"assistant","content":" Hola "}}]}""";
 
-    private static readonly string[] Variables = ["IA_API_URL", "IA_API_MODELO", "IA_API_CLAVE", "IA_API_ESFUERZO", "IA_API_LLAMADAS_POR_MINUTO"];
+    private static readonly string[] Variables = ["IA_API_PROVEEDOR", "IA_API_URL", "IA_API_MODELO", "IA_API_CLAVE", "IA_API_ESFUERZO", "IA_API_LLAMADAS_POR_MINUTO"];
 
     private readonly Dictionary<string, string?> _valoresAnteriores = new();
 
@@ -23,6 +23,7 @@ public class GeneradorDeTextoPorApiPruebas
             Environment.SetEnvironmentVariable(variable, null);
         }
 
+        Environment.SetEnvironmentVariable("IA_API_PROVEEDOR", GeneradorDeTextoPorApi.Proveedor);
         Environment.SetEnvironmentVariable("IA_API_CLAVE", "clave-de-prueba");
     }
 

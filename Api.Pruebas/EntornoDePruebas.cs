@@ -56,6 +56,7 @@ public class EntornoDePruebas
             ["RERANKER_MODELO_RUTA"] = "",
             ["RERANKER_TOKENIZADOR_RUTA"] = "",
             ["IA_API_CLAVE"] = "",
+            ["ANTHROPIC_API_KEY"] = "",
             // La API exige estas variables para validar tokens; las pruebas no levantan Keycloak.
             ["KEYCLOAK_EMISOR"] = "https://keycloak.pruebas.test/realms/sotra",
             ["KEYCLOAK_METADATA"] = "https://keycloak.pruebas.test/realms/sotra/.well-known/openid-configuration",

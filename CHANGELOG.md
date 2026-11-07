@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.121 (2026-11-06)
+
+- IA: Claude Haiku 5.5 pasa a ser el proveedor por defecto para traducir las consultas y redactar los resúmenes. Cada entorno debe definir `ANTHROPIC_API_KEY`; sin ella, las sugerencias muestran el texto del manual con aviso. Groq sigue disponible con `IA_API_PROVEEDOR=compatible` e `IA_API_CLAVE`.
+
 ## Version 1.0.120 (2026-11-06)
 
 - IA: se unen los acentos que algunos PDF guardan como un carácter aparte ("presio´n" pasa a "presión", procesamiento `pdf-v8`). Se veían mal en las advertencias y hacían que la búsqueda por palabras no encontrara esos términos. Los documentos existentes hay que reprocesarlos con `POST /api/v1/documentos-tecnicos/{id}/reprocesar`.
