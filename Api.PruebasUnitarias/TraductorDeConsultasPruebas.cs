@@ -123,6 +123,14 @@ public class TraductorDeConsultasPruebas
     }
 
     [Test]
+    public void LasInstruccionesPidenSumarLaInspeccionCuandoLaConsultaDescribeUnaFalla()
+    {
+        Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("describe una falla"));
+        Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("inspect and check the air conditioning system"));
+        Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("sin suponer causas"));
+    }
+
+    [Test]
     public void DescartaUnaRespuestaDemasiadoLarga()
     {
         Assert.That(TraductorDeConsultas.ValidarTraduccion("Cambio de aceite", new string('a', 301)), Is.Null);

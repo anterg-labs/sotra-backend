@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.123 (2026-11-07)
+
+- IA: en el segundo intento, una consulta que describe una falla ("El aire acondicionado no enfría") se traduce junto con la inspección del sistema que nombra ("air conditioning not cooling; inspect and check the air conditioning system"). El manual describe tareas, no fallas: antes esas consultas respondían `422` aunque el manual tuviera la revisión del sistema. Con 12 consultas de fallas pasaron de 5 a 12 con respuesta; las consultas ajenas al mantenimiento siguen en `422`.
+
 ## Version 1.0.121 (2026-11-06)
 
 - IA: Claude Haiku 5.5 pasa a ser el proveedor por defecto para traducir las consultas y redactar los resúmenes. Cada entorno debe definir `ANTHROPIC_API_KEY`; sin ella, las sugerencias muestran el texto del manual con aviso. Groq sigue disponible con `IA_API_PROVEEDOR=compatible` e `IA_API_CLAVE`.
