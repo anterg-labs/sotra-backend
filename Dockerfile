@@ -22,6 +22,10 @@ RUN dotnet publish Api/Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 WORKDIR /app
+# CVE-2026-109518: la imagen base todavía trae apt 2.8.3. Quitar cuando la publique corregida.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade apt libapt-pkg6.0t64 \
+    && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /var/lib/sotra/errores && chmod 1777 /var/lib/sotra/errores
 
 COPY --from=build /app/publish .
