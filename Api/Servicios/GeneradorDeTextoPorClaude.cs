@@ -8,13 +8,12 @@ using Polly.Timeout;
 namespace Api.Servicios;
 
 /// <summary>
-/// Redacta con Claude por medio del SDK oficial de Anthropic. Se elige con IA_API_PROVEEDOR=anthropic; la clave se lee
-/// de ANTHROPIC_API_KEY y el modelo de IA_API_MODELO. Usa el mismo HttpClient que el otro proveedor, con sus tiempos,
+/// Redacta con Claude por medio del SDK oficial de Anthropic. Es el proveedor por defecto; la clave se lee de
+/// ANTHROPIC_API_KEY y el modelo de IA_API_MODELO. Usa el mismo HttpClient que el otro proveedor, con sus tiempos,
 /// su reintento y su límite de llamadas: por eso el SDK no reintenta por su cuenta.
 /// </summary>
 public class GeneradorDeTextoPorClaude : IGeneradorDeTexto
 {
-    public const string Proveedor = "anthropic";
     public const string ModeloPorDefecto = "claude-haiku-5-5";
 
     private const int TokensMaximosDeRespuesta = 4096;

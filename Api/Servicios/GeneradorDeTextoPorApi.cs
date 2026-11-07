@@ -25,11 +25,13 @@ public class GeneradorDeTextoNoDisponibleException : Exception
 }
 
 /// <summary>
-/// Redacta con un proveedor externo que acepta el formato de chat de OpenAI (Groq por defecto; también Gemini,
-/// Mistral u otros). El proveedor se elige con IA_API_URL, IA_API_MODELO, IA_API_CLAVE e IA_API_ESFUERZO.
+/// Alternativa a Claude, con IA_API_PROVEEDOR=compatible: redacta con un proveedor externo que acepta el formato de
+/// chat de OpenAI (Groq por defecto; también Gemini, Mistral u otros). Se elige con IA_API_URL, IA_API_MODELO,
+/// IA_API_CLAVE e IA_API_ESFUERZO.
 /// </summary>
 public class GeneradorDeTextoPorApi : IGeneradorDeTexto
 {
+    public const string Proveedor = "compatible";
     public const string UrlPorDefecto = "https://api.groq.com/openai/v1/";
     public const string ModeloPorDefecto = "openai/gpt-oss-20b";
 

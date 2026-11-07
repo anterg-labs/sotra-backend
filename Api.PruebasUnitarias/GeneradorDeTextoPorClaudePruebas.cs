@@ -33,7 +33,6 @@ public class GeneradorDeTextoPorClaudePruebas
             Environment.SetEnvironmentVariable(variable, null);
         }
 
-        Environment.SetEnvironmentVariable("IA_API_PROVEEDOR", "anthropic");
         Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", "clave-de-prueba");
     }
 
@@ -74,17 +73,17 @@ public class GeneradorDeTextoPorClaudePruebas
     }
 
     [Test]
-    public void ConLaVariableSeUsaClaudeYSinEllaElOtroProveedor()
+    public void PorDefectoSeUsaClaudeYConLaVariableElProveedorCompatible()
     {
-        var conClaude = new ServiceCollection();
-        conClaude.AgregarGeneradorDeTexto();
-        Assert.That(conClaude.BuildServiceProvider().GetRequiredService<IGeneradorDeTexto>(),
+        var porDefecto = new ServiceCollection();
+        porDefecto.AgregarGeneradorDeTexto();
+        Assert.That(porDefecto.BuildServiceProvider().GetRequiredService<IGeneradorDeTexto>(),
             Is.TypeOf<GeneradorDeTextoPorClaude>());
 
-        Environment.SetEnvironmentVariable("IA_API_PROVEEDOR", null);
-        var sinVariable = new ServiceCollection();
-        sinVariable.AgregarGeneradorDeTexto();
-        Assert.That(sinVariable.BuildServiceProvider().GetRequiredService<IGeneradorDeTexto>(),
+        Environment.SetEnvironmentVariable("IA_API_PROVEEDOR", GeneradorDeTextoPorApi.Proveedor);
+        var compatible = new ServiceCollection();
+        compatible.AgregarGeneradorDeTexto();
+        Assert.That(compatible.BuildServiceProvider().GetRequiredService<IGeneradorDeTexto>(),
             Is.TypeOf<GeneradorDeTextoPorApi>());
     }
 
