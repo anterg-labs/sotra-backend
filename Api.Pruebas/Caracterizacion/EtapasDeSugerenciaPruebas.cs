@@ -34,6 +34,8 @@ public class EtapasDeSugerenciaPruebas
 
         Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That(respuesta.Content.Headers.ContentType!.MediaType, Is.EqualTo("application/x-ndjson"));
+        Assert.That(respuesta.Headers.CacheControl!.NoTransform, Is.True, "sin no-transform, los intermediarios comprimen y juntan las etapas");
+        Assert.That(respuesta.Headers.GetValues("X-Accel-Buffering").Single(), Is.EqualTo("no"));
         Assert.That(lineas.Length, Is.GreaterThanOrEqualTo(2));
         using var primera = JsonDocument.Parse(lineas[0]);
         Assert.That(primera.RootElement.GetProperty("etapa").GetString(), Is.EqualTo("buscando"));

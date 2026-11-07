@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.124 (2026-11-07)
+
+- Órdenes: la ruta de etapas de la sugerencia responde con `Cache-Control: no-cache, no-transform`. En staging solo se veía la primera etapa: Next.js en producción y Cloudflare comprimían la respuesta y, para comprimirla, juntaban las líneas hasta el final.
+
 ## Version 1.0.123 (2026-11-07)
 
 - IA: en el segundo intento, una consulta que describe una falla ("El aire acondicionado no enfría") se traduce junto con la inspección del sistema que nombra ("air conditioning not cooling; inspect and check the air conditioning system"). El manual describe tareas, no fallas: antes esas consultas respondían `422` aunque el manual tuviera la revisión del sistema. Con 12 consultas de fallas pasaron de 5 a 12 con respuesta; las consultas ajenas al mantenimiento siguen en `422`.

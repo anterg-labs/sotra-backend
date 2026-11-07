@@ -362,7 +362,9 @@ public class OrdenesTrabajoController : ControllerBase
         }
 
         Response.ContentType = "application/x-ndjson; charset=utf-8";
-        Response.Headers.CacheControl = "no-cache";
+        // no-transform: sin él, Next.js en producción y Cloudflare comprimen la respuesta, y para comprimir juntan las
+        // líneas hasta el final, por lo que la persona solo ve la primera etapa.
+        Response.Headers.CacheControl = "no-cache, no-transform";
         // Sin esto, Nginx acumula las líneas y las etapas llegan todas juntas al final.
         Response.Headers["X-Accel-Buffering"] = "no";
 
