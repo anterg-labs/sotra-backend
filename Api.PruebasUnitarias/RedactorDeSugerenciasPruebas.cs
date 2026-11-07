@@ -57,6 +57,10 @@ public class RedactorDeSugerenciasPruebas
     }
 
     [TestCase("SIN_INFORMACION", TestName = "SiLaSeccionNoTrataLaTareaNoHaySugerencia")]
+    [TestCase("Título: Precauciones al manipular componentes hidráulicos\nEste texto del manual no contiene información sobre la inspección de mangueras. Por esa razón no se puede elaborar un resumen de la tarea consultada.",
+        TestName = "SiElModeloExplicaElRechazoEnProsaTambienCuentaComoSinInformacion")]
+    [TestCase("Título: Cambio de aceite del motor\nEl texto no contiene instrucciones específicas para cambiar el aceite del motor.",
+        TestName = "SiElModeloDiceQueElTextoNoTieneLaTareaCuentaComoSinInformacion")]
     [TestCase("**sin_informacion**.", TestName = "SiLaSeccionNoTrataLaTareaNoHaySugerenciaAunqueVengaConFormato")]
     public async Task SiLaSeccionNoTrataLaTareaNoHaySugerencia(string respuestaDelModelo)
     {

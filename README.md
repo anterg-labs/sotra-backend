@@ -604,7 +604,7 @@ Al agregar un paquete, hay que reconstruir la imagen del backend (`docker compos
 
 ### Sugerencias (`POST /api/v1/ordenes-trabajo/sugerencia`)
 
-`POST /api/v1/ordenes-trabajo/sugerencia/etapas` hace lo mismo e informa el avance mientras trabaja. Responde NDJSON con estado 200: una línea `{"etapa":...}` al empezar cada etapa (`buscando`, `eligiendo`, `ampliando` si hace falta el segundo intento, `redactando`) y una última con `{"sugerencia":...,"modo":...}` o `{"error":{"estado":...,"codigo":...,"mensaje":...}}`. Envía `X-Accel-Buffering: no` para que Nginx no acumule las líneas. Solo la descripción vacía, los permisos y el límite de solicitudes responden con su propio estado HTTP; la auditoría registra 200 aunque la sugerencia termine en error, y el resultado real queda en `sotra.sugerencias_ia.duracion`.
+`POST /api/v1/ordenes-trabajo/sugerencia/etapas` hace lo mismo e informa el avance mientras trabaja. Responde NDJSON con estado 200: una línea `{"etapa":...}` al empezar cada etapa (`buscando`, `eligiendo`, `ampliando` si hace falta el segundo intento, `redactando`) y una última con `{"sugerencia":...,"modo":...}` o `{"error":{"estado":...,"codigo":...,"mensaje":...}}`. Envía `X-Accel-Buffering: no` para que Nginx no acumule las líneas y `Cache-Control: no-cache, no-transform` para que Next.js en producción y Cloudflare no la compriman, porque para comprimir juntan las líneas hasta el final. Solo la descripción vacía, los permisos y el límite de solicitudes responden con su propio estado HTTP; la auditoría registra 200 aunque la sugerencia termine en error, y el resultado real queda en `sotra.sugerencias_ia.duracion`.
 
 El código está en `Api/Servicios/`, un archivo por responsabilidad:
 
@@ -664,6 +664,7 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 | `ServicioSugerencias` | `ConstanteDeFusionDeRankings` | 60 | Constante estándar de la fusión RRF: puntaje = 1 / (60 + posición). |
 | `ServicioSugerencias` | `DistanciaMaximaPermitida` | 0.45 | Distancia coseno máxima para los fragmentos que llegaron solo por parecido; los que coinciden por palabras no se filtran. |
 | `ServicioSugerencias` | `MaximoDeFragmentosRecuperados` | 18 | Fragmentos que pasan a la etapa de secciones. |
+| `ServicioSugerencias` | `MaximoDeFragmentosConTraduccion` | 30 | Fragmentos que pasan a la etapa de secciones en el segundo intento, que fusiona cuatro rankings. |
 | `ServicioSugerencias` | `MargenDePuntajeParaSeccionesRelevantes` | 3 | Una sección es relevante si su puntaje del reranker está a menos de 3 puntos de la mejor. |
 | `SeccionesCandidatas` | `LargoMinimoDeSeccion` | 80 | Secciones más cortas (índices, listas de títulos) se descartan. |
 | `RedaccionDeSugerencia` | `LargoMaximoDeTextoParaElModelo` | 3000 | Caracteres del manual que recibe el modelo como máximo. |

@@ -46,14 +46,26 @@ public static class RedaccionDeSugerencia
         "\"bandeja de drenaje\" y \"bolt\" es \"perno\". Usá solo palabras que existan en español; si no estás " +
         "seguro de cómo se traduce un término técnico, escribilo en español y agregá el original entre paréntesis. " +
         "11) Si el texto del manual no tiene ninguna información sobre la tarea consultada (por ejemplo, es un " +
-        "índice o trata otro tema), respondé únicamente " + RespuestaSinInformacion + ", sin título ni resumen.";
+        "índice o trata otro tema), respondé únicamente " + RespuestaSinInformacion + ", sin título ni resumen. " +
+        "Nunca expliques que el texto no tiene la información ni resumas el texto de otro tema: en ese caso, " +
+        "respondé solo " + RespuestaSinInformacion + ".";
 
     /// <summary>Lo que responde el modelo cuando la sección elegida no trata la tarea consultada.</summary>
     public const string RespuestaSinInformacion = "SIN_INFORMACION";
 
+    // A veces el modelo explica el rechazo en lugar de responder SIN_INFORMACION: "Este texto no describe la inspección…",
+    // "por esa razón no se puede elaborar un resumen". Las instrucciones le prohíben mencionar el manual, así que un
+    // resumen válido no habla de "el texto" ni de "la sección".
+    private static readonly Regex PatronRechazoEnProsa = new(
+        "\\b(?:este|el|esta|la)\\s+(?:texto|secci[oó]n|fragmento)(?:\\s+del\\s+manual)?\\b[^.]{0,80}?\\bno\\s+" +
+        "(?:contiene|incluye|describe|trata|menciona|aborda|proporciona|explica|indica)\\b" +
+        "|\\bno\\s+(?:se\\s+puede|es\\s+posible)\\s+(?:elaborar|redactar|hacer|generar)\\s+(?:un\\s+|el\\s+)?resumen",
+        RegexOptions.IgnoreCase);
+
     public static bool EsRespuestaSinInformacion(string respuesta)
     {
-        return respuesta.Contains(RespuestaSinInformacion, StringComparison.OrdinalIgnoreCase);
+        return respuesta.Contains(RespuestaSinInformacion, StringComparison.OrdinalIgnoreCase)
+            || PatronRechazoEnProsa.IsMatch(respuesta);
     }
 
     public static string CrearMensajeParaElModelo(string consulta, SeccionDocumento seccion, string textoParaResumir)

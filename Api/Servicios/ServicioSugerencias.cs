@@ -19,6 +19,9 @@ public class ServicioSugerencias : IAsyncDisposable
     private const int ConstanteDeFusionDeRankings = 60;
     private const double DistanciaMaximaPermitida = 0.45;
     private const int MaximoDeFragmentosRecuperados = 18;
+    // Con la traducción se fusionan cuatro rankings en lugar de dos: con el mismo corte, la sección correcta podía quedar
+    // afuera ("Cambio de filtro de aceite" perdía la del filtro de aceite y citaba la del filtro de combustible).
+    private const int MaximoDeFragmentosConTraduccion = 30;
     private const int MaximoDePalabrasEnBusquedaTextual = 12;
     private const string OperadorOEnBusquedaTextual = " | ";
     private const float MargenDePuntajeParaSeccionesRelevantes = 3;
@@ -190,7 +193,7 @@ public class ServicioSugerencias : IAsyncDisposable
         var fragmentos = new List<FuenteDocumento>();
         foreach (var candidato in candidatos)
         {
-            if (fragmentos.Count == MaximoDeFragmentosRecuperados)
+            if (fragmentos.Count == (traduccion is null ? MaximoDeFragmentosRecuperados : MaximoDeFragmentosConTraduccion))
             {
                 break;
             }
