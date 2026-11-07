@@ -346,9 +346,11 @@ public class OrdenesTrabajoController : ControllerBase
     }
 
     /// <summary>
-    /// Igual que <see cref="SolicitarSugerencia"/>, pero informa el avance mientras trabaja. Responde NDJSON: una línea
-    /// <c>{"etapa":...}</c> por cada etapa y una última con <c>{"sugerencia":...,"modo":...}</c> o
-    /// <c>{"error":{"estado":...,"codigo":...,"mensaje":...}}</c>, porque el estado HTTP ya se envió con la primera línea.
+    /// Igual que <see cref="SolicitarSugerencia"/>, pero informa el avance mientras trabaja. Responde eventos del
+    /// servidor (<c>text/event-stream</c>): un evento <c>data: {"etapa":...}</c> por cada etapa y uno último con
+    /// <c>{"sugerencia":...,"modo":...}</c> o <c>{"error":{"estado":...,"codigo":...,"mensaje":...}}</c>, porque el estado
+    /// HTTP ya se envió con el primer evento. Cloudflare reenvía este formato a medida que llega; con NDJSON juntaba las
+    /// etapas hasta el final y la persona solo veía la primera.
     /// </summary>
     [HttpPost("sugerencia/etapas")]
     [Authorize(Policy = Politicas.OtCrear)]
@@ -361,7 +363,7 @@ public class OrdenesTrabajoController : ControllerBase
             return this.RespuestaDeError(400, "DESCRIPCION_OBLIGATORIA", "La descripción de la tarea es obligatoria.");
         }
 
-        Response.ContentType = "application/x-ndjson; charset=utf-8";
+        Response.ContentType = "text/event-stream; charset=utf-8";
         // no-transform: sin él, Next.js en producción y Cloudflare comprimen la respuesta, y para comprimir juntan las
         // líneas hasta el final, por lo que la persona solo ve la primera etapa.
         Response.Headers.CacheControl = "no-cache, no-transform";
@@ -395,7 +397,8 @@ public class OrdenesTrabajoController : ControllerBase
 
     private async Task EscribirLineaAsync(object linea, CancellationToken cancellationToken)
     {
-        await Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(linea) + "\n", cancellationToken);
+        // Un evento del servidor: "data: <json>" y una línea en blanco que lo cierra. El JSON no lleva saltos de línea.
+        await Response.WriteAsync("data: " + System.Text.Json.JsonSerializer.Serialize(linea) + "\n\n", cancellationToken);
         await Response.Body.FlushAsync(cancellationToken);
     }
 

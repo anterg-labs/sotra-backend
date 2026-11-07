@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.0.126 (2026-11-07)
+
+- Órdenes: la ruta de etapas de la sugerencia responde eventos del servidor (`text/event-stream`, un `data: {...}` por evento) en lugar de NDJSON. En staging, Cloudflare juntaba las líneas NDJSON hasta el final aun con `no-transform`, y la persona solo veía la primera etapa; los eventos del servidor los reenvía a medida que llegan.
+
 ## Version 1.0.125 (2026-11-07)
 
 - IA: cuando el modelo explica en prosa que la sección no trata la tarea ("Este texto no contiene información sobre…") en lugar de responder `SIN_INFORMACION`, se toma como un rechazo y se prueba la siguiente sección. Antes ese texto se mostraba como si fuera la sugerencia. Las instrucciones también le piden que nunca explique la falta de información.
