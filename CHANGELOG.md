@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Version 1.0.125 (2026-11-07)
+
+- IA: cuando el modelo explica en prosa que la sección no trata la tarea ("Este texto no contiene información sobre…") en lugar de responder `SIN_INFORMACION`, se toma como un rechazo y se prueba la siguiente sección. Antes ese texto se mostraba como si fuera la sugerencia. Las instrucciones también le piden que nunca explique la falta de información.
+- IA: la traducción de la consulta escribe las tareas como los títulos de los manuales ("oil filter replacement") y no como una orden ("Replace oil filter"). Desde 1.0.123 la traducción variaba de forma.
+- IA: el segundo intento, que fusiona cuatro rankings, pasa 30 fragmentos a la etapa de secciones en lugar de 18. Con 18, la sección correcta podía quedar afuera: "Cambio de filtro de aceite" en la SY335 citaba el filtro de combustible.
+
 ## Version 1.0.124 (2026-11-07)
 
 - Órdenes: la ruta de etapas de la sugerencia responde con `Cache-Control: no-cache, no-transform`. En staging solo se veía la primera etapa: Next.js en producción y Cloudflare comprimían la respuesta y, para comprimirla, juntaban las líneas hasta el final.

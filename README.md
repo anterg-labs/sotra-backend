@@ -664,6 +664,7 @@ Los números que controlan el comportamiento tienen nombre y están al principio
 | `ServicioSugerencias` | `ConstanteDeFusionDeRankings` | 60 | Constante estándar de la fusión RRF: puntaje = 1 / (60 + posición). |
 | `ServicioSugerencias` | `DistanciaMaximaPermitida` | 0.45 | Distancia coseno máxima para los fragmentos que llegaron solo por parecido; los que coinciden por palabras no se filtran. |
 | `ServicioSugerencias` | `MaximoDeFragmentosRecuperados` | 18 | Fragmentos que pasan a la etapa de secciones. |
+| `ServicioSugerencias` | `MaximoDeFragmentosConTraduccion` | 30 | Fragmentos que pasan a la etapa de secciones en el segundo intento, que fusiona cuatro rankings. |
 | `ServicioSugerencias` | `MargenDePuntajeParaSeccionesRelevantes` | 3 | Una sección es relevante si su puntaje del reranker está a menos de 3 puntos de la mejor. |
 | `SeccionesCandidatas` | `LargoMinimoDeSeccion` | 80 | Secciones más cortas (índices, listas de títulos) se descartan. |
 | `RedaccionDeSugerencia` | `LargoMaximoDeTextoParaElModelo` | 3000 | Caracteres del manual que recibe el modelo como máximo. |

@@ -32,7 +32,9 @@ public class TraductorDeConsultas
         "servicio, para buscar en ellos. Reglas obligatorias: " +
         "1) Respondé únicamente con la traducción, en una sola línea, sin comillas ni explicaciones. " +
         "2) Usá los términos de los manuales: por ejemplo, \"orugas\" es \"tracks\", \"engrase\" es " +
-        "\"lubrication\" y \"mantenimiento de 500 horas\" es \"500 hours of service maintenance\". " +
+        "\"lubrication\" y \"mantenimiento de 500 horas\" es \"500 hours of service maintenance\". Escribí las tareas " +
+        "como los títulos de los manuales, con sustantivos y no como una orden: \"cambio de filtro de aceite\" es " +
+        "\"oil filter replacement\" y \"revisar el nivel de refrigerante\" es \"coolant level check\". " +
         "3) Si la consulta describe una falla o un síntoma en lugar de una tarea, traducí la falla y agregá, separada " +
         "por punto y coma, la tarea de inspección del sistema que nombra: por ejemplo, \"el aire acondicionado no " +
         "enfría\" es \"air conditioning not cooling; inspect and check the air conditioning system\". Nombrá solo ese " +

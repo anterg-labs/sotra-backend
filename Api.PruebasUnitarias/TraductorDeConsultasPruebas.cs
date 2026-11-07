@@ -128,6 +128,7 @@ public class TraductorDeConsultasPruebas
         Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("describe una falla"));
         Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("inspect and check the air conditioning system"));
         Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("sin suponer causas"));
+        Assert.That(TraductorDeConsultas.Instrucciones, Does.Contain("oil filter replacement"));
     }
 
     [Test]

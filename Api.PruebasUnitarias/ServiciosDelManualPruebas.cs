@@ -20,6 +20,16 @@ public class ServiciosDelManualPruebas
         Assert.That(DocumentoPdf.Normalizar("Valor 5\u00B4 de ajuste"), Does.Contain("5 \u0301"));
     }
 
+    [TestCase("Este texto no describe la inspección de mangueras ni cilindros.", true, TestName = "RechazoQueNombraElTexto")]
+    [TestCase("La sección no trata el cambio de filtro.", true, TestName = "RechazoQueNombraLaSeccion")]
+    [TestCase("Por esa razón no se puede elaborar un resumen.", true, TestName = "RechazoQueNoPuedeResumir")]
+    [TestCase("Verifique que el filtro no contiene residuos y que el aceite no presenta espuma.", false, TestName = "UnResumenQueDiceNoContieneNoEsRechazo")]
+    [TestCase("Se debe revisar el tanque; el nivel no debe superar la marca superior.", false, TestName = "UnResumenConNegacionesNoEsRechazo")]
+    public void Redaccion_ReconoceElRechazoEscritoEnProsa(string respuesta, bool esRechazo)
+    {
+        Assert.That(RedaccionDeSugerencia.EsRespuestaSinInformacion(respuesta), Is.EqualTo(esRechazo));
+    }
+
     [TestCase("IMPORTANTE: Evitar mezclar refrigerantes de marcas diferentes.", TestName = "QuitaLosDosPuntosDelRotulo")]
     [TestCase("ADVERTENCIA - Evitar mezclar refrigerantes de marcas diferentes.", TestName = "QuitaElGuionDelRotulo")]
     public void LaAdvertenciaNoEmpiezaConLosSignosDelRotulo(string cuerpo)
