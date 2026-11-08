@@ -30,6 +30,80 @@ public class RedactorDeSugerenciasPruebas
         new RedactorDeSugerencias(generador, NullLogger<RedactorDeSugerencias>.Instance)
             .ResumirAsync(Consulta, Seccion, TextoDelManual, cancellationToken);
 
+    private sealed class GeneradorQueGuardaElMensaje(string respuesta) : IGeneradorDeTexto
+    {
+        public string Mensaje { get; private set; } = "";
+
+        public Task<string> GenerarAsync(string instrucciones, string mensaje, CancellationToken cancellationToken)
+        {
+            Mensaje = mensaje;
+            return Task.FromResult(respuesta);
+        }
+    }
+
+    private static readonly List<string> AdvertenciasEnIngles =
+    [
+        "Do not perform this task when the engine is hot.", "Dispose of the contaminated oil properly.",
+    ];
+
+    private static Task<SugerenciaRedactada> ResumirConAdvertenciasAsync(IGeneradorDeTexto generador, List<string> advertencias) =>
+        new RedactorDeSugerencias(generador, NullLogger<RedactorDeSugerencias>.Instance)
+            .ResumirAsync(Consulta, Seccion, TextoDelManual, CancellationToken.None, advertencias);
+
+    [Test]
+    public async Task LasAdvertenciasEnInglesSePidenYSeDevuelvenTraducidas()
+    {
+        var generador = new GeneradorQueGuardaElMensaje(
+            "Título: Cambio de aceite del motor\nCada 250 horas de trabajo se cambia el aceite con aceite 15W-40.\n" +
+            "Advertencia: No realice esta tarea con el motor caliente.\nAdvertencia: Deseche el aceite contaminado correctamente.");
+
+        var redactada = await ResumirConAdvertenciasAsync(generador, AdvertenciasEnIngles);
+
+        Assert.That(generador.Mensaje, Does.Contain("Do not perform this task when the engine is hot."));
+        Assert.That(redactada.Modo, Is.EqualTo(ModosDeSugerencia.Ia));
+        Assert.That(redactada.Texto, Is.EqualTo("Cada 250 horas de trabajo se cambia el aceite con aceite 15W-40."));
+        Assert.That(redactada.Advertencias, Is.EqualTo(new[]
+        {
+            "No realice esta tarea con el motor caliente.", "Deseche el aceite contaminado correctamente.",
+        }));
+    }
+
+    [Test]
+    public async Task SiFaltaUnaAdvertenciaTraducidaSeMuestranLasOriginales()
+    {
+        var generador = new GeneradorQueGuardaElMensaje(
+            "Cada 250 horas de trabajo se cambia el aceite con aceite 15W-40.\nAdvertencia: No realice esta tarea con el motor caliente.");
+
+        var redactada = await ResumirConAdvertenciasAsync(generador, AdvertenciasEnIngles);
+
+        Assert.That(redactada.Modo, Is.EqualTo(ModosDeSugerencia.Ia));
+        Assert.That(redactada.Texto, Does.Not.Contain("Advertencia"));
+        Assert.That(redactada.Advertencias, Is.Null);
+    }
+
+    [Test]
+    public async Task UnaAdvertenciaTraducidaConUnNumeroInventadoDescartaElResumen()
+    {
+        var generador = new GeneradorQueGuardaElMensaje(
+            "Cada 250 horas de trabajo se cambia el aceite con aceite 15W-40.\n" +
+            "Advertencia: Espere 30 minutos a que el motor se enfríe.\nAdvertencia: Deseche el aceite contaminado correctamente.");
+
+        var redactada = await ResumirConAdvertenciasAsync(generador, AdvertenciasEnIngles);
+
+        Assert.That(redactada.Modo, Is.EqualTo(ModosDeSugerencia.Descartada));
+    }
+
+    [Test]
+    public async Task LasAdvertenciasEnEspanolNoSePidenAlModelo()
+    {
+        var generador = new GeneradorQueGuardaElMensaje("Cada 250 horas de trabajo se cambia el aceite con aceite 15W-40.");
+
+        var redactada = await ResumirConAdvertenciasAsync(generador, ["No realice esta tarea con el motor caliente."]);
+
+        Assert.That(generador.Mensaje, Does.Not.Contain("Advertencias del manual"));
+        Assert.That(redactada.Advertencias, Is.Null);
+    }
+
     [Test]
     public async Task UnResumenConfiableSeDevuelveEnModoIa()
     {

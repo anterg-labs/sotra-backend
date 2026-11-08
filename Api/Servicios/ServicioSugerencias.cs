@@ -126,11 +126,12 @@ public class ServicioSugerencias : IAsyncDisposable
                 textoParaResumir = elegida.Cuerpo;
             }
 
-            var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken);
+            var resumen = await _redactor.ResumirAsync(consulta, elegida, textoParaResumir, cancellationToken,
+                advertencias);
             if (resumen.Modo != ModosDeSugerencia.SinInformacion)
             {
-                var respuesta = RedaccionDeSugerencia.ArmarRespuesta(resumen.Texto, advertencias, elegida, opciones,
-                    resumen.Titulo);
+                var respuesta = RedaccionDeSugerencia.ArmarRespuesta(resumen.Texto, resumen.Advertencias ?? advertencias,
+                    elegida, opciones, resumen.Titulo);
                 return new SugerenciaRedactada(respuesta, resumen.Modo);
             }
 
