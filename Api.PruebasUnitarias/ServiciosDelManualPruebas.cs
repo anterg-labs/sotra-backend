@@ -846,6 +846,61 @@ public class ServiciosDelManualPruebas
         Assert.That(AdvertenciasDelManual.Quitar("  uno   dos "), Is.EqualTo("uno dos"));
     }
 
+    // Texto real de "Engine Oil and Filter - Initial" (SY335, p. 222): el PDF pega el rótulo del ícono al del texto.
+    private const string CambioDeAceiteEnIngles =
+        "1. Remove the belly plate (a) under the engine compartment. WARNINGWARNING Do not perform this task when the " +
+        "engine is hot. Wait for the temperature to cool down before doing this job. Failure to do so may cause burns or " +
+        "other serious injury. 2. Open engine cover (b). 3. Remove the engine oil filler cap (c). 4. Place a container " +
+        "(at least 6 gal/ 23 L) in size under the drain valve (d). 5. Slowly open the valve to drain all of the oil. " +
+        "6. Close the valve when all of the oil has drained from the engine. 7. Replace the belly plate (a). " +
+        "WARNINGNOTICE Dispose of the contaminated oil properly. Failure to do so will violate environmental laws and ordinances.";
+
+    [Test]
+    public void Advertencias_ReconoceLasDeUnManualEnInglesAunqueElRotuloVengaRepetido()
+    {
+        var advertencias = AdvertenciasDelManual.Extraer(CambioDeAceiteEnIngles);
+
+        Assert.That(advertencias, Has.Count.EqualTo(2));
+        Assert.That(advertencias[0], Does.StartWith("Do not perform this task when the engine is hot.").And.EndWith("serious injury."));
+        Assert.That(advertencias[1], Does.StartWith("Dispose of the contaminated oil properly."));
+    }
+
+    [Test]
+    public void Advertencias_Quitar_DejaLosPasosSinLasAdvertenciasNiLosRotulosEnIngles()
+    {
+        var sinAdvertencias = AdvertenciasDelManual.Quitar(CambioDeAceiteEnIngles);
+
+        Assert.That(sinAdvertencias, Does.Not.Contain("WARNING").And.Not.Contain("NOTICE"));
+        Assert.That(sinAdvertencias, Does.Not.Contain("engine is hot").And.Not.Contain("Dispose of"));
+        Assert.That(sinAdvertencias, Does.Contain("1. Remove the belly plate (a) under the engine compartment. 2. Open engine cover (b)."));
+        Assert.That(sinAdvertencias, Does.Contain("7. Replace the belly plate (a)."));
+    }
+
+    [Test]
+    public void Advertencias_UnaPalabraEnMinusculasOParteDeOtraNoEsRotulo()
+    {
+        Assert.That(AdvertenciasDelManual.Extraer("It is important to check the danger zone before starting."), Is.Empty);
+        Assert.That(AdvertenciasDelManual.Extraer("Lea las notas IMPORTANTES del capítulo."), Is.Empty);
+    }
+
+    [Test]
+    public void RecortarEnOracion_NoCortaEnElNumeroDeUnPaso()
+    {
+        var resumen = TextoDelManual.CrearResumenExtractivo(AdvertenciasDelManual.Quitar(CambioDeAceiteEnIngles) +
+            " 8. Open the right rear access panel (c) and locate the engine oil filter (d).");
+
+        Assert.That(resumen, Does.Not.Match("\\s\\d{1,2}\\.$"), "no puede terminar en un número de paso suelto");
+        Assert.That(resumen, Does.EndWith("."));
+    }
+
+    [Test]
+    public void RecortarEnOracion_SaltaElNumeroDePasoYCortaEnLaOracionAnterior()
+    {
+        var resultado = TextoDelManual.RecortarEnOracion("5. Slowly open the valve. 6. Close the valve when done.", 30);
+
+        Assert.That(resultado, Is.EqualTo("5. Slowly open the valve."));
+    }
+
     // SeccionesCandidatas
 
     [Test]
@@ -1073,6 +1128,59 @@ public class ServiciosDelManualPruebas
         Assert.That(RedaccionDeSugerencia.EsResumenConfiable(new string('a', 1201), "q", seccion), Is.False);
         Assert.That(RedaccionDeSugerencia.EsResumenConfiable(new string('a', 20), "q", seccion), Is.True);
         Assert.That(RedaccionDeSugerencia.EsResumenConfiable(new string('a', 1200), "q", seccion), Is.True);
+    }
+
+    [Test]
+    public void Redaccion_MotivoDeDescarte_DiceElLargoOElNumeroQueFalla()
+    {
+        var seccion = Seccion("Cambio de aceite", "Use 5 litros de aceite cada 250 horas.");
+
+        Assert.That(RedaccionDeSugerencia.MotivoDeDescarte("Se deben usar 5 litros de aceite cada 250 horas.", "q", seccion), Is.Null);
+        Assert.That(RedaccionDeSugerencia.MotivoDeDescarte("Se deben usar 7 litros de aceite cada 250 horas.", "q", seccion),
+            Does.Contain("7"));
+        Assert.That(RedaccionDeSugerencia.MotivoDeDescarte("corto", "q", seccion), Does.Contain("largo de 5"));
+    }
+
+    [TestCase("SIN INFORMACIÓN", TestName = "SinInformacionConEspacioYTilde")]
+    [TestCase("**SIN_INFORMACIÓN**", TestName = "SinInformacionConTildeYFormato")]
+    [TestCase("sin_información", TestName = "SinInformacionEnMinusculasConGuion")]
+    public void Redaccion_ReconoceLasVariantesDeSinInformacion(string respuesta)
+    {
+        Assert.That(RedaccionDeSugerencia.EsRespuestaSinInformacion(respuesta), Is.True);
+    }
+
+    [TestCase("Revise la información de la placa del motor.", TestName = "ResumenQueNombraLaInformacion")]
+    [TestCase("No arranque el motor sin información del fabricante sobre el aceite.", TestName = "ResumenQueDiceSinInformacion")]
+    public void Redaccion_UnResumenQueHablaDeInformacionNoEsRechazo(string resumen)
+    {
+        Assert.That(RedaccionDeSugerencia.EsRespuestaSinInformacion(resumen), Is.False);
+    }
+
+    [Test]
+    public void Redaccion_CrearMensajeParaElModelo_PideTraducirLasAdvertenciasQueRecibe()
+    {
+        var mensaje = RedaccionDeSugerencia.CrearMensajeParaElModelo("q", Seccion("T", "c"), "texto",
+            ["Do not perform this task when the engine is hot."]);
+
+        Assert.That(mensaje, Does.Contain("Advertencias del manual:\n- Do not perform this task when the engine is hot."));
+        Assert.That(mensaje, Does.EndWith("Escribí el resumen."));
+        Assert.That(RedaccionDeSugerencia.CrearMensajeParaElModelo("q", Seccion("T", "c"), "texto"),
+            Does.Not.Contain("Advertencias del manual"));
+    }
+
+    [Test]
+    public void Redaccion_SepararTitulo_SacaLasAdvertenciasTraducidasDelResumen()
+    {
+        var separada = RedaccionDeSugerencia.SepararTitulo(
+            "Título: Cambio de aceite del motor\nSe retira la placa inferior y se drena el aceite.\n" +
+            "Advertencia: No realice esta tarea con el motor caliente.\n**Advertencia:** Deseche el aceite contaminado correctamente.");
+
+        Assert.That(separada.Titulo, Is.EqualTo("Cambio de aceite del motor"));
+        Assert.That(separada.Resumen, Is.EqualTo("Se retira la placa inferior y se drena el aceite."));
+        Assert.That(separada.Advertencias, Is.EqualTo(new[]
+        {
+            "No realice esta tarea con el motor caliente.", "Deseche el aceite contaminado correctamente.",
+        }));
     }
 
     [Test]

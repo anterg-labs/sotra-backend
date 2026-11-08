@@ -193,6 +193,12 @@ public static class TextoDelManual
 
         var recorte = texto.Substring(0, largoMaximo);
         var ultimoPunto = recorte.LastIndexOf(". ");
+        // "6. Close the valve": el punto de un número de paso no cierra una oración; cortar ahí deja un "6." suelto.
+        while (ultimoPunto > 0 && EsNumeroDePaso(recorte, ultimoPunto))
+        {
+            ultimoPunto = recorte.LastIndexOf(". ", ultimoPunto - 1, StringComparison.Ordinal);
+        }
+
         if (ultimoPunto > 0)
         {
             return recorte.Substring(0, ultimoPunto + 1);
@@ -205,6 +211,19 @@ public static class TextoDelManual
         }
 
         return recorte.Trim() + "…";
+    }
+
+    /// <summary>Indica si el punto en <paramref name="posicionDelPunto"/> cierra un número de paso ("6.") y no una oración.</summary>
+    private static bool EsNumeroDePaso(string texto, int posicionDelPunto)
+    {
+        var inicio = posicionDelPunto;
+        while (inicio > 0 && char.IsDigit(texto[inicio - 1]))
+        {
+            inicio--;
+        }
+
+        var cifras = posicionDelPunto - inicio;
+        return cifras is > 0 and <= 2 && (inicio == 0 || char.IsWhiteSpace(texto[inicio - 1]));
     }
 
     private static List<TituloEncontrado> BuscarTitulos(string texto)

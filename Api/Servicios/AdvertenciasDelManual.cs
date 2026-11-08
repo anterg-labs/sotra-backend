@@ -11,12 +11,17 @@ public static class AdvertenciasDelManual
     private static readonly char[] SignosAlInicioDeAdvertencia = [':', '-', '–', '—', '.', ' '];
     private static readonly Regex PatronEspacios = new("\\s+");
 
-    private static readonly Regex PatronAdvertencia = new(
-        "\\b(?:ADVERTENCIA|PRECAUCIÓN|PRECAUCION|PELIGRO|AVISO|IMPORTANTE)\\b(.*?)" +
-        "(?=\\s\\d{1,2}[.)]\\s|¶|\\b(?:ADVERTENCIA|PRECAUCIÓN|PRECAUCION|PELIGRO|AVISO|IMPORTANTE|NOTA|COMENTARIO)\\b|$)");
+    // Rótulos en español y en inglés: los manuales de algunas máquinas solo vienen en inglés.
+    private const string Rotulos = "ADVERTENCIA|PRECAUCIÓN|PRECAUCION|PELIGRO|AVISO|IMPORTANTE|WARNING|CAUTION|DANGER|NOTICE|IMPORTANT";
 
-    private static readonly Regex PatronPalabraDeAdvertencia = new(
-        "\\b(?:ADVERTENCIA|PRECAUCIÓN|PRECAUCION|PELIGRO|AVISO|IMPORTANTE)\\b");
+    private static readonly Regex PatronAdvertencia = new(
+        "\\b(?:" + Rotulos + ")\\b(.*?)" +
+        "(?=\\s\\d{1,2}[.)]\\s|¶|\\b(?:" + Rotulos + "|NOTA|COMENTARIO|NOTE)\\b|$)");
+
+    private static readonly Regex PatronPalabraDeAdvertencia = new("\\b(?:" + Rotulos + ")\\b");
+
+    // El PDF trae a veces el rótulo del ícono pegado al del texto ("WARNINGWARNING", "WARNINGNOTICE").
+    private static readonly Regex PatronRotulosPegados = new("(?<=" + Rotulos + ")(?=" + Rotulos + ")");
 
     private static readonly Regex PatronPaginaDeReferenciaCruzada = new("\\(\\d+-\\d+\\)");
 
@@ -24,7 +29,7 @@ public static class AdvertenciasDelManual
     {
         var advertencias = new List<string>();
 
-        foreach (var textoAdvertencia in BuscarTextosDeAdvertencia(cuerpo))
+        foreach (var textoAdvertencia in BuscarTextosDeAdvertencia(SepararRotulosPegados(cuerpo)))
         {
             foreach (var parte in textoAdvertencia.Split('•'))
             {
@@ -50,14 +55,19 @@ public static class AdvertenciasDelManual
 
     public static string Quitar(string cuerpo)
     {
-        var cuerpoSinAdvertencias = cuerpo;
-        foreach (var textoAdvertencia in BuscarTextosDeAdvertencia(cuerpo))
+        var cuerpoSinAdvertencias = SepararRotulosPegados(cuerpo);
+        foreach (var textoAdvertencia in BuscarTextosDeAdvertencia(cuerpoSinAdvertencias))
         {
             cuerpoSinAdvertencias = cuerpoSinAdvertencias.Replace(textoAdvertencia, " ");
         }
 
         cuerpoSinAdvertencias = PatronPalabraDeAdvertencia.Replace(cuerpoSinAdvertencias, " ");
         return PatronEspacios.Replace(cuerpoSinAdvertencias, " ").Trim();
+    }
+
+    private static string SepararRotulosPegados(string cuerpo)
+    {
+        return PatronRotulosPegados.Replace(cuerpo, " ");
     }
 
     private static List<string> BuscarTextosDeAdvertencia(string cuerpo)

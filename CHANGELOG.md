@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Version 1.0.127 (2026-11-07)
+
+- IA: las advertencias de los manuales en inglés (`WARNING`, `CAUTION`, `DANGER`, `NOTICE`, `IMPORTANT`) se separan del procedimiento y se muestran en "Advertencias", traducidas por el modelo en la misma llamada del resumen. Antes quedaban mezcladas entre los pasos, con el rótulo repetido que trae el PDF ("WARNINGWARNING").
+- IA: el texto del manual sin resumir ya no se corta en el número de un paso; antes terminaba en un "6." suelto.
+- IA: una respuesta "SIN INFORMACIÓN" (con espacio o tilde) cuenta como rechazo y se prueba la siguiente sección, en lugar de descartarse por corta y mostrar el texto del manual.
+- IA: cuando el control descarta el resumen, el log registra el motivo (largo o número ajeno) y el comienzo de la respuesta.
+
 ## Version 1.0.126 (2026-11-07)
 
 - Órdenes: la ruta de etapas de la sugerencia responde eventos del servidor (`text/event-stream`, un `data: {...}` por evento) en lugar de NDJSON. En staging, Cloudflare juntaba las líneas NDJSON hasta el final aun con `no-transform`, y la persona solo veía la primera etapa; los eventos del servidor los reenvía a medida que llegan.

@@ -38,7 +38,9 @@ public static class RedaccionDeSugerencia
         "la tarea, empezá por eso, con la misma acción que indica el manual. Si no hay intervalo ni condición, " +
         "empezá directamente por la acción principal. No empieces el resumen repitiendo el título. " +
         "6) Si el texto indica capacidades, cantidades o valores de ajuste, incluilos. " +
-        "7) No repitas advertencias de seguridad; se muestran aparte. " +
+        "7) No repitas advertencias de seguridad en el resumen; se muestran aparte. Si el mensaje trae \"" +
+        TituloDeAdvertenciasATraducir + "\", después del resumen escribí una línea \"" + PrefijoDeAdvertencia +
+        "\" por cada una, en el mismo orden, traducida al español neutro, sin agregar ni quitar datos. " +
         "8) Si el texto describe pasos, resumí los principales en orden. " +
         "9) No menciones páginas, secciones ni el nombre del manual. " +
         "10) Si el manual está en otro idioma, traducí con el vocabulario técnico de mantenimiento en español: " +
@@ -53,6 +55,17 @@ public static class RedaccionDeSugerencia
     /// <summary>Lo que responde el modelo cuando la sección elegida no trata la tarea consultada.</summary>
     public const string RespuestaSinInformacion = "SIN_INFORMACION";
 
+    private const string TituloDeAdvertenciasATraducir = "Advertencias del manual";
+    private const string PrefijoDeAdvertencia = "Advertencia:";
+
+    // El modelo a veces escribe el rótulo con espacio o con tilde ("SIN INFORMACIÓN"): sigue siendo un rechazo. Con
+    // espacio solo cuenta en mayúsculas, para no confundirlo con un resumen que diga "sin información del fabricante".
+    private static readonly Regex PatronSinInformacion = new("SIN[\\s_]*INFORMACI[OÓ]N|(?i:sin_informaci[oó]n)");
+
+    // Las advertencias traducidas que el modelo escribe después del resumen, una por línea ("**Advertencia:** ...").
+    private static readonly Regex PatronLineaDeAdvertencia = new("^[^\\w\\n]*advertencia[*_ ]*:[*_ ]*(.+?)[*_ ]*$",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
     // A veces el modelo explica el rechazo en lugar de responder SIN_INFORMACION: "Este texto no describe la inspección…",
     // "por esa razón no se puede elaborar un resumen". Las instrucciones le prohíben mencionar el manual, así que un
     // resumen válido no habla de "el texto" ni de "la sección".
@@ -64,11 +77,15 @@ public static class RedaccionDeSugerencia
 
     public static bool EsRespuestaSinInformacion(string respuesta)
     {
-        return respuesta.Contains(RespuestaSinInformacion, StringComparison.OrdinalIgnoreCase)
-            || PatronRechazoEnProsa.IsMatch(respuesta);
+        return PatronSinInformacion.IsMatch(respuesta) || PatronRechazoEnProsa.IsMatch(respuesta);
     }
 
-    public static string CrearMensajeParaElModelo(string consulta, SeccionDocumento seccion, string textoParaResumir)
+    /// <summary>
+    /// Arma el pedido al modelo. Las <paramref name="advertenciasATraducir"/> (las de un manual en otro idioma) van
+    /// aparte para que el modelo las devuelva traducidas, una por línea, después del resumen.
+    /// </summary>
+    public static string CrearMensajeParaElModelo(string consulta, SeccionDocumento seccion, string textoParaResumir,
+        List<string>? advertenciasATraducir = null)
     {
         var textoDelManual = TextoDelManual.QuitarMarcasInternas(textoParaResumir);
         if (textoDelManual.Length > LargoMaximoDeTextoParaElModelo)
@@ -83,7 +100,17 @@ public static class RedaccionDeSugerencia
             mensaje += "Contexto previo de la sección: " + seccion.Contexto + "\n";
         }
 
-        mensaje += "\nTexto del manual:\n" + textoDelManual + "\n\nEscribí el resumen.";
+        mensaje += "\nTexto del manual:\n" + textoDelManual + "\n";
+        if (advertenciasATraducir is { Count: > 0 })
+        {
+            mensaje += "\n" + TituloDeAdvertenciasATraducir + ":\n";
+            foreach (var advertencia in advertenciasATraducir)
+            {
+                mensaje += "- " + advertencia + "\n";
+            }
+        }
+
+        mensaje += "\nEscribí el resumen.";
         return mensaje;
     }
 
@@ -93,13 +120,20 @@ public static class RedaccionDeSugerencia
     /// </summary>
     public static RespuestaDelModelo SepararTitulo(string respuesta)
     {
-        var texto = respuesta.Trim();
+        // Las líneas "Advertencia: ..." son las advertencias traducidas, no parte del resumen.
+        var advertencias = new List<string>();
+        foreach (Match linea in PatronLineaDeAdvertencia.Matches(respuesta))
+        {
+            advertencias.Add(linea.Groups[1].Value);
+        }
+
+        var texto = PatronLineaDeAdvertencia.Replace(respuesta, "").Trim();
         var finDePrimeraLinea = texto.IndexOf('\n');
         var primeraLinea = finDePrimeraLinea == -1 ? texto : texto.Substring(0, finDePrimeraLinea);
         var coincidencia = PatronLineaDeTitulo.Match(primeraLinea.Trim());
         if (!coincidencia.Success || finDePrimeraLinea == -1)
         {
-            return new RespuestaDelModelo("", texto);
+            return new RespuestaDelModelo("", texto, advertencias);
         }
 
         var titulo = coincidencia.Groups[1].Value.Trim();
@@ -107,10 +141,10 @@ public static class RedaccionDeSugerencia
         var palabras = titulo.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         if (titulo.Length == 0 || titulo.Length > LargoMaximoDeTitulo || palabras > PalabrasMaximasDeTitulo)
         {
-            return new RespuestaDelModelo("", resumen);
+            return new RespuestaDelModelo("", resumen, advertencias);
         }
 
-        return new RespuestaDelModelo(titulo, resumen);
+        return new RespuestaDelModelo(titulo, resumen, advertencias);
     }
 
     /// <summary>
@@ -119,9 +153,19 @@ public static class RedaccionDeSugerencia
     /// </summary>
     public static bool EsResumenConfiable(string resumen, string consulta, SeccionDocumento seccion, string titulo = "")
     {
+        return MotivoDeDescarte(resumen, consulta, seccion, titulo) is null;
+    }
+
+    /// <summary>
+    /// Por qué no es confiable el resumen (largo fuera de rango o un número que no está en el manual), o <c>null</c>
+    /// si lo es. <paramref name="titulo"/> incluye todo lo demás que redactó el modelo, como las advertencias traducidas.
+    /// </summary>
+    public static string? MotivoDeDescarte(string resumen, string consulta, SeccionDocumento seccion, string titulo = "")
+    {
         if (resumen.Length < LargoMinimoDeResumen || resumen.Length > LargoMaximoDeResumen)
         {
-            return false;
+            return "largo de " + resumen.Length + " caracteres, fuera de " + LargoMinimoDeResumen + " a " +
+                LargoMaximoDeResumen;
         }
 
         var textoDelManual = seccion.Titulo + " " + seccion.Contexto + " " + seccion.Cuerpo + " " + consulta;
@@ -136,11 +180,11 @@ public static class RedaccionDeSugerencia
             var numeroDelResumen = numero.Value.Replace(',', '.');
             if (!numerosDelManual.Contains(numeroDelResumen))
             {
-                return false;
+                return "el número " + numero.Value + " no está en el manual ni en la consulta";
             }
         }
 
-        return true;
+        return null;
     }
 
     /// <summary>
@@ -208,4 +252,5 @@ public static class RedaccionDeSugerencia
     }
 }
 
-public record RespuestaDelModelo(string Titulo, string Resumen);
+/// <summary>Lo que redactó el modelo: título, resumen y las advertencias traducidas, si se le pidieron.</summary>
+public record RespuestaDelModelo(string Titulo, string Resumen, List<string>? Advertencias = null);

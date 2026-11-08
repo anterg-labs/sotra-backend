@@ -18,8 +18,11 @@ public static class ModosDeSugerencia
     public const string SinInformacion = "sin_informacion";
 }
 
-/// <summary>Texto y modo de la sugerencia. <c>Titulo</c> es el título en español que redactó la IA; vacío sin IA.</summary>
-public record SugerenciaRedactada(string Texto, string Modo, string Titulo = "");
+/// <summary>
+/// Texto y modo de la sugerencia. <c>Titulo</c> es el título en español que redactó la IA; vacío sin IA.
+/// <c>Advertencias</c> son las del manual traducidas por la IA, o <c>null</c> si se muestran las originales.
+/// </summary>
+public record SugerenciaRedactada(string Texto, string Modo, string Titulo = "", List<string>? Advertencias = null);
 
 public class RedactorDeSugerencias
 {
@@ -32,11 +35,18 @@ public class RedactorDeSugerencias
         _logger = logger;
     }
 
+    /// <summary>
+    /// Pide el resumen al proveedor. Las <paramref name="advertencias"/> de un manual en otro idioma se piden traducidas
+    /// en la misma llamada; si el modelo no devuelve una por cada una, se muestran las originales.
+    /// </summary>
     public async Task<SugerenciaRedactada> ResumirAsync(string consulta, SeccionDocumento seccion,
-        string textoParaResumir, CancellationToken cancellationToken)
+        string textoParaResumir, CancellationToken cancellationToken, List<string>? advertencias = null)
     {
         var resumenSinIa = TextoDelManual.CrearResumenExtractivo(textoParaResumir);
-        var mensaje = RedaccionDeSugerencia.CrearMensajeParaElModelo(consulta, seccion, textoParaResumir);
+        var advertenciasATraducir = advertencias is { Count: > 0 }
+            && TraductorDeConsultas.EstaEnIngles(string.Join(" ", advertencias)) ? advertencias : null;
+        var mensaje = RedaccionDeSugerencia.CrearMensajeParaElModelo(consulta, seccion, textoParaResumir,
+            advertenciasATraducir);
 
         RespuestaDelModelo respuesta;
         try
@@ -60,12 +70,27 @@ public class RedactorDeSugerencias
             return new SugerenciaRedactada(resumenSinIa, ModosDeSugerencia.SinIa);
         }
 
-        if (!RedaccionDeSugerencia.EsResumenConfiable(respuesta.Resumen, consulta, seccion, respuesta.Titulo))
+        var traducidas = advertenciasATraducir is not null && respuesta.Advertencias?.Count == advertenciasATraducir.Count
+            ? respuesta.Advertencias
+            : null;
+        var otrosTextos = respuesta.Titulo + " " + string.Join(" ", traducidas ?? []);
+        var motivo = RedaccionDeSugerencia.MotivoDeDescarte(respuesta.Resumen, consulta, seccion, otrosTextos);
+        if (motivo is not null)
         {
+            // Sin este registro no hay forma de saber después por qué la persona vio el texto del manual.
+            _logger.LogWarning("Se descartó el resumen de la IA ({Motivo}) y se usa el texto del manual. Sección: {Seccion}, página {Pagina}. Comienzo de la respuesta: {Comienzo}",
+                motivo, seccion.Titulo, seccion.Pagina, Comienzo(respuesta.Titulo + " | " + respuesta.Resumen));
             return new SugerenciaRedactada(resumenSinIa, ModosDeSugerencia.Descartada);
         }
 
-        return new SugerenciaRedactada(respuesta.Resumen, ModosDeSugerencia.Ia, respuesta.Titulo);
+        return new SugerenciaRedactada(respuesta.Resumen, ModosDeSugerencia.Ia, respuesta.Titulo, traducidas);
+    }
+
+    private static string Comienzo(string texto)
+    {
+        const int Largo = 200;
+        var limpio = texto.Replace('\n', ' ').Trim();
+        return limpio.Length <= Largo ? limpio : limpio.Substring(0, Largo) + "…";
     }
 
     // La clave inválida, el cupo agotado o la falta de configuración no se arreglan solos: van como error para que
