@@ -510,6 +510,9 @@ public partial class SotraContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("tipo_contenido");
             entity.Property(e => e.Archivo).HasColumnName("archivo");
+            entity.Property(e => e.ClaveArchivo)
+                .HasMaxLength(300)
+                .HasColumnName("clave_archivo");
         });
 
         modelBuilder.Entity<TerminosCondiciones>(entity =>

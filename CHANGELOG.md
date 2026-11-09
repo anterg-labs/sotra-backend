@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Version 1.0.129 (2026-11-09)
+
+- Evidencias: las fotos y los documentos se guardan en Cloudflare R2 (bucket privado `sotra`, carpeta `evidencias/`) en lugar de la base; la fila guarda la ruta en la columna nueva `clave_archivo` (`database/cambios/2026-11-09-evidencia-clave-archivo.sql`). La descarga sigue pasando por la API. Se activa con las variables `R2_*` del `.env`; sin ellas todo sigue como antes.
+- Evidencias: al arrancar con R2, la API pasa a R2 las evidencias que estaban en la base y borra el archivo de la columna `archivo`.
+- Evidencias: si R2 no responde, la subida y la descarga responden `503` `ALMACEN_NO_DISPONIBLE`.
+
 ## Version 1.0.127 (2026-11-07)
 
 - IA: las advertencias de los manuales en inglés (`WARNING`, `CAUTION`, `DANGER`, `NOTICE`, `IMPORTANT`) se separan del procedimiento y se muestran en "Advertencias", traducidas por el modelo en la misma llamada del resumen. Antes quedaban mezcladas entre los pasos, con el rótulo repetido que trae el PDF ("WARNINGWARNING").

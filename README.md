@@ -545,11 +545,13 @@ El historial registra quién hizo cada cambio (`historial_estado_ot.id_usuario` 
 
 ### Evidencias (`/api/v1/ordenes-trabajo/{id}/evidencias`)
 
-RF005-05. **Requiere la tabla `operativo.evidencia_ot`, que todavía no existe:** el SQL sugerido está en `SUGERENCIAS-SQL.md` (raíz del directorio de trabajo) y hay que aplicarlo antes de usar estos endpoints. Modelo `EvidenciaOt`, mapeo en `SotraContext`, `EvidenciaOtDAO` y `EvidenciasController`.
+RF005-05. Tabla `operativo.evidencia_ot`. Modelo `EvidenciaOt`, mapeo en `SotraContext`, `EvidenciaOtDAO` y `EvidenciasController`.
 
 - `GET`: lista las evidencias de la orden, sin el contenido del archivo. Cada una tiene `id`, `ordenTrabajoId`, `tipo`, `observacion`, `fechaRegistro` (`AAAA-MM-DD`), `creadoEn` (UTC), `nombreArchivo`, `tipoContenido` y `tieneArchivo`.
 - `POST` (`multipart/form-data`): campos `tipo` (`foto`, `documento` u `observacion`), `observacion`, `fechaRegistro` y `archivo`. Responde `201`. Reglas: la orden no puede estar cerrada ni eliminada (`409` `ORDEN_NO_MODIFICABLE`); `foto` y `documento` exigen archivo (`ARCHIVO_OBLIGATORIO`) y `observacion` exige texto (`OBSERVACION_OBLIGATORIA`); la fecha no puede ser futura (`FECHA_REGISTRO_INVALIDA`); tipo desconocido: `TIPO_EVIDENCIA_INVALIDO`. El archivo se valida por su contenido real (firma de JPG, PNG o PDF), no por la extensión: las fotos solo JPG o PNG y los documentos PDF, JPG o PNG (`ARCHIVO_NO_PERMITIDO`); hasta 10 MB (`413` `ARCHIVO_DEMASIADO_GRANDE`).
 - `GET /{evidenciaId}/archivo`: descarga el archivo con su tipo de contenido.
+
+**Dónde se guardan los archivos.** Con las cuatro variables `R2_*` del `.env` (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`), los archivos van a Cloudflare R2, en el bucket privado `sotra` bajo `evidencias/{idOrden}/{guid}.{jpg|png|pdf}`, y la fila guarda esa ruta en `clave_archivo`. La descarga sigue pasando por la API, que comprueba quién puede ver la orden; el bucket nunca se expone. Si R2 no responde, la subida y la descarga responden `503` `ALMACEN_NO_DISPONIBLE` y la evidencia no se registra. Sin ninguna variable `R2_*` (desarrollo local, pruebas) el archivo se guarda en la columna `archivo` como antes; con algunas sí y otras no, la API no arranca. Al arrancar con R2, `MigradorDeEvidenciasAlAlmacen` pasa a R2 las evidencias que todavía están en la columna `archivo` y las borra de la base; si R2 falla, se detiene y lo reintenta en el próximo arranque. Las otras carpetas del bucket (`backups/`, `documentacion/`, `imagenes/`) no las usa la API.
 
 El usuario que registra la evidencia (`id_usuario`) es el del token (ver "Usuario actual"); queda vacío si el pedido no trae token o el usuario no está registrado en SOTRA.
 

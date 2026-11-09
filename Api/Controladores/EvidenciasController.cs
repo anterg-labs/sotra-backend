@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Api.DTOs.OrdenesTrabajo;
 using Api.Mapeadores;
 using Api.Seguridad;
+using Api.Servicios;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SOTRA_BACKEND.Modelos;
@@ -20,13 +21,17 @@ public class EvidenciasController : ControllerBase
     private readonly OrdenTrabajoDAO _ordenTrabajoDao;
     private readonly EvidenciaOtDAO _evidenciaDao;
     private readonly UsuarioActual _usuarioActual;
+    private readonly IAlmacenDeArchivos? _almacen;
+    private readonly ILogger<EvidenciasController> _registro;
 
     public EvidenciasController(OrdenTrabajoDAO ordenTrabajoDao, EvidenciaOtDAO evidenciaDao,
-        UsuarioActual usuarioActual)
+        UsuarioActual usuarioActual, ILogger<EvidenciasController> registro, IAlmacenDeArchivos? almacen = null)
     {
         _ordenTrabajoDao = ordenTrabajoDao;
         _evidenciaDao = evidenciaDao;
         _usuarioActual = usuarioActual;
+        _registro = registro;
+        _almacen = almacen;
     }
 
     /// <summary>Lista las evidencias de una orden de trabajo.</summary>
@@ -135,11 +140,40 @@ public class EvidenciasController : ControllerBase
 
             evidencia.NombreArchivo = Path.GetFileName(archivo.FileName);
             evidencia.TipoContenido = tipoContenido;
-            evidencia.Archivo = contenido;
+
+            if (_almacen is null)
+            {
+                evidencia.Archivo = contenido;
+            }
+            else
+            {
+                var clave = ClaveDeEvidencia.Crear(ordenTrabajoId, tipoContenido);
+                try
+                {
+                    await _almacen.GuardarAsync(clave, contenido, tipoContenido, cancellationToken);
+                }
+                catch (AlmacenNoDisponibleException error)
+                {
+                    _registro.LogError(error, "No se pudo subir la evidencia de la orden {OrdenTrabajoId} a R2.", ordenTrabajoId);
+                    return AlmacenNoDisponible();
+                }
+
+                evidencia.ClaveArchivo = clave;
+            }
         }
 
         evidencia.IdUsuario = await _usuarioActual.ObtenerIdUsuarioAsync(cancellationToken);
-        var evidenciaCreada = await _evidenciaDao.CrearAsync(evidencia, cancellationToken);
+        EvidenciaOt evidenciaCreada;
+        try
+        {
+            evidenciaCreada = await _evidenciaDao.CrearAsync(evidencia, cancellationToken);
+        }
+        catch when (evidencia.ClaveArchivo is not null)
+        {
+            await BorrarSinFallarAsync(evidencia.ClaveArchivo);
+            throw;
+        }
+
         return CreatedAtAction(nameof(ObtenerTodas), new { ordenTrabajoId = ordenTrabajoId }, ADto(evidenciaCreada));
     }
 
@@ -155,7 +189,32 @@ public class EvidenciasController : ControllerBase
         }
 
         var evidencia = await _evidenciaDao.SeleccionarAsync(ordenTrabajoId, evidenciaId, cancelacion);
-        if (evidencia is null || evidencia.Archivo is null)
+        if (evidencia is null)
+        {
+            return NotFound();
+        }
+
+        var contenido = evidencia.Archivo;
+        if (evidencia.ClaveArchivo is not null)
+        {
+            if (_almacen is null)
+            {
+                _registro.LogError("La evidencia {EvidenciaId} está en R2, pero R2 no está configurado.", evidenciaId);
+                return AlmacenNoDisponible();
+            }
+
+            try
+            {
+                contenido = await _almacen.LeerAsync(evidencia.ClaveArchivo, cancelacion);
+            }
+            catch (AlmacenNoDisponibleException error)
+            {
+                _registro.LogError(error, "No se pudo leer la evidencia {EvidenciaId} de R2.", evidenciaId);
+                return AlmacenNoDisponible();
+            }
+        }
+
+        if (contenido is null)
         {
             return NotFound();
         }
@@ -166,7 +225,26 @@ public class EvidenciasController : ControllerBase
             tipoContenido = evidencia.TipoContenido;
         }
 
-        return File(evidencia.Archivo, tipoContenido, evidencia.NombreArchivo);
+        return File(contenido, tipoContenido, evidencia.NombreArchivo);
+    }
+
+    private ObjectResult AlmacenNoDisponible()
+    {
+        return this.RespuestaDeError(503, "ALMACEN_NO_DISPONIBLE",
+            "No se pudo acceder a los archivos de evidencias. Probá de nuevo en unos minutos.");
+    }
+
+    /// <summary>Si la evidencia no se pudo guardar en la base, borra su archivo de R2 para no dejarlo huérfano.</summary>
+    private async Task BorrarSinFallarAsync(string clave)
+    {
+        try
+        {
+            await _almacen!.BorrarAsync(clave, CancellationToken.None);
+        }
+        catch (AlmacenNoDisponibleException error)
+        {
+            _registro.LogWarning(error, "Quedó un archivo sin evidencia en R2: {Clave}.", clave);
+        }
     }
 
     private static EvidenciaDto ADto(EvidenciaOt evidencia)
