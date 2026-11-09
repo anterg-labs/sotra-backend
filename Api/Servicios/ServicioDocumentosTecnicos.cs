@@ -44,13 +44,15 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     private readonly ColaDeDocumentosTecnicos _cola;
     private readonly ILogger<ServicioDocumentosTecnicos> _registro;
     private readonly NpgsqlDataSource _baseDatos;
+    private readonly IAlmacenDeArchivos? _almacen;
 
     public ServicioDocumentosTecnicos(ServicioEmbeddings embeddings, ColaDeDocumentosTecnicos cola,
-        ILogger<ServicioDocumentosTecnicos> registro)
+        ILogger<ServicioDocumentosTecnicos> registro, IAlmacenDeArchivos? almacen = null)
     {
         _embeddings = embeddings;
         _cola = cola;
         _registro = registro;
+        _almacen = almacen;
         _baseDatos = BaseVectorial.CrearConexion();
     }
 
@@ -143,26 +145,44 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             _embeddings.VerificarDisponible();
         }
 
+        // Con R2 configurado el PDF va a documentacion/ y la fila guarda solo la clave; sin R2, el PDF va en la fila.
+        string? clave = null;
+        if (_almacen is not null)
+        {
+            clave = ClaveDeDocumentoTecnico.Crear();
+            await _almacen.GuardarAsync(clave, archivo, "application/pdf", cancellationToken);
+        }
+
         await using var comando = _baseDatos.CreateCommand("""
             INSERT INTO vectorial.documento_tecnico
                 (nombre_archivo, activo_id, usa_sugerencias_ia, cantidad_fragmentos,
                  archivo, texto, creado_en, documento_vectorial_id,
-                 titulo, tipo, descripcion, modelo_maquina_id, estado_procesamiento)
-            VALUES ($1, $2, $3, 0, $4, '', $5, NULL, $6, $7, $8, $9, $10)
+                 titulo, tipo, descripcion, modelo_maquina_id, estado_procesamiento, clave_archivo)
+            VALUES ($1, $2, $3, 0, $4, '', $5, NULL, $6, $7, $8, $9, $10, $11)
             RETURNING id
             """);
         comando.Parameters.AddWithValue(nombreArchivo);
         comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ActivoId));
         comando.Parameters.AddWithValue(usaSugerenciasIa);
-        comando.Parameters.AddWithValue(archivo);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Bytea, clave is null ? archivo : DBNull.Value);
         comando.Parameters.AddWithValue(DateTime.UtcNow);
         comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Titulo ?? DBNull.Value);
         comando.Parameters.AddWithValue(datos.Tipo);
         comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)datos.Descripcion ?? DBNull.Value);
         comando.Parameters.AddWithValue(ValorONuloParaBase(datos.ModeloMaquinaId));
         comando.Parameters.AddWithValue(usaSugerenciasIa ? EstadosDeProcesamiento.Pendiente : EstadosDeProcesamiento.Listo);
+        comando.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Varchar, (object?)clave ?? DBNull.Value);
 
-        var id = Convert.ToInt64(await comando.ExecuteScalarAsync(cancellationToken));
+        long id;
+        try
+        {
+            id = Convert.ToInt64(await comando.ExecuteScalarAsync(cancellationToken));
+        }
+        catch when (clave is not null)
+        {
+            await BorrarDelAlmacenSinFallarAsync(clave);
+            throw;
+        }
         if (usaSugerenciasIa)
         {
             _cola.Encolar(id);
@@ -204,7 +224,7 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
         await using (var leer = _baseDatos.CreateCommand("""
-            SELECT usa_sugerencias_ia, archivo IS NOT NULL AND length(archivo) > 0
+            SELECT usa_sugerencias_ia, (archivo IS NOT NULL AND length(archivo) > 0) OR clave_archivo IS NOT NULL
             FROM vectorial.documento_tecnico WHERE id = $1
             """))
         {
@@ -275,12 +295,13 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
         byte[] archivo;
         string nombreArchivo;
+        string? clave;
         long? documentoVectorialAnterior = null;
         await using (var tomar = _baseDatos.CreateCommand("""
             UPDATE vectorial.documento_tecnico
             SET estado_procesamiento = $2, error_procesamiento = NULL
             WHERE id = $1 AND usa_sugerencias_ia AND estado_procesamiento IN ($3, $2)
-            RETURNING archivo, nombre_archivo, documento_vectorial_id
+            RETURNING archivo, nombre_archivo, documento_vectorial_id, clave_archivo
             """))
         {
             tomar.Parameters.AddWithValue(id);
@@ -298,6 +319,20 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
             {
                 documentoVectorialAnterior = lector.GetInt64(2);
             }
+
+            clave = lector.IsDBNull(3) ? null : lector.GetString(3);
+        }
+
+        if (clave is not null)
+        {
+            var contenido = await LeerDelAlmacenParaProcesarAsync(id, clave, cancellationToken);
+            if (contenido is null)
+            {
+                await RegistrarErrorAsync(id, ErroresDeProcesamiento.ArchivoNoDisponible, cancellationToken);
+                return;
+            }
+
+            archivo = contenido;
         }
 
         var (tituloDelDocumento, maquina) = await ObtenerDatosDeLaCabeceraAsync(id, cancellationToken);
@@ -425,18 +460,35 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
     public async Task<ArchivoGuardado?> ObtenerArchivoAsync(long id, CancellationToken cancellationToken)
     {
         await BaseVectorial.PrepararTablasAsync(_baseDatos, cancellationToken);
-        await using var comando = _baseDatos.CreateCommand(
-            "SELECT archivo, nombre_archivo FROM vectorial.documento_tecnico WHERE id = $1");
-        comando.Parameters.AddWithValue(id);
-        await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
-        if (!await lector.ReadAsync(cancellationToken))
+        byte[]? contenido;
+        string nombreArchivo;
+        string? clave;
+        await using (var comando = _baseDatos.CreateCommand(
+            "SELECT archivo, nombre_archivo, clave_archivo FROM vectorial.documento_tecnico WHERE id = $1"))
         {
-            return null;
+            comando.Parameters.AddWithValue(id);
+            await using var lector = await comando.ExecuteReaderAsync(cancellationToken);
+            if (!await lector.ReadAsync(cancellationToken))
+            {
+                return null;
+            }
+
+            contenido = lector.IsDBNull(0) ? null : (byte[])lector[0];
+            nombreArchivo = lector.GetString(1);
+            clave = lector.IsDBNull(2) ? null : lector.GetString(2);
         }
 
-        var contenido = (byte[])lector["archivo"];
-        var nombreArchivo = lector.GetString(1);
-        return new ArchivoGuardado(contenido, nombreArchivo);
+        if (clave is not null)
+        {
+            if (_almacen is null)
+            {
+                throw new AlmacenNoDisponibleException($"El documento {id} está en R2, pero R2 no está configurado.");
+            }
+
+            contenido = await _almacen.LeerAsync(clave, cancellationToken);
+        }
+
+        return contenido is null ? null : new ArchivoGuardado(contenido, nombreArchivo);
     }
 
     public async Task<bool> EliminarAsync(long id, CancellationToken cancellationToken)
@@ -446,21 +498,24 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         await using var transaccion = await conexion.BeginTransactionAsync(cancellationToken);
 
         long? documentoVectorialId = null;
+        string? clave = null;
         await using (var seleccionar = new NpgsqlCommand(
-            "SELECT documento_vectorial_id FROM vectorial.documento_tecnico WHERE id = $1",
+            "SELECT documento_vectorial_id, clave_archivo FROM vectorial.documento_tecnico WHERE id = $1",
             conexion, transaccion))
         {
             seleccionar.Parameters.AddWithValue(id);
-            var resultado = await seleccionar.ExecuteScalarAsync(cancellationToken);
-            if (resultado is null)
+            await using var lector = await seleccionar.ExecuteReaderAsync(cancellationToken);
+            if (!await lector.ReadAsync(cancellationToken))
             {
                 return false;
             }
 
-            if (resultado != DBNull.Value)
+            if (!lector.IsDBNull(0))
             {
-                documentoVectorialId = Convert.ToInt64(resultado);
+                documentoVectorialId = lector.GetInt64(0);
             }
+
+            clave = lector.IsDBNull(1) ? null : lector.GetString(1);
         }
 
         await using (var borrar = new NpgsqlCommand(
@@ -479,7 +534,56 @@ public class ServicioDocumentosTecnicos : IAsyncDisposable
         }
 
         await transaccion.CommitAsync(cancellationToken);
+        if (clave is not null)
+        {
+            await BorrarDelAlmacenSinFallarAsync(clave);
+        }
+
         return true;
+    }
+
+    /// <summary>Lee el PDF de R2 para procesarlo. Devuelve null si no está o si R2 no responde (queda en el log).</summary>
+    private async Task<byte[]?> LeerDelAlmacenParaProcesarAsync(long id, string clave, CancellationToken cancellationToken)
+    {
+        if (_almacen is null)
+        {
+            _registro.LogError("El documento técnico {DocumentoId} está en R2, pero R2 no está configurado.", id);
+            return null;
+        }
+
+        try
+        {
+            var contenido = await _almacen.LeerAsync(clave, cancellationToken);
+            if (contenido is null)
+            {
+                _registro.LogError("El PDF del documento técnico {DocumentoId} no está en R2 ({Clave}).", id, clave);
+            }
+
+            return contenido;
+        }
+        catch (AlmacenNoDisponibleException excepcion)
+        {
+            _registro.LogError(excepcion, "No se pudo leer de R2 el PDF del documento técnico {DocumentoId}.", id);
+            return null;
+        }
+    }
+
+    /// <summary>Borra el PDF de R2 sin cortar la operación si falla: a lo sumo queda un archivo suelto en el bucket.</summary>
+    private async Task BorrarDelAlmacenSinFallarAsync(string clave)
+    {
+        if (_almacen is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _almacen.BorrarAsync(clave, CancellationToken.None);
+        }
+        catch (AlmacenNoDisponibleException excepcion)
+        {
+            _registro.LogWarning(excepcion, "Quedó un PDF sin documento en R2: {Clave}.", clave);
+        }
     }
 
     private static List<FragmentoDocumento> ExtraerFragmentos(byte[] archivo)

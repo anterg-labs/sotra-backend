@@ -80,9 +80,16 @@ public class EvidenciasController : ControllerBase
         }
 
         var reglas = await _ordenTrabajoDao.ObtenerReglasAsync(cancellationToken);
-        if (reglas.EsFinal(OrdenTrabajoMapeador.ADto(orden, reglas).Estado))
+        var estado = OrdenTrabajoMapeador.ADto(orden, reglas).Estado;
+        if (reglas.EsFinal(estado))
         {
             return this.RespuestaDeError(409, "ORDEN_NO_MODIFICABLE", "La orden cerrada o eliminada no admite nuevas evidencias.");
+        }
+
+        if (reglas.EstaSinIniciar(estado))
+        {
+            return this.RespuestaDeError(409, "ORDEN_NO_INICIADA",
+                "La orden todavía no se inició. Iniciala para poder registrar evidencias.");
         }
 
         if (tipo != "foto" && tipo != "documento" && tipo != "observacion")

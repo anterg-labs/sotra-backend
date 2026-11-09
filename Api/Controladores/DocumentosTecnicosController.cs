@@ -111,6 +111,11 @@ public class DocumentosTecnicosController : ControllerBase
         {
             return StatusCode(499);
         }
+        catch (AlmacenNoDisponibleException excepcion)
+        {
+            _logger.LogError(excepcion, "No se pudo subir a R2 el PDF de un documento técnico");
+            return AlmacenNoDisponible();
+        }
         catch (ModeloLocalNoDisponibleException excepcion)
         {
             _logger.LogError(excepcion, "Faltan los modelos de IA locales al procesar un documento técnico");
@@ -186,13 +191,29 @@ public class DocumentosTecnicosController : ControllerBase
     [Authorize(Policy = Politicas.DocumentoConsultar)]
     public async Task<IActionResult> Descargar(long id, CancellationToken cancellationToken)
     {
-        var documento = await _servicio.ObtenerArchivoAsync(id, cancellationToken);
+        ArchivoGuardado? documento;
+        try
+        {
+            documento = await _servicio.ObtenerArchivoAsync(id, cancellationToken);
+        }
+        catch (AlmacenNoDisponibleException excepcion)
+        {
+            _logger.LogError(excepcion, "No se pudo leer de R2 el PDF del documento técnico {DocumentoId}", id);
+            return AlmacenNoDisponible();
+        }
+
         if (documento is null)
         {
             return NotFound();
         }
 
         return File(documento.Contenido, "application/pdf", documento.NombreArchivo);
+    }
+
+    private ObjectResult AlmacenNoDisponible()
+    {
+        return this.RespuestaDeError(503, "ALMACEN_NO_DISPONIBLE",
+            "No se pudo acceder a los archivos de los documentos. Probá de nuevo en unos minutos.");
     }
 
     /// <summary>Elimina un documento técnico.</summary>

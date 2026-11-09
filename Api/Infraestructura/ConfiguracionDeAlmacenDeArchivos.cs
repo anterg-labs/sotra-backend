@@ -42,7 +42,7 @@ public static class ConfiguracionDeAlmacenDeArchivos
 
         servicios.AddSingleton<IAlmacenDeArchivos>(new AlmacenR2(valores["R2_ENDPOINT"], valores["R2_BUCKET"],
             valores["R2_ACCESS_KEY_ID"], valores["R2_SECRET_ACCESS_KEY"]));
-        servicios.AddHostedService<MigradorDeEvidenciasAlAlmacen>();
+        servicios.AddHostedService<MigradorDeArchivosAlAlmacen>();
         return servicios;
     }
 }

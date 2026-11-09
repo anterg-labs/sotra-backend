@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -27,40 +26,6 @@ public class EvidenciasEnR2Pruebas
     private WebApplicationFactory<PuntoDeEntrada> _fabrica = null!;
     private HttpClient _cliente = null!;
 
-    private sealed class AlmacenEnMemoria : IAlmacenDeArchivos
-    {
-        public ConcurrentDictionary<string, byte[]> Archivos { get; } = new();
-
-        public bool Falla { get; set; }
-
-        public Task GuardarAsync(string clave, byte[] contenido, string tipoContenido, CancellationToken cancelacion)
-        {
-            if (Falla)
-            {
-                throw new AlmacenNoDisponibleException("R2 de prueba caído.");
-            }
-
-            Archivos[clave] = contenido;
-            return Task.CompletedTask;
-        }
-
-        public Task<byte[]?> LeerAsync(string clave, CancellationToken cancelacion)
-        {
-            if (Falla)
-            {
-                throw new AlmacenNoDisponibleException("R2 de prueba caído.");
-            }
-
-            return Task.FromResult(Archivos.TryGetValue(clave, out var contenido) ? contenido : null);
-        }
-
-        public Task BorrarAsync(string clave, CancellationToken cancelacion)
-        {
-            Archivos.TryRemove(clave, out _);
-            return Task.CompletedTask;
-        }
-    }
-
     [OneTimeSetUp]
     public void Preparar()
     {
@@ -83,20 +48,9 @@ public class EvidenciasEnR2Pruebas
         _almacen.Falla = false;
     }
 
-    private async Task<long> CrearOrdenAsync(HttpClient cliente)
+    private static Task<long> CrearOrdenAsync(HttpClient cliente)
     {
-        var activo = await DatosDePrueba.CrearActivoAsync(cliente);
-        var respuesta = await cliente.PostAsJsonAsync("/api/v1/ordenes-trabajo", new
-        {
-            clienteId = activo.GetProperty("clienteId").GetInt64(),
-            activoId = activo.GetProperty("id").GetInt64(),
-            tipo = "correctivo",
-            prioridad = "baja",
-            descripcion = "Revisión general",
-            fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow),
-        });
-        respuesta.EnsureSuccessStatusCode();
-        return (await respuesta.LeerJsonAsync()).GetProperty("id").GetInt64();
+        return DatosDePrueba.CrearOrdenIniciadaAsync(cliente);
     }
 
     private static Task<HttpResponseMessage> RegistrarAsync(HttpClient cliente, long ordenId, string tipo, byte[] archivo,
@@ -191,8 +145,8 @@ public class EvidenciasEnR2Pruebas
             .GetProperty("id").GetInt64();
         Assert.That((await LeerFilaAsync(evidenciaId)).Archivo, Is.EqualTo(Png));
 
-        var migrador = new MigradorDeEvidenciasAlAlmacen(_fabrica.Services.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<MigradorDeEvidenciasAlAlmacen>.Instance);
+        var migrador = new MigradorDeArchivosAlAlmacen(_fabrica.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<MigradorDeArchivosAlAlmacen>.Instance);
         await migrador.StartAsync(CancellationToken.None);
         await migrador.ExecuteTask!;
 

@@ -175,6 +175,7 @@ public static class OrdenTrabajoMapeador
                 .Where(t => !soloTecnico || t.PuedeTecnico)
                 .Select(t => new TransicionOrdenDto(t.Destino, t.ExigeMotivo, t.PuedeTecnico, t.Accion, t.Principal))
                 .ToList(),
+            AdmiteEvidencias = reglas.AdmiteEvidencias(estado),
             HistorialEstados = historialEstados,
             HistorialTecnicos = historialTecnicos,
             HistorialRepuestos = historialRepuestos

@@ -57,6 +57,8 @@ public class OrdenTrabajoDto
     public List<RepuestoOrdenDto> Repuestos { get; init; } = new();
     /// <summary>Estados a los que puede pasar la orden desde el actual.</summary>
     public List<TransicionOrdenDto> Transiciones { get; init; } = new();
+    /// <summary>Si se pueden registrar evidencias: la orden ya se inició y todavía no se cerró ni se eliminó.</summary>
+    public bool AdmiteEvidencias { get; init; }
     /// <summary>Historial de cambios de estado.</summary>
     public List<HistorialEstadoDto> HistorialEstados { get; init; } = new();
     /// <summary>Historial de asignaciones de técnico.</summary>
