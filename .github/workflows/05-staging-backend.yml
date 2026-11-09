@@ -81,34 +81,41 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.version.outputs.value }}
 
-      - name: Construir y publicar QA
-        id: build
+      - name: Construir imagen QA localmente
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          load: true
+          push: false
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: true
+          provenance: false
 
-      # Analiza la imagen publicada por digest, sin volver a construirla.
-      # Un resultado fallido impide ejecutar el job deploy.
-      - name: Analizar imagen Docker con Trivy
+      # Analiza la imagen local antes de publicarla en GHCR.
+      # Si falla Trivy, el paso de publicacion no se ejecuta.
+      - name: Analizar imagen Docker local con Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
-          image-ref: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.image.outputs.name }}:${{ steps.version.outputs.value }}
           format: table
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+      - name: Publicar imagen validada en GHCR
+        shell: bash
         env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE_NAME:$IMAGE_VERSION"
+          docker push "$IMAGE_NAME:qa"
 
   deploy:
     needs: publish
