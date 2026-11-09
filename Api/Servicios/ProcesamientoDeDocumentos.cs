@@ -24,12 +24,14 @@ public static class ErroresDeProcesamiento
     public const string PdfSinTexto = "PDF_SIN_TEXTO";
     public const string ServicioIaNoDisponible = "SERVICIO_IA_NO_DISPONIBLE";
     public const string ProcesamientoFallido = "PROCESAMIENTO_FALLIDO";
+    public const string ArchivoNoDisponible = "ARCHIVO_NO_DISPONIBLE";
 
     public static string Mensaje(string codigo) => codigo switch
     {
         PdfInvalido => "No se pudo leer el PDF.",
         PdfSinTexto => "El PDF no tiene texto que se pueda leer; puede ser un documento escaneado.",
         ServicioIaNoDisponible => "El servicio de IA no estaba disponible. Volvé a procesar el documento más tarde.",
+        ArchivoNoDisponible => "No se pudo leer el PDF guardado. Volvé a procesar el documento más tarde.",
         _ => "No se pudo procesar el documento. Volvé a intentarlo más tarde.",
     };
 }

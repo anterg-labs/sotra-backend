@@ -63,7 +63,7 @@ public static class BaseVectorial
                 activo_id BIGINT,
                 usa_sugerencias_ia BOOLEAN NOT NULL,
                 cantidad_fragmentos INTEGER NOT NULL DEFAULT 0,
-                archivo BYTEA NOT NULL,
+                archivo BYTEA,
                 texto TEXT NOT NULL DEFAULT '',
                 creado_en TIMESTAMPTZ NOT NULL,
                 documento_vectorial_id BIGINT,
@@ -81,6 +81,10 @@ public static class BaseVectorial
             );
             ALTER TABLE vectorial.documento_tecnico
                 ADD COLUMN IF NOT EXISTS documento_vectorial_id BIGINT;
+            ALTER TABLE vectorial.documento_tecnico
+                ADD COLUMN IF NOT EXISTS clave_archivo VARCHAR(300);
+            ALTER TABLE vectorial.documento_tecnico
+                ALTER COLUMN archivo DROP NOT NULL;
             """, conexion);
         await comando.ExecuteNonQueryAsync(cancellationToken);
         await conexion.ReloadTypesAsync(cancellationToken);

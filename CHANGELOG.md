@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Version 1.0.130 (2026-11-09)
+
+- Evidencias: solo se registran en órdenes iniciadas. Una orden pendiente responde `409` `ORDEN_NO_INICIADA`; en progreso, pausada o en revisión se siguen admitiendo. El detalle de la orden trae `admiteEvidencias` para que la interfaz oculte el formulario.
+- Documentos técnicos: los PDF se guardan en Cloudflare R2 (carpeta `documentacion/`) en lugar de la base; la fila guarda la ruta en la columna nueva `clave_archivo` (`database/cambios/2026-11-09-documento-tecnico-clave-archivo.sql`). Los fragmentos y embeddings siguen en la base, así que las sugerencias de IA no cambian. Al eliminar un documento se borra su PDF de R2.
+- Documentos técnicos: si al procesar no se puede leer el PDF de R2, el documento queda en `error` con `ARCHIVO_NO_DISPONIBLE`; si R2 no responde al subir o descargar, `503` `ALMACEN_NO_DISPONIBLE`.
+- R2: el traspaso automático al arrancar (`MigradorDeArchivosAlAlmacen`, antes `MigradorDeEvidenciasAlAlmacen`) también pasa a R2 los PDF de los documentos técnicos que estaban en la base.
+
 ## Version 1.0.129 (2026-11-09)
 
 - Evidencias: las fotos y los documentos se guardan en Cloudflare R2 (bucket privado `sotra`, carpeta `evidencias/`) en lugar de la base; la fila guarda la ruta en la columna nueva `clave_archivo` (`database/cambios/2026-11-09-evidencia-clave-archivo.sql`). La descarga sigue pasando por la API. Se activa con las variables `R2_*` del `.env`; sin ellas todo sigue como antes.

@@ -29,6 +29,7 @@ CREATE TABLE vectorial.documento_tecnico (
     usa_sugerencias_ia boolean NOT NULL,
     cantidad_fragmentos integer DEFAULT 0 NOT NULL,
     archivo bytea,
+    clave_archivo character varying(300),
     texto text DEFAULT ''::text NOT NULL,
     creado_en timestamp with time zone NOT NULL,
     documento_vectorial_id bigint,

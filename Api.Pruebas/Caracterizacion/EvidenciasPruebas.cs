@@ -1,4 +1,4 @@
-using Api.Infraestructura;
+﻿using Api.Infraestructura;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -12,20 +12,9 @@ public class EvidenciasPruebas : PruebaBase
     private static readonly byte[] Pdf = "%PDF-1.4\n%%EOF"u8.ToArray();
     private static readonly byte[] Ejecutable = [0x4D, 0x5A, 0x90, 0x00, 0x03];
 
-    private async Task<long> CrearOrdenAsync()
+    private Task<long> CrearOrdenAsync()
     {
-        var activo = await DatosDePrueba.CrearActivoAsync(Cliente);
-        var respuesta = await Cliente.PostAsJsonAsync("/api/v1/ordenes-trabajo", new
-        {
-            clienteId = activo.GetProperty("clienteId").GetInt64(),
-            activoId = activo.GetProperty("id").GetInt64(),
-            tipo = "correctivo",
-            prioridad = "baja",
-            descripcion = "Revisión general",
-            fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow),
-        });
-        respuesta.EnsureSuccessStatusCode();
-        return (await respuesta.LeerJsonAsync()).GetProperty("id").GetInt64();
+        return DatosDePrueba.CrearOrdenIniciadaAsync(Cliente);
     }
 
     private Task<HttpResponseMessage> RegistrarAsync(long ordenId, string tipo, byte[]? archivo = null,
@@ -164,9 +153,43 @@ public class EvidenciasPruebas : PruebaBase
     }
 
     [Test]
+    public async Task UnaOrdenPendienteNoAdmiteEvidenciasHastaQueSeInicia()
+    {
+        var pendiente = await DatosDePrueba.CrearOrdenAsync(Cliente);
+
+        var enPendiente = await RegistrarAsync(pendiente, "observacion", observacion: "Antes de empezar");
+
+        Assert.That(enPendiente.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That(await LeerCodigoAsync(enPendiente), Is.EqualTo("ORDEN_NO_INICIADA"));
+        var listado = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{pendiente}/evidencias")).LeerJsonAsync();
+        Assert.That(listado.GetArrayLength(), Is.Zero);
+        var ordenPendiente = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{pendiente}")).LeerJsonAsync();
+        Assert.That(ordenPendiente.GetProperty("admiteEvidencias").GetBoolean(), Is.False);
+
+        var iniciada = await CrearOrdenAsync();
+        var ordenIniciada = await (await Cliente.GetAsync($"/api/v1/ordenes-trabajo/{iniciada}")).LeerJsonAsync();
+        Assert.That(ordenIniciada.GetProperty("admiteEvidencias").GetBoolean(), Is.True);
+    }
+
+    [Test]
+    public async Task UnaOrdenPausadaOEnRevisionSigueAdmitiendoEvidencias()
+    {
+        var ordenId = await CrearOrdenAsync();
+        (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado",
+            new { estado = "pausado", motivo = "Falta un repuesto", motivoCodigo = "falta_repuesto" })).EnsureSuccessStatusCode();
+        var enPausa = await RegistrarAsync(ordenId, "observacion", observacion: "En pausa");
+        (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado", new { estado = "en_progreso" })).EnsureSuccessStatusCode();
+        (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado", new { estado = "en_revision" })).EnsureSuccessStatusCode();
+        var enRevision = await RegistrarAsync(ordenId, "observacion", observacion: "En revisión");
+
+        Assert.That(enPausa.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+        Assert.That(enRevision.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+    }
+
+    [Test]
     public async Task UnaOrdenEliminadaNoAdmiteEvidenciasNiLasDeOtraOrdenSeMezclan()
     {
-        var cancelada = await CrearOrdenAsync();
+        var cancelada = await DatosDePrueba.CrearOrdenAsync(Cliente);
         (await Cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{cancelada}/estado",
             new { estado = "eliminado", motivo = "Duplicada" })).EnsureSuccessStatusCode();
         var otra = await CrearOrdenAsync();

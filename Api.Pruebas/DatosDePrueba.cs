@@ -111,4 +111,34 @@ public static class DatosDePrueba
         respuesta.EnsureSuccessStatusCode();
         return await respuesta.LeerJsonAsync();
     }
+
+    /// <summary>Crea una orden correctiva en su estado inicial (pendiente) y devuelve su id.</summary>
+    public static async Task<long> CrearOrdenAsync(HttpClient cliente)
+    {
+        var activo = await CrearActivoAsync(cliente);
+        var respuesta = await cliente.PostAsJsonAsync("/api/v1/ordenes-trabajo", new
+        {
+            clienteId = activo.GetProperty("clienteId").GetInt64(),
+            activoId = activo.GetProperty("id").GetInt64(),
+            tipo = "correctivo",
+            prioridad = "baja",
+            descripcion = "Revisión general",
+            fechaPrevistaEjecucion = DateOnly.FromDateTime(DateTime.UtcNow),
+        });
+        respuesta.EnsureSuccessStatusCode();
+        return (await respuesta.LeerJsonAsync()).GetProperty("id").GetInt64();
+    }
+
+    /// <summary>Crea una orden, le asigna un técnico nuevo y la pasa a en progreso. Devuelve su id.</summary>
+    public static async Task<long> CrearOrdenIniciadaAsync(HttpClient cliente)
+    {
+        const long rolTecnico = 3;
+        var ordenId = await CrearOrdenAsync(cliente);
+        var tecnico = await CrearUsuarioAsync(cliente, UsuarioNuevo(idsRol: [rolTecnico]));
+        (await cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/tecnico",
+            new { tecnicoId = tecnico.GetProperty("id").GetInt64() })).EnsureSuccessStatusCode();
+        (await cliente.PatchAsJsonAsync($"/api/v1/ordenes-trabajo/{ordenId}/estado",
+            new { estado = "en_progreso" })).EnsureSuccessStatusCode();
+        return ordenId;
+    }
 }

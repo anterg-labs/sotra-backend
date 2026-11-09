@@ -75,6 +75,12 @@ public sealed class ReglasDeEstadoOrden
 
     public bool EstaCerrada(string nombre) => FaseDe(nombre) == FasesDeEstado.Cerrada;
 
+    /// <summary>La orden todavía no se inició (fase <c>pendiente</c>): no admite evidencias.</summary>
+    public bool EstaSinIniciar(string nombre) => FaseDe(nombre) == FasesDeEstado.Pendiente;
+
+    /// <summary>Se registran evidencias desde que la orden se inicia hasta que se cierra o se elimina.</summary>
+    public bool AdmiteEvidencias(string nombre) => EsValido(nombre) && !EsFinal(nombre) && !EstaSinIniciar(nombre);
+
     /// <summary>Estado al que pasa sola la orden cuando se le asigna un técnico, si el actual lo define.</summary>
     public string? EstadoAlAsignarTecnico(string estadoActual) =>
         TransicionesDesde(estadoActual).FirstOrDefault(t => t.AlAsignarTecnico)?.Destino;
