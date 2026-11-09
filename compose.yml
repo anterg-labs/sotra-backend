@@ -64,6 +64,10 @@ services:
       IA_API_CLAVE: ${IA_API_CLAVE:-}
       IA_API_ESFUERZO: ${IA_API_ESFUERZO-low}
       IA_API_LLAMADAS_POR_MINUTO: ${IA_API_LLAMADAS_POR_MINUTO:-10}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       KEYCLOAK_EMISOR: ${KEYCLOAK_EMISOR:-http://localhost:${KC_PORT}/realms/sotra}
       KEYCLOAK_METADATA: http://keycloak:8080/realms/sotra/.well-known/openid-configuration
       KEYCLOAK_AUDIENCIA: sotra-api

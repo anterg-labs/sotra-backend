@@ -148,6 +148,7 @@ CREATE TABLE operativo.evidencia_ot (
     nombre_archivo character varying(255),
     tipo_contenido character varying(100),
     archivo bytea,
+    clave_archivo character varying(300),
     CONSTRAINT "CK_EVIDENCIA_OT_TIPO" CHECK (((tipo)::text = ANY (ARRAY[('foto'::character varying)::text, ('documento'::character varying)::text, ('observacion'::character varying)::text])))
 );
 

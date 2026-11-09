@@ -57,6 +57,11 @@ public class EntornoDePruebas
             ["RERANKER_TOKENIZADOR_RUTA"] = "",
             ["IA_API_CLAVE"] = "",
             ["ANTHROPIC_API_KEY"] = "",
+            // Sin R2: las pruebas nunca tocan el bucket real; las que prueban R2 usan un almacén en memoria.
+            ["R2_ENDPOINT"] = "",
+            ["R2_BUCKET"] = "",
+            ["R2_ACCESS_KEY_ID"] = "",
+            ["R2_SECRET_ACCESS_KEY"] = "",
             // La API exige estas variables para validar tokens; las pruebas no levantan Keycloak.
             ["KEYCLOAK_EMISOR"] = "https://keycloak.pruebas.test/realms/sotra",
             ["KEYCLOAK_METADATA"] = "https://keycloak.pruebas.test/realms/sotra/.well-known/openid-configuration",

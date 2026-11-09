@@ -20,5 +20,9 @@ public partial class EvidenciaOt
 
     public string? TipoContenido { get; set; }
 
+    /// <summary>Contenido de evidencias guardadas en la base, de antes de R2 o sin R2 configurado.</summary>
     public byte[]? Archivo { get; set; }
+
+    /// <summary>Clave del archivo en R2 (evidencias/{idOrden}/...). Si tiene valor, Archivo queda vacío.</summary>
+    public string? ClaveArchivo { get; set; }
 }
