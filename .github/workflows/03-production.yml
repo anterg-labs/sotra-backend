@@ -97,18 +97,41 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.version.outputs.value }}
 
-      - name: Construir y publicar imagen
+      - name: Construir imagen Docker localmente
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          load: true
+          push: false
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: true
+          provenance: false
 
-  # DESPLEGAR EN VPS
+      # Se analiza la imagen construida localmente antes de publicarla.
+      # Si Trivy falla, la publicación y el despliegue no se ejecutan.
+      - name: Analizar imagen Docker local con Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.name }}:${{ steps.version.outputs.value }}
+          format: table
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Publicar imagen validada en GHCR
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE_NAME:$IMAGE_VERSION"
+          docker push "$IMAGE_NAME:latest"
 
   deploy:
     name: Desplegar backend en VPS
