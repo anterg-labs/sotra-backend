@@ -183,6 +183,41 @@ public class RepuestosController : ControllerBase
         return Ok(await ADtoAsync(repuesto, cancelacion));
     }
 
+    /// <summary>
+    /// Órdenes que tienen unidades del repuesto reservadas o entregadas: las que restan del disponible. Con
+    /// <c>estado=reservado</c> o <c>estado=entregado</c> devuelve solo las de ese estado.
+    /// </summary>
+    [HttpGet("{id:long}/ordenes-comprometidas")]
+    [Authorize(Policy = Politicas.StockConsultar)]
+    public async Task<ActionResult<List<OrdenComprometidaDto>>> ObtenerOrdenesComprometidas(long id, [FromQuery] string? estado,
+        CancellationToken cancelacion)
+    {
+        var estadoFiltrado = string.IsNullOrWhiteSpace(estado) ? null : estado.Trim().ToLowerInvariant();
+        if (estadoFiltrado is not null && !EstadosRepuestoOrden.Comprometidos.Contains(estadoFiltrado))
+        {
+            return this.RespuestaDeError(400, "ESTADO_INVALIDO", "El estado debe ser 'reservado' o 'entregado'.");
+        }
+
+        if (!await _repuestoDao.ExisteAsync(id, cancelacion))
+        {
+            return NotFound();
+        }
+
+        var ordenes = await _repuestoDao.ListarOrdenesComprometidasAsync(id, estadoFiltrado, cancelacion);
+        return Ok(ordenes.Select(orden => new OrdenComprometidaDto
+        {
+            OrdenId = orden.IdOrden,
+            EstadoRepuesto = orden.EstadoRepuesto,
+            Cantidad = orden.Cantidad,
+            EstadoOrden = orden.EstadoOrden,
+            NombreCliente = orden.NombreCliente,
+            NombreActivo = orden.NombreActivo,
+            NombreTecnico = orden.NombreTecnico,
+            FechaPrevistaEjecucion = orden.FechaPrevistaEjecucion,
+            Desde = orden.Desde,
+        }).ToList());
+    }
+
     /// <summary>Registra un repuesto.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.RepuestoGestionar)]

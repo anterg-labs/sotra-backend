@@ -393,6 +393,61 @@ public class ReservasDeRepuestosPruebas : PruebaBase
     }
 
     [Test]
+    public async Task LasOrdenesComprometidasMuestranQuienTieneReservadoOEntregadoElRepuesto()
+    {
+        var repuesto = await CrearRepuestoAsync(20);
+        var reservada = await CrearOrdenOkAsync(null, (repuesto, 3));
+        var entregada = await CrearOrdenOkAsync(await CrearTecnicoAsync(), (repuesto, 5));
+        (await CambiarEstadoAsync(entregada, "en_progreso")).EnsureSuccessStatusCode();
+        var liberada = await CrearOrdenOkAsync(null, (repuesto, 2));
+        (await CambiarEstadoAsync(liberada, "eliminado", "Cargada por error")).EnsureSuccessStatusCode();
+
+        var respuesta = await Cliente.GetAsync($"/api/v1/repuestos/{repuesto}/ordenes-comprometidas");
+
+        Assert.That(respuesta.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var ordenes = (await respuesta.LeerJsonAsync()).EnumerateArray().ToList();
+        Assert.That(ordenes.Select(o => o.GetProperty("ordenId").GetInt64()), Is.EqualTo(new[] { entregada, reservada }),
+            "primero las entregadas; la eliminada no aparece");
+        Assert.Multiple(() =>
+        {
+            Assert.That(ordenes[0].GetProperty("estadoRepuesto").GetString(), Is.EqualTo("entregado"));
+            Assert.That(ordenes[0].GetProperty("cantidad").GetInt32(), Is.EqualTo(5));
+            Assert.That(ordenes[0].GetProperty("estadoOrden").GetString(), Is.EqualTo("en_progreso"));
+            Assert.That(ordenes[0].GetProperty("nombreTecnico").GetString(), Is.Not.Null.And.Not.Empty);
+            Assert.That(ordenes[0].GetProperty("desde").ValueKind, Is.EqualTo(JsonValueKind.String));
+            Assert.That(ordenes[1].GetProperty("estadoRepuesto").GetString(), Is.EqualTo("reservado"));
+            Assert.That(ordenes[1].GetProperty("cantidad").GetInt32(), Is.EqualTo(3));
+            Assert.That(ordenes[1].GetProperty("nombreTecnico").ValueKind, Is.EqualTo(JsonValueKind.Null));
+            Assert.That(ordenes[1].GetProperty("nombreCliente").GetString(), Is.Not.Empty);
+            Assert.That(ordenes[1].GetProperty("nombreActivo").GetString(), Is.Not.Empty);
+            Assert.That(ordenes[1].GetProperty("fechaPrevistaEjecucion").GetString(), Does.Match(@"^\d{4}-\d{2}-\d{2}$"));
+        });
+        await VerificarCantidadesAsync(repuesto, fisico: 20, reservada: 3, entregada: 5, disponible: 12);
+
+        var soloReservadas = (await (await Cliente.GetAsync($"/api/v1/repuestos/{repuesto}/ordenes-comprometidas?estado=reservado"))
+            .LeerJsonAsync()).EnumerateArray().Select(o => o.GetProperty("ordenId").GetInt64());
+        var soloEntregadas = (await (await Cliente.GetAsync($"/api/v1/repuestos/{repuesto}/ordenes-comprometidas?estado=entregado"))
+            .LeerJsonAsync()).EnumerateArray().Select(o => o.GetProperty("ordenId").GetInt64());
+        var invalido = await Cliente.GetAsync($"/api/v1/repuestos/{repuesto}/ordenes-comprometidas?estado=liberado");
+        Assert.That(soloReservadas, Is.EqualTo(new[] { reservada }));
+        Assert.That(soloEntregadas, Is.EqualTo(new[] { entregada }));
+        Assert.That(invalido.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task LasOrdenesComprometidasDeUnRepuestoSinReservasVienenVaciasYDeUnoInexistente404()
+    {
+        var repuesto = await CrearRepuestoAsync(4);
+
+        var vacio = await Cliente.GetAsync($"/api/v1/repuestos/{repuesto}/ordenes-comprometidas");
+        var inexistente = await Cliente.GetAsync("/api/v1/repuestos/999999999/ordenes-comprometidas");
+
+        Assert.That(vacio.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That((await vacio.LeerJsonAsync()).GetArrayLength(), Is.EqualTo(0));
+        Assert.That(inexistente.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
     public async Task ElListadoDeRepuestosSePuedeOrdenarPorReservadoEntregadoYDisponible()
     {
         foreach (var columna in new[] { "cantidadReservada", "cantidadEntregada", "cantidadDisponible" })
