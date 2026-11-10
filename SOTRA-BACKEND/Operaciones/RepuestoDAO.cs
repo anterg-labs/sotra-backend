@@ -124,6 +124,43 @@ public class RepuestoDAO
     public Task<Dictionary<long, StockComprometido>> ObtenerComprometidoAsync(IReadOnlyCollection<long> ids, CancellationToken cancelacion) =>
         new ReservasDeRepuestos(_contexto).ObtenerComprometidoAsync(ids, null, cancelacion);
 
+    /// <summary>
+    /// Órdenes que hoy tienen unidades del repuesto reservadas o entregadas (las que restan del disponible), con el
+    /// momento en que la línea llegó a ese estado. Con <paramref name="estado"/> se limita a <c>reservado</c> o
+    /// <c>entregado</c>. Primero las entregadas y, dentro de cada estado, por número de orden.
+    /// </summary>
+    public async Task<List<OrdenConRepuestoComprometido>> ListarOrdenesComprometidasAsync(long repuestoId, string? estado,
+        CancellationToken cancelacion)
+    {
+        var estados = estado is null ? EstadosRepuestoOrden.Comprometidos : [estado];
+        return await _contexto.OtRepuestos.AsNoTracking()
+            .Where(fila => fila.IdRepuesto == repuestoId && estados.Contains(fila.Estado))
+            .OrderBy(fila => fila.Estado == EstadosRepuestoOrden.Entregado ? 0 : 1)
+            .ThenBy(fila => fila.IdOrden)
+            .Select(fila => new OrdenConRepuestoComprometido(
+                fila.IdOrden,
+                fila.Estado,
+                fila.Cantidad,
+                fila.IdOrdenNavigation.HistorialEstadoOts
+                    .OrderByDescending(h => h.FechaHora).ThenByDescending(h => h.IdHEstadoOt)
+                    .Select(h => h.IdEstadoOtNavigation.Nombre).FirstOrDefault() ?? "",
+                fila.IdOrdenNavigation.IdClienteNavigation.RazonSocial,
+                string.IsNullOrWhiteSpace(fila.IdOrdenNavigation.IdActivoNavigation.Nombre)
+                    ? fila.IdOrdenNavigation.IdActivoNavigation.NumSerie
+                    : fila.IdOrdenNavigation.IdActivoNavigation.Nombre,
+                fila.IdOrdenNavigation.IdUsuarioTecnicoNavigation == null
+                    ? null
+                    : fila.IdOrdenNavigation.IdUsuarioTecnicoNavigation.Nombre + " " + fila.IdOrdenNavigation.IdUsuarioTecnicoNavigation.Apellido,
+                fila.IdOrdenNavigation.FechaPrevistaEjecucion,
+                fila.IdOrdenNavigation.HistorialRepuestoOts
+                    .Where(h => h.IdRepuesto == repuestoId && h.EstadoNuevo == fila.Estado)
+                    .Max(h => (DateTime?)h.FechaHora)))
+            .ToListAsync(cancelacion);
+    }
+
+    public async Task<bool> ExisteAsync(long id, CancellationToken cancelacion) =>
+        await _contexto.Repuestos.AnyAsync(repuesto => repuesto.IdRepuesto == id, cancelacion);
+
     public async Task<Repuesto?> SeleccionarAsync(long id, CancellationToken cancelacion)
     {
         return await _contexto.Repuestos.FirstOrDefaultAsync(repuesto => repuesto.IdRepuesto == id, cancelacion);
@@ -152,3 +189,17 @@ public class RepuestoDAO
             .ExecuteUpdateAsync(cambios => cambios.SetProperty(r => r.Estado, estado), cancelacion) > 0;
     }
 }
+
+/// <summary>Una orden que tiene unidades de un repuesto reservadas o entregadas.</summary>
+/// <param name="EstadoRepuesto"><c>reservado</c> o <c>entregado</c>.</param>
+/// <param name="Desde">Cuándo la línea pasó a ese estado según el historial; <c>null</c> si no quedó registrado.</param>
+public sealed record OrdenConRepuestoComprometido(
+    long IdOrden,
+    string EstadoRepuesto,
+    int Cantidad,
+    string EstadoOrden,
+    string NombreCliente,
+    string NombreActivo,
+    string? NombreTecnico,
+    DateOnly FechaPrevistaEjecucion,
+    DateTime? Desde);
